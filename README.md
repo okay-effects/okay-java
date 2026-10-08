@@ -135,6 +135,35 @@ Lifts are explicit in both styles, because a lift is a subtyping of rows and Jav
   no linear types, so a stale use is an `IllegalStateException`, checked by a generation that the state carries
   and that backtracks with it.
 
+## Measured
+
+Measured on 2026-10-08 with JMH (2 forks, 3+5 iterations, `-prof gc`, JDK 25), one run after the other on the
+same machine (load average 2.5–3.5). Runs: okay-java `037967d` and okay-core `dbdb497` (branch `cont0`), CSVs in
+`bench.d/`. The time is per run, and the allocation per operation.
+
+`EffBenchmark`: 10 000 operations, each crossing `crossed` handlers.
+
+| clause, crossed | Java `Eff` | okay-core `Cont0` | okay-core `Cont` |
+|---|---|---|---|
+| general, 0 | 68.5 µs, 96 B | 68.6 µs, 104 B | 80.4 µs, 136 B |
+| general, 1 | 121.4 µs, 144 B | 112.9 µs, 160 B | 131.2 µs, 184 B |
+| general, 4 | 276.2 µs, 288 B | 314.0 µs, 328 B | 263.5 µs, 328 B |
+| answering, 0 | 35.9 µs, 64 B | 82.9 µs, 96 B | 43.9 µs, 72 B |
+| answering, 1 | 36.4 µs, 64 B | 59.3 µs, 96 B | 110.5 µs, 120 B |
+| answering, 4 | 35.9 µs, 64 B | 82.2 µs, 96 B | 215.4 µs, 264 B |
+
+`EffectsBenchmark`: 1 000 operations. okay-core's numbers are on `Cont`, because its `EffectsBenchmark` is.
+
+| | Java `Eff` | okay-core `Cont` |
+|---|---|---|
+| state get+put | 32.9 µs, 502 B functional; 24.0 µs, 262 B `cell` | 15.6 µs, 214 B (a cell) |
+| writer tell | 21.0 µs, 253 B | 20.1 µs, 258 B |
+| throws raise | 15.4 µs, 280 B | 13.5 µs, 192 B |
+| choose among | 32.2 µs, 284 B | 28.8 µs, 394 B |
+
+Queens 8: Java 143 µs, okay-core `Cont0` 1.19 ms, `Cont` 551 µs. That comparison is not like for like:
+okay-core's `Vector` concatenation and `zipWithIndex` are not Java's `ArrayList` and loop.
+
 ## Build
 
 ```sh
