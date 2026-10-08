@@ -1,6 +1,5 @@
 package okay.std;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -17,15 +16,15 @@ public interface Choose {
   }
 
   static <A> Eff<List<A>> all(Function<Choose, Eff<A>> body) {
-    return Eff.handle((Prompt<List<A>> p) -> body.apply(new Choose() {
+    return Eff.handle((Prompt<Rope<A>> p) -> body.apply(new Choose() {
       public <X> Eff<X> among(List<X> xs) {
         return p.shift0(k -> {
-          Eff<List<A>> acc = Eff.pure(List.of());
-          for (X x : xs) acc = acc.flatMap(l -> k.apply(x).map(r -> concat(l, r)));
+          Eff<Rope<A>> acc = Eff.pure(Rope.empty());
+          for (X x : xs) acc = acc.flatMap(l -> k.apply(x).map(r -> Rope.cat(l, r)));
           return acc;
         });
       }
-    }), a -> Eff.pure(List.of(a)));
+    }), a -> Eff.pure(new Rope.Leaf<>(a))).map(Rope::toList);
   }
 
   /** the first value the body comes to, its choices tried in order, the rest not tried */
@@ -40,13 +39,5 @@ public interface Choose {
   private static <X, A> Eff<Optional<A>> tryEach(Function<X, Eff<Optional<A>>> k, List<X> xs, int i) {
     return i == xs.size() ? Eff.pure(Optional.empty())
         : k.apply(xs.get(i)).flatMap(r -> r.isPresent() ? Eff.pure(r) : tryEach(k, xs, i + 1));
-  }
-
-  private static <A> List<A> concat(List<A> a, List<A> b) {
-    if (a.isEmpty()) return b;
-    List<A> r = new ArrayList<>(a.size() + b.size());
-    r.addAll(a);
-    r.addAll(b);
-    return r;
   }
 }

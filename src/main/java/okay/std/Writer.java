@@ -1,6 +1,5 @@
 package okay.std;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import okay.core.Eff;
@@ -15,14 +14,11 @@ public interface Writer<W> {
 
   static <W, A> Eff<Log<W, A>> writer(Function<Writer<W>, Eff<A>> body) {
     return Eff.handle(
-        (Prompt<Log<W, A>> p) -> body.apply(w -> p.shift0(k -> k.apply(null).map(r -> new Log<>(prepend(w, r.log()), r.value())))),
-        a -> Eff.pure(new Log<>(List.of(), a)));
+        (Prompt<Built<W, A>> p) -> body.apply(w -> p.shift0(k -> k.apply(null).map(r -> new Built<>(new Rope.Cat<>(new Rope.Leaf<>(w), r.log()), r.value())))),
+        a -> Eff.pure(new Built<>(Rope.<W>empty(), a)))
+        .map(b -> new Log<>(b.log().toList(), b.value()));
   }
 
-  private static <W> List<W> prepend(W w, List<W> l) {
-    List<W> r = new ArrayList<>(l.size() + 1);
-    r.add(w);
-    r.addAll(l);
-    return r;
-  }
+  /** the log while it is built: each tell in front, in constant time */
+  record Built<W, A>(Rope<W> log, A value) {}
 }
