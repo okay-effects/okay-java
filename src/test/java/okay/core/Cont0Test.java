@@ -10,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.ArrayList;
+import okay.std.PState0;
+import okay.std.State.Final;
 import java.util.List;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,31 @@ class Cont0Test {
         Cont0Test.<Function<Integer, Function<String, String>>, Function<String, String>>d()
             .flatMap(a -> Cont0Test.<Function<String, String>, String>s().map(b -> "a=" + a + ", b=" + b))));
     assertEquals("a=1, b=x", format.apply(1).apply("x"));
+  }
+
+  @Test
+  void pstateTheTypeChangedInTheAnswerType() {
+    // okay-core's: an Integer in, a String put, read back as a String
+    Cont0<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = PState0.pstate(7,
+        PState0.<Final<String, Integer>, Final<String, Integer>, Integer>get()
+            .flatMap(n -> PState0.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x".repeat(n)))
+            .flatMap(_ -> PState0.<Final<String, Integer>, Final<String, Integer>, String>get())
+            .map(String::length));
+    assertEquals(new Final<>("xxxxxxx", 7), value(p));
+  }
+
+  private static String pstateGetting(String type) {
+    return """
+        Cont0<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = PState0.pstate(7,
+            PState0.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x")
+                .flatMap(_ -> PState0.<Final<String, Integer>, Final<String, Integer>, %s>get()).map(Object::hashCode));
+        """.formatted(type);
+  }
+
+  @Test
+  void pstateAGetOfTheWrongTypeDoesNotCompile() throws java.io.IOException {
+    assertEquals(List.of(), FxTest.errors(pstateGetting("String")));
+    assertFalse(FxTest.errors(pstateGetting("Integer")).isEmpty());
   }
 
   @Test

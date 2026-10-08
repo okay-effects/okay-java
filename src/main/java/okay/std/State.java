@@ -33,4 +33,24 @@ public interface State<S> {
         a -> Eff.pure(s -> Eff.pure(new Final<>(s, a))));
     return handled.flatMap(f -> f.apply(init));
   }
+
+  /** okay-core's {@code state}: answered IN PLACE from a cell, no prompt, no capture — one cell per RUN, made when
+   * the loop gets to it. A resumption shares the cell: a body resumed twice sees one state, the second resumption
+   * the first's last — {@link #state}'s backtracking traded for an operation that costs a read */
+  static <S, A> Eff<Final<S, A>> cell(S init, Function<State<S>, Eff<A>> body) {
+    return Eff.delay(() -> {
+      Object[] cell = {init};
+      @SuppressWarnings("unchecked")
+      Eff<S> get = Eff.sync(() -> (S) cell[0]);
+      return body.apply(new State<S>() {
+        public Eff<S> get() {
+          return get;
+        }
+
+        public Eff<Void> put(S s) {
+          return Eff.sync(() -> { cell[0] = s; return null; });
+        }
+      }).flatMap(a -> get.map(s -> new Final<>(s, a)));
+    });
+  }
 }

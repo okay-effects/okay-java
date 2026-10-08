@@ -18,11 +18,13 @@ okay-core's delimited continuations in Java 25, and effects on `shift0`.
 | Effect | Operations | Handlers |
 |---|---|---|
 | `Reader<E>` | `ask` | `reader(e, r -> body)`: answered in place, no prompt |
-| `State<S>` | `get`, `put`, `modify` | `state(s0, st -> body)` → `Final(s, a)` |
+| `State<S>` | `get`, `put`, `modify` | `state(s0, st -> body)` → `Final(s, a)`, functional: a k resumed twice resumes the state of its time; `cell(s0, st -> body)`: okay-core's, answered in place from a cell, one per run |
 | `Writer<W>` | `tell` | `writer(w -> body)` → `Log(ws, a)` |
-| `Throws<E>` | `raise` | `catching(t -> body, e -> recovery)` |
+| `Throws<E>` | `raise` | `catching(t -> body, e -> recovery)`, `attempt(t -> body)` → `Result` (`Ok` / `Failed`) |
 | `Choose` | `among`, `fail` (multi-shot) | `all(ch -> body)` → `List`, `first(ch -> body)` → `Optional` |
 | `PState<S>` | `get`, `put` (a new type), `done` | `pstate(s0, st -> body)`: the type in the capability, a typestate |
+| `PState0` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont0`: okay-core's, the type in the answer type |
+| `Async` | `async`, `await` (callback or `CompletionStage`), `raise` | `runAsync(as -> body)` → `CompletableFuture`; `run(t, as -> body)` waits, its failure raised to `t` |
 | `Emit<X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `iterator(body)` → lazy `java.util.Iterator` |
 
 ## Effects on `shift0`
@@ -105,15 +107,29 @@ The cost is a record around `Eff`: 112 B per operation against 96 B. What the ty
 the same effect at the same level, for example a capability leaked from one `state` and used in another. Those
 stay apart only by prompt, at run time.
 
-Java can't do better without losing lambdas. A level fresh per handler (runST's rank-2 trick) needs a generic
-method in the body, which only an anonymous class can implement. Lifts are explicit because a lift is a subtyping
-of rows, and Java can't express that.
+`Fx.scoped` closes that gap with a level that is fresh for each handler. This is runST's rank-2 trick: the body is a
+generic method `<M> Fx<M, A> apply(Cap<M, E> cap, Lift<L, M> up)`, and `M` is a type variable nobody outside the
+body can name. A capability leaked from one handler and used in another at the same place is then a type error
+too. The cost is that the body has to be an anonymous class, because a lambda can't implement a generic method:
+
+```java
+Fx.scoped(state(0), new Fx.Body<>() {
+  public <M> Fx<M, List<Integer>> apply(Cap<M, State<Integer>> st, Fx.Lift<Top, M> up) {
+    return Fx.scoped(all(), new Fx.Body<M, Choose, Integer>() {
+      public <N> Fx<N, Integer> apply(Cap<N, Choose> ch, Fx.Lift<M, N> in) { return step(in.cap(st), ch); }
+    });
+  }
+});
+```
+
+Lifts are explicit in both styles, because a lift is a subtyping of rows and Java can't express that.
 
 ## Answer-type modification
 
 - **On `Cont0`, in full.** A `shift0` modifies the answer of its delimiter. `Cont0Test`'s printf: `%d` turns the
   answer from `T` into `Integer -> T`, so `reset0("a=" + %d + ", b=" + %s)` is a
-  `Function<Integer, Function<String, String>>`.
+  `Function<Integer, Function<String, String>>`. `PState0` is okay-core's `PState`: the state's type is carried in
+  the answer type, and a `get` of the wrong type doesn't compile.
 - **On `Eff`, as a typestate.** What ATM is mostly used for is a state whose type changes (okay-core's `PState`).
   Here the type is in the capability: `put` of a `T` gives a `PState<T>`, and the old capability is stale. Java has
   no linear types, so a stale use is an `IllegalStateException`, checked by a generation that the state carries

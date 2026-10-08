@@ -40,6 +40,11 @@ public sealed interface Eff<A>
     return new EffLoop.Return<>(a);
   }
 
+  /** the value of {@code a}, computed when the loop gets to it: an operation answered in place reads a cell so */
+  static <A> Eff<A> sync(Supplier<? extends A> a) {
+    return new EffLoop.Map<>(EffLoop.UNIT, _ -> a.get());
+  }
+
   /** the program {@code c}, built when the loop gets to it: a tail call in constant stack */
   static <A> Eff<A> delay(Supplier<? extends Eff<A>> c) {
     return new EffLoop.Bind<>(EffLoop.UNIT, _ -> c.get());
