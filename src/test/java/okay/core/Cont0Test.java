@@ -35,6 +35,25 @@ class Cont0Test {
     assertEquals("10", value(p));
   }
 
+  /** {@code %d}: the hole a String, the answer modified from {@code T} to {@code Integer -> T} — Danvy's printf */
+  private static <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<Integer, T>>, String> d() {
+    return shift0(k -> pure(x -> value(k.apply(x.toString()))));
+  }
+
+  /** {@code %s}: the answer from {@code T} to {@code String -> T} */
+  private static <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<String, T>>, String> s() {
+    return shift0(k -> pure(x -> value(k.apply(x))));
+  }
+
+  @Test
+  void printfTheAnswerTypeModifiedOncePerHole() {
+    // reset0("a=" + %d + ", b=" + %s): a function of an Integer and a String, its type the format's
+    Function<Integer, Function<String, String>> format = value(reset0(
+        Cont0Test.<Function<Integer, Function<String, String>>, Function<String, String>>d()
+            .flatMap(a -> Cont0Test.<Function<String, String>, String>s().map(b -> "a=" + a + ", b=" + b))));
+    assertEquals("a=1, b=x", format.apply(1).apply("x"));
+  }
+
   @Test
   void aBodyThatDropsKAbortsTheDelimiter() {
     boolean[] ran = {false};

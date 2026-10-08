@@ -154,6 +154,29 @@ class EffectsTest {
   }
 
   @Test
+  void aStateWhoseTypeChangesTheCapabilityItsType() {
+    // an Integer, then a String: the capability put by is stale, the one given in force
+    Final<String, Integer> r = run(PState.<Integer, String, Integer>pstate(1, st ->
+        st.get().flatMap(n -> st.put("s" + n)).flatMap(st2 -> st2.get().flatMap(s -> st2.done(s.length())))));
+    assertEquals(new Final<>("s1", 2), r);
+  }
+
+  @Test
+  void aStaleStateCapabilityFailsAtItsUse() {
+    IllegalStateException e = assertThrows(IllegalStateException.class, () -> run(PState.<Integer, String, Integer>pstate(1,
+        st -> st.put("s").flatMap(st2 -> st.get().flatMap(n -> st2.done(n))))));
+    assertTrue(e.getMessage().contains("another capability"));
+  }
+
+  @Test
+  void aStateWhoseTypeChangesUnderChoiceAPathEach() {
+    // choose outside: each path its own state, its own generations
+    assertEquals(List.of(new Final<>("1!", 1), new Final<>("2!", 2)), run(Choose.<Final<String, Integer>>all(ch ->
+        PState.<Integer, String, Integer>pstate(0, st -> ch.among(List.of(1, 2))
+            .flatMap(x -> st.put(x + "!").flatMap(st2 -> st2.done(x)))))));
+  }
+
+  @Test
   void aGeneratorAsALazyIterator() {
     int[] emitted = {0};
     Iterator<Integer> it = Emit.iterator((Emit<Integer> em) -> naturals(em, 0, emitted));
