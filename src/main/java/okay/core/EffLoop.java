@@ -96,23 +96,32 @@ final class EffLoop {
         case Shift0 s -> { return new Head.Cut(s.prompt(), s.f(), k); }
         case Handle h -> {
           Prompt<?> p = new Prompt<>();
-          c = delimited(step((Eff) h.body().apply(p)), p, h.ret());
+          Head head = step((Eff) h.body().apply(p));
+          if (head instanceof Head.Cut cut && cut.prompt() != p) return lifted(cut, p, h.ret(), k);
+          c = delimited(head, p, h.ret());
         }
-        case Resume r -> c = delimited(resumed(r.x(), r.k()), r.prompt(), r.ret());
+        case Resume r -> {
+          Head head = resumed(r.x(), r.k());
+          if (head instanceof Head.Cut cut && cut.prompt() != r.prompt()) return lifted(cut, r.prompt(), r.ret(), k);
+          c = delimited(head, r.prompt(), r.ret());
+        }
       }
     }
   }
 
-  /** the delimiter's body to its head: a value is answered by {@code ret}; a capture to this prompt has its clause
-   * here, outside, the rest under the delimiter again as k; a capture to another goes on outside — LIFTED: the
-   * same {@code shift0} out there, its value resuming the rest in here */
+  /** the delimiter's body at its head: a value is answered by {@code ret}; a capture to this prompt has its clause
+   * here, outside, the rest under the delimiter again as k */
   private static Eff<?> delimited(Head head, Prompt<?> prompt, Function<Object, Object> ret) {
     return switch (head) {
       case Head.Done d -> (Eff) ret.apply(d.value());
-      case Head.Cut cut -> cut.prompt() == prompt
-          ? (Eff) cut.f().apply(new Resumed(cut.k(), prompt, ret))
-          : new Bind(new Shift0<>(cut.prompt(), cut.f()), new Resumed(cut.k(), prompt, ret));
+      case Head.Cut cut -> (Eff) cut.f().apply(new Resumed(cut.k(), prompt, ret));
     };
+  }
+
+  /** a capture to another prompt CROSSES the delimiter — a lift, {@code shift0 k'. shift0 ... >>= k'}, as one step:
+   * the same capture, its rest the rest in here under the delimiter again, then the rest out here, {@code k} */
+  private static Head lifted(Head.Cut cut, Prompt<?> prompt, Function<Object, Object> ret, Frames k) {
+    return new Head.Cut(cut.prompt(), cut.f(), new Frames.Then(new Resumed(cut.k(), prompt, ret), k));
   }
 
   private static Head resumed(Object x, Frames k) {

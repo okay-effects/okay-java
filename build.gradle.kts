@@ -30,3 +30,20 @@ tasks.test {
     // the stack-safety tests prove constant stack: a small stack makes a regression fail loudly
     jvmArgs("-Xss512k")
 }
+
+// JMH without a plugin: a source set of benchmarks, the annotation processor generating the harness
+val jmh: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+
+dependencies {
+    "jmhImplementation"("org.openjdk.jmh:jmh-core:1.37")
+    "jmhAnnotationProcessor"("org.openjdk.jmh:jmh-generator-annprocess:1.37")
+}
+
+// ./gradlew bench --args='EffBenchmark -prof gc'
+tasks.register<JavaExec>("bench") {
+    classpath = jmh.runtimeClasspath
+    mainClass = "org.openjdk.jmh.Main"
+}
