@@ -64,6 +64,43 @@ public record Fx<L, A>(Eff<A> eff) {
     return new Fx<>(h.handle(e -> body.apply(new Cap<>(e)).eff));
   }
 
+  /** a body at a level of its own, {@code M}, FRESH — a type variable no one outside the body can name: runST's
+   * rank-2 trick. Its capability is {@code Cap<M, E>}; the level outside comes in by {@code up}. Java writes it as a
+   * generic method, so an anonymous class, not a lambda */
+  public interface Body<L, E, A> {
+    <M> Fx<M, A> apply(Cap<M, E> cap, Lift<L, M> up);
+  }
+
+  /** {@code L} is outside {@code M}, one handler or more: a program or a capability of {@code L} goes in */
+  public static final class Lift<L, M> {
+    private static final Lift<?, ?> ANY = new Lift<>();
+
+    private Lift() {}
+
+    @SuppressWarnings("unchecked")
+    public <A> Fx<M, A> fx(Fx<L, A> m) {
+      return (Fx<M, A>) (Fx<?, A>) m;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E> Cap<M, E> cap(Cap<L, E> c) {
+      return (Cap<M, E>) (Cap<?, E>) c;
+    }
+
+    /** {@code L} outside {@code M} outside {@code N}: {@code L} outside {@code N} */
+    @SuppressWarnings("unchecked")
+    public <N> Lift<L, N> then(Lift<M, N> inner) {
+      return (Lift<L, N>) ANY;
+    }
+  }
+
+  /** the body under the handler {@code h} at a fresh level: its capability cannot leave it — not as a value, its
+   * type unnameable outside; not into another handler's body, whose level is another variable */
+  @SuppressWarnings("unchecked")
+  public static <L, E, A, R> Fx<L, R> scoped(Handler<E, A, R> h, Body<L, E, A> body) {
+    return new Fx<>(h.handle(e -> body.<Object>apply(new Cap<>(e), (Lift<L, Object>) Lift.ANY).eff));
+  }
+
   /** a program with no handler left to reach */
   public static <A> A run(Fx<Top, A> p) {
     return Eff.run(p.eff);

@@ -57,6 +57,45 @@ class FxTest {
     assertEquals(new Final<>(10, List.of(11)), Fx.run(p));
   }
 
+  @Test
+  void aScopedBodyAtAFreshLevelTheOuterCapabilityLiftedIn() {
+    Fx<Top, Final<Integer, List<Integer>>> p = Fx.scoped(state(0), new Fx.Body<>() {
+      public <M> Fx<M, List<Integer>> apply(Cap<M, State<Integer>> st, Fx.Lift<Top, M> up) {
+        return Fx.scoped(all(), new Fx.Body<M, Choose, Integer>() {
+          public <N> Fx<N, Integer> apply(Cap<N, Choose> ch, Fx.Lift<M, N> in) {
+            return step(in.cap(st), ch);
+          }
+        });
+      }
+    });
+    assertEquals(new Final<>(3, List.of(1, 3)), Fx.run(p));
+  }
+
+  /** a capability out of one scoped state, as a {@code Cap<?, E>}, into a second at the same place: with
+   * {@code handle} both levels are {@code Under<Top, State<Integer>>} and it compiles; scoped, a type error */
+  private static String leakedInto(String secondBody) {
+    return """
+        Cap<?, State<Integer>> leaked = Fx.run(Fx.scoped(state(0), new Fx.Body<Top, State<Integer>, Cap<?, State<Integer>>>() {
+          public <M> Fx<M, Cap<?, State<Integer>>> apply(Cap<M, State<Integer>> st, Lift<Top, M> up) { return Fx.pure(st); }
+        })).value();
+        Fx<Top, Final<Integer, Integer>> again = Fx.scoped(state(1), new Fx.Body<Top, State<Integer>, Integer>() {
+          public <M> Fx<M, Integer> apply(Cap<M, State<Integer>> st, Lift<Top, M> up) { return %s; }
+        });
+        """.formatted(secondBody);
+  }
+
+  @Test
+  void aScopedCapabilityLeakedIntoAHandlerAtTheSamePlaceIsATypeError() throws IOException {
+    assertEquals(List.of(), errors(leakedInto("st.perform(State::get)")));
+    assertFalse(errors(leakedInto("leaked.perform(State::get)")).isEmpty());
+    // the same with handle: it compiles, and only the prompt catches it, at run time
+    assertEquals(List.of(), errors("""
+        Cap<Under<Top, State<Integer>>, State<Integer>> leaked =
+            Fx.run(Fx.handle(state(0), (Cap<Under<Top, State<Integer>>, State<Integer>> st) -> Fx.pure(st))).value();
+        Fx<Top, Final<Integer, Integer>> again = Fx.handle(state(1), st -> leaked.perform(State::get));
+        """));
+  }
+
   private static final String PRELUDE = """
       import okay.core.*;
       import okay.core.Fx.*;
