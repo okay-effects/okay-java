@@ -72,7 +72,7 @@ The trade-offs:
 - **No answer-type modification in `Eff`.** That needs the levels in the types, as in `Cont0<I, O, A>`, and
   `Cont0Test` shows how they read in Java.
 - **Crossing a handler costs a lift.** An operation allocates 96 B under its handler and 48 B more per handler
-  crossed (okay-core: 104 B and about 96 B). An operation answered in place allocates 64 B however many handlers it
+  crossed (okay-core before its Redelimit: 104 B and 96 B). An operation answered in place allocates 64 B however many handlers it
   crosses.
 
 ## Build
