@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * its handler is gone has no delimiter to reach: {@link #run} says so.
  */
 public sealed interface Eff<A>
-    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Shift0, EffLoop.Handle, EffLoop.Push, EffLoop.Resume {
+    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Shift0, EffLoop.Suspend, EffLoop.Handle, EffLoop.Push, EffLoop.Resume {
 
   default <B> Eff<B> flatMap(Function<? super A, ? extends Eff<B>> f) {
     return new EffLoop.Bind<>(this, f);

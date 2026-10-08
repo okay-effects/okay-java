@@ -35,18 +35,11 @@ final class Loop0 {
     }
   }
 
-  /** a program's head: its value, or a capture with the rest — the rest's answer a program, what k gives */
-  sealed interface Head {
-    record Done(Object value) implements Head {}
-
-    record Cut(Function f, Frames0 k) implements Head {}
-  }
-
-  static Head step(Cont0<?, ?, ?> c) {
-    return c instanceof Push p ? loop(p.m(), p.k()) : loop(c, Frames0.END);
-  }
-
-  private static Head loop(Cont0<?, ?, ?> program, Frames0 frames) {
+  /** THE DELIMITER'S LOOP, {@code ret $ c}, {@code k} bound under it, run to where it leaves the delimiter: a value,
+   * answered by {@code ret}; a capture, its body the delimiter's program outside, in its place — NOT put under a
+   * delimiter, as {@link Loop#delimited} puts shift's — the rest under it again, {@code ret} included, as k. What
+   * leaves is made here, no head between; nothing wraps the body, so nothing nests */
+  private static Object delimited(Cont0<?, ?, ?> program, Frames0 frames, Function<Object, Object> ret) {
     Cont0 c = program;
     Frames0 k = frames;
     while (true) {
@@ -62,7 +55,7 @@ final class Loop0 {
               v = f.apply(v);
               k = next;
             } else {
-              return new Head.Done(v);
+              return ret.apply(v);
             }
           }
         }
@@ -82,29 +75,19 @@ final class Loop0 {
           k = k instanceof Frames0.End ? p.k() : new Frames0.Then(p.k(), k);
           c = p.m();
         }
-        case Cont0.Shift0 s -> { return new Head.Cut(s.f(), k); }
-        case Cont0.Dollar d -> c = delimited(step(d.body()), d.ret());
-        case Resume r -> c = delimited(resumed(r.x(), r.k()), r.ret());
+        case Cont0.Shift0 s -> { return s.f().apply(new Resumed(k, ret)); }
+        case Cont0.Dollar d -> c = (Cont0) delimited(d.body(), Frames0.END, d.ret());
+        case Resume r -> c = (Cont0) resume(r.x(), r.k(), r.ret());
       }
     }
   }
 
-  /** the delimiter's body to its head: a value is answered by {@code ret}; a capture's body is the delimiter's
-   * program outside, in its place — NOT put under a delimiter, as {@link Loop#delimited} puts shift's — with the rest
-   * under the delimiter, {@code ret} included, as k. Nothing wraps the body, so nothing nests */
-  private static Cont0<?, ?, ?> delimited(Head head, Function<Object, Object> ret) {
-    return switch (head) {
-      case Head.Done d -> (Cont0) ret.apply(d.value());
-      case Head.Cut cut -> (Cont0) cut.f().apply(new Resumed(cut.k(), ret));
-    };
-  }
-
-  /** a resumed stack to its head: {@code x} through it, its first frame applied here */
-  private static Head resumed(Object x, Frames0 k) {
+  /** {@code x} through a resumed stack under its delimiter: its first frame applied here */
+  private static Object resume(Object x, Frames0 k, Function<Object, Object> ret) {
     return switch (k) {
-      case Frames0.End _ -> new Head.Done(x);
-      case Frames0.Then(var f, var next) -> loop((Cont0) f.apply(x), next);
-      case Frames0.Mapped(var f, var next) -> loop(new Cont0.Return<>(f.apply(x)), next);
+      case Frames0.End _ -> ret.apply(x);
+      case Frames0.Then(var f, var next) -> delimited((Cont0) f.apply(x), next, ret);
+      case Frames0.Mapped(var f, var next) -> delimited(new Cont0.Return<>(f.apply(x)), next, ret);
     };
   }
 
@@ -116,10 +99,8 @@ final class Loop0 {
     }
   }
 
+  /** the top is a delimiter, {@code identity $} */
   static <A> A value(Cont0<A, A, A> c) {
-    return switch (step(c)) {
-      case Head.Done d -> (A) d.value();
-      case Head.Cut cut -> (A) cut.f().apply(new Resumed(cut.k(), Function.identity()));
-    };
+    return (A) delimited(c, Frames0.END, Function.identity());
   }
 }

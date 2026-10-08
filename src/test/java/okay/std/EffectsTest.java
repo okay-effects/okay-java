@@ -87,6 +87,15 @@ class EffectsTest {
         run(answering(1, a -> saying(_ -> saying(_ -> loop(a, 100_000, 0))))));
   }
 
+  static Eff<Integer> deep(Ask a, int d) {
+    return d == 0 ? loop(a, 1000, 0) : saying(_ -> deep(a, d - 1)).map(Log::value);
+  }
+
+  @Test
+  void operationsEachCrossingFiveHundredHandlersOutAndBack() {
+    assertEquals((Integer) 1000, run(asking(1, a -> deep(a, 500))));
+  }
+
   @Test
   void answeredInPlaceUnderMultiShotChooseAndSay() {
     assertEquals(List.of(new Log<>(List.of("15"), 5), new Log<>(List.of("25"), 10)),
