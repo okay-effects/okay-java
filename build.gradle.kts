@@ -42,8 +42,12 @@ dependencies {
     "jmhAnnotationProcessor"("org.openjdk.jmh:jmh-generator-annprocess:1.37")
 }
 
-// ./gradlew bench --args='EffBenchmark -prof gc'
+// ./gradlew bench --args='MonadsBenchmark -prof gc' [-PbenchJdk=26]: on the toolchain's JDK, or another — the same
+// as okay-core's, to compare with it
 tasks.register<JavaExec>("bench") {
     classpath = jmh.runtimeClasspath
     mainClass = "org.openjdk.jmh.Main"
+    (project.findProperty("benchJdk") as String?)?.let { jdk ->
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
+    }
 }
