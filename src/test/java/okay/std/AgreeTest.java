@@ -140,7 +140,7 @@ class AgreeTest {
     return !java.util.Objects.equals(outcome(Backend.MACHINE, p), outcome(Backend.REF, p));
   }
 
-  /** the programs one step smaller: a part a value, a sequence one of its halves, a number 0 — each in the same scope */
+  /** the programs one step smaller: a handler its body, a part a value, a sequence one of its halves, a number 0 */
   static List<Prog> smaller(Prog p) {
     List<Prog> r = new ArrayList<>();
     switch (p) {
@@ -156,12 +156,24 @@ class AgreeTest {
         for (Prog b2 : smaller(b)) r.add(new Prog.Seq(a, b2));
       }
       case Prog.Handle(var k, var n, var body) -> {
+        r.add(unwrap(body, 0));
         r.add(new Prog.Pure(0));
         if (n != 0) r.add(new Prog.Handle(k, 0, body));
         for (Prog b2 : smaller(body)) r.add(new Prog.Handle(k, n, b2));
       }
     }
     return r;
+  }
+
+  /** the body of a handler taken out of it, {@code d} handlers deep in the body: an operation of the handler a value,
+   * one of a handler further out one index nearer */
+  static Prog unwrap(Prog p, int d) {
+    return switch (p) {
+      case Prog.Pure _ -> p;
+      case Prog.Op(var i, var n) -> i == d ? new Prog.Pure(n) : i > d ? new Prog.Op(i - 1, n) : p;
+      case Prog.Seq(var a, var b) -> new Prog.Seq(unwrap(a, d), unwrap(b, d));
+      case Prog.Handle(var k, var n, var body) -> new Prog.Handle(k, n, unwrap(body, d + 1));
+    };
   }
 
   /** a disagreeing program shrunk, greedily, to one no step smaller of which disagrees */
