@@ -1,7 +1,6 @@
 package okay.std;
 
 import static okay.core.Eff.pure;
-import static okay.core.Eff.run;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,15 +10,30 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import okay.core.Backend;
 import okay.core.Eff;
 import okay.core.Prompt;
 import okay.std.State.Final;
 import okay.std.Writer.Log;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /** okay-core's TestEff on {@link Eff}, an effect an interface, a handler a prompt and an implementation of it — and
- * what a row cannot say: two handlers of one effect at once, a capability out of its handler */
+ * what a row cannot say: two handlers of one effect at once, a capability out of its handler. Run on the machine
+ * and on the reference, {@link Backend} */
+@ParameterizedClass
+@EnumSource(Backend.class)
 class EffectsTest {
+
+  /** the machine or the reference: each test on both */
+  @Parameter
+  Backend backend;
+
+  <A> A run(Eff<A> p) {
+    return backend.run(p);
+  }
 
   /** effects of the test's own: an interface each */
   interface Ask {

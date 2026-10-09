@@ -5,7 +5,6 @@ import static okay.core.Cont0.lift;
 import static okay.core.Cont0.pure;
 import static okay.core.Cont0.reset0;
 import static okay.core.Cont0.shift0;
-import static okay.core.Cont0.value;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -15,10 +14,23 @@ import okay.std.State.Final;
 import java.util.List;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /** okay-core's TestCont0: {@code shift0} and {@code $}, where they agree with shift and reset, where they do not.
  * The levels are in the types: a program under one delimiter is {@code Cont0<P, P, A>}, {@code P} the level outside */
+@ParameterizedClass
+@EnumSource(Backend0.class)
 class Cont0Test {
+
+  /** the loop or the reference: each test on both */
+  @Parameter
+  Backend0 backend;
+
+  <A> A value(Cont0<A, A, A> c) {
+    return backend.value(c);
+  }
 
   @Test
   void oneDelimiterAsWithShift() {
@@ -38,12 +50,12 @@ class Cont0Test {
   }
 
   /** {@code %d}: the hole a String, the answer modified from {@code T} to {@code Integer -> T} — Danvy's printf */
-  private static <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<Integer, T>>, String> d() {
+  private <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<Integer, T>>, String> d() {
     return shift0(k -> pure(x -> value(k.apply(x.toString()))));
   }
 
   /** {@code %s}: the answer from {@code T} to {@code String -> T} */
-  private static <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<String, T>>, String> s() {
+  private <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<String, T>>, String> s() {
     return shift0(k -> pure(x -> value(k.apply(x))));
   }
 
@@ -51,8 +63,8 @@ class Cont0Test {
   void printfTheAnswerTypeModifiedOncePerHole() {
     // reset0("a=" + %d + ", b=" + %s): a function of an Integer and a String, its type the format's
     Function<Integer, Function<String, String>> format = value(reset0(
-        Cont0Test.<Function<Integer, Function<String, String>>, Function<String, String>>d()
-            .flatMap(a -> Cont0Test.<Function<String, String>, String>s().map(b -> "a=" + a + ", b=" + b))));
+        this.<Function<Integer, Function<String, String>>, Function<String, String>>d()
+            .flatMap(a -> this.<Function<String, String>, String>s().map(b -> "a=" + a + ", b=" + b))));
     assertEquals("a=1, b=x", format.apply(1).apply("x"));
   }
 
