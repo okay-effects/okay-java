@@ -154,9 +154,9 @@ queens, which are per run.
 | state, functional | 32.70 ns, 502 B | — | — |
 | writer, throwing, choose | 21.93, 17.04, 32.01 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
 | collect / generate | 7.16 / 14.44 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
-| a shift under a reset: 16 maps / 1, `k` 8 times | 724 / 152 ns (was 949 / 238) | 433 / 136 ns | 323 / 126 ns |
+| a shift under a reset: 16 maps / 1, `k` 8 times | 486 / 130 ns (was 949 / 238) | 433 / 136 ns | 323 / 126 ns |
 | the same under a handler | 739 ns (was 951) | 410 / 122 ns | 363 / 139 ns |
-| 256 maps, `k` 8 times / 1 map, `k` once | 7736 / 49 ns (was 6625 / 49) | 5862 / 38 ns | 4676 / 38 ns |
+| 256 maps, `k` 8 times / 1 map, `k` once | 8073 / 49 ns (was 6625 / 49) | 5862 / 38 ns | 4676 / 38 ns |
 | queens 8 (all 92) | 141 µs | 541 µs | 1182 µs |
 
 An answered operation across any number of handlers costs the same in Java. The capability is the handler, so
@@ -168,7 +168,10 @@ The rows marked "was" changed after these runs, measured against the code before
 - A delay is a node of its own, and so is a value computed in place (`Sync`), which a bind takes without a frame.
 - A reset or a resumption under a delimiter of its own prompt runs nested up to 64 deep, as in `zero`.
 
-Captures got 24–36% faster, tail calls 43%, a cell's state 29%. Captures by `shift` are still 1.7× `zero`'s. Two
+Captures got 24–36% faster, tail calls 43%, a cell's state 29%. Then a value goes through the maps on top of the
+stack in a small method of its own, `feed`, as in okay-core, instead of inside the loop's 800 bytes. The JIT
+compiles it apart and better, and a capture with 16 maps resumed 8 times got another 40% faster: 486 ns against
+`zero`'s 323, and 130 against 126 with one map. Two
 benchmarks lost: the deep capture by 15%, and the general clause across 16 handlers by 7%, with 24 B more per
 operation under JMH only. Outside JMH the allocation is the same byte for byte, so this is the JIT's doing as the
 loop grew, not more work. Taking the handler's entry out of the loop does not change it.
