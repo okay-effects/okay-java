@@ -1,6 +1,7 @@
 package okay.core;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /** THE LOOP of {@link Eff}: {@link Loop0}'s, a delimiter its prompt with it — a capture to another prompt crosses
  * it. Each delimiter runs its body in a loop of its own, to where it leaves: no head made between, one Java frame
@@ -14,6 +15,12 @@ final class EffLoop {
   record Bind<L, A, B>(Eff<L, A> m, Function f) implements Eff<L, B> {}
 
   record Map<L, A, B>(Eff<L, A> m, Function<? super A, ? extends B> f) implements Eff<L, B> {}
+
+  /** a program built when the loop gets to it: a tail call, one node */
+  record Delay<L, A>(Supplier<? extends Eff<?, A>> c) implements Eff<L, A> {}
+
+  /** a value computed when the loop gets to it: an operation answered in place from a cell, one node */
+  record Sync<L, A>(Supplier<? extends A> a) implements Eff<L, A> {}
 
   record Shift0<M, X>(Prompt<?, ?, ?> prompt, Function f) implements Eff<M, X> {
     /** an operation bound: one node, {@link Suspend} */
@@ -38,17 +45,14 @@ final class EffLoop {
   /** a clause's k applied to {@code x}: {@code ret $ K[x]} under {@code prompt} again — one node */
   record Resume<L, B>(Object x, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) implements Eff<L, B> {}
 
-  private static final Eff<?, Object> UNIT = new Return<>(null);
-
-  static <L> Eff<L, Object> unit() {
-    return (Eff<L, Object>) UNIT;
-  }
-
   /** a reset's return: the value as it is */
   private static final Function<Object, Object> PURE = Return::new;
 
   /** the prompt of the top: no capture is to it */
   private static final Prompt<?, ?, ?> TOP = new Prompt<>();
+
+  /** how deep delimiters of one prompt run nested in Java frames, at most: past it, out and back */
+  private static final int NESTED = 64;
 
   sealed interface Frames extends Function<Object, Eff<?, ?>> {
     Frames END = new End();
@@ -74,7 +78,8 @@ final class EffLoop {
    * value, answered by {@code ret}; a capture to this prompt, its clause in the delimiter's place, NOT under it, the
    * rest under it again as k; a capture to another, the same capture outside, the rest re-delimited when answered.
    * What leaves is the program outside, made here */
-  private static Eff<?, ?> delimited(Eff<?, ?> program, Frames frames, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) {
+  private static Eff<?, ?> delimited(Eff<?, ?> program, Frames frames, Prompt<?, ?, ?> prompt, Function<Object, Object> ret,
+                                     int depth) {
     Eff c = program;
     Frames k = frames;
     while (true) {
@@ -97,6 +102,9 @@ final class EffLoop {
         case Bind b -> {
           if (b.m() instanceof Return r) {
             c = (Eff) b.f().apply(r.value());
+          } else if (b.m() instanceof Sync s) {
+            // a value computed in place, bound: to the function at once, no frame
+            c = (Eff) b.f().apply(s.a().get());
           } else {
             k = new Frames.Then(b.f(), k);
             c = b.m();
@@ -106,6 +114,8 @@ final class EffLoop {
           k = new Frames.Mapped(m.f(), k);
           c = m.m();
         }
+        case Delay d -> c = (Eff) d.c().get();
+        case Sync s -> c = new Return<>(s.a().get());
         case Push p -> {
           k = k instanceof Frames.End ? p.k() : new Frames.Then(p.k(), k);
           c = p.m();
@@ -116,15 +126,19 @@ final class EffLoop {
         }
         case Handle h -> {
           Prompt<?, ?, ?> p = new Prompt<>();
-          c = delimited(h.body().in(p), Frames.END, p, h.ret());
+          c = delimited(h.body().in(p), Frames.END, p, h.ret(), depth + 1);
         }
-        case Reset r -> c = delimited(r.body(), Frames.END, r.prompt(), PURE);
+        // a reset or a resumption under a delimiter of its own prompt: whatever it captures to that prompt its own
+        // delimiter takes, so it may run OUTSIDE this one, its value back into the rest under it. Nested here, a
+        // Java frame, while not too deep; past it, out and back — the delimiter a frame on the heap: shifts' bodies
+        // nest in constant stack
+        case Reset r -> {
+          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Redelimit(k, prompt, ret, depth));
+          c = delimited(r.body(), Frames.END, r.prompt(), PURE, depth + 1);
+        }
         case Resume r -> {
-          // a resumption under a delimiter of its own prompt: whatever it captures to that prompt its own delimiter
-          // takes, so it runs OUTSIDE this one, its value back into the rest under it — out and back, the delimiter
-          // a frame on the heap, not a Java frame: shifts' bodies nest in constant stack
-          if (r.prompt() == prompt) return new Bind(r, new Redelimit(k, prompt, ret));
-          c = resume(r.x(), r.k(), r.prompt(), r.ret());
+          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Redelimit(k, prompt, ret, depth));
+          c = resume(r.x(), r.k(), r.prompt(), r.ret(), depth + 1);
         }
       }
     }
@@ -136,16 +150,16 @@ final class EffLoop {
     if (to == prompt) return (Eff) f.apply(new Resumed(k, prompt, ret));
     if (prompt == TOP) throw new IllegalStateException(
         "an operation with no handler in force: its capability was used outside the handler that made it");
-    return new Suspend<>(to, f, new Redelimit(k, prompt, ret));
+    return new Suspend<>(to, f, new Redelimit(k, prompt, ret, 0));
   }
 
   /** {@code x} through the rest {@code k} under the delimiter of {@code prompt}: a stack's first frame applied here */
-  private static Eff<?, ?> resume(Object x, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) {
+  private static Eff<?, ?> resume(Object x, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret, int depth) {
     return switch (k) {
       case Frames.End _ -> (Eff) ret.apply(x);
-      case Frames.Then(var f, var next) -> delimited((Eff) f.apply(x), next, prompt, ret);
-      case Frames.Mapped(var f, var next) -> delimited(new Return<>(f.apply(x)), next, prompt, ret);
-      default -> delimited((Eff) k.apply(x), Frames.END, prompt, ret);
+      case Frames.Then(var f, var next) -> delimited((Eff) f.apply(x), next, prompt, ret, depth);
+      case Frames.Mapped(var f, var next) -> delimited(new Return<>(f.apply(x)), next, prompt, ret, depth);
+      default -> delimited((Eff) k.apply(x), Frames.END, prompt, ret, depth);
     };
   }
 
@@ -160,14 +174,15 @@ final class EffLoop {
 
   /** the rest of a delimiter's body once the capture that crossed it is answered outside: under the delimiter
    * again AT ONCE — applied by a loop already, one call deep per delimiter crossed */
-  private record Redelimit(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) implements Function<Object, Eff<?, ?>> {
+  private record Redelimit(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret, int depth)
+      implements Function<Object, Eff<?, ?>> {
     @Override
     public Eff<?, ?> apply(Object x) {
-      return resume(x, k, prompt, ret);
+      return resume(x, k, prompt, ret, depth);
     }
   }
 
   static <A> A run(Eff<?, A> p) {
-    return ((Return<?, A>) delimited(p, Frames.END, TOP, Return::new)).value();
+    return ((Return<?, A>) delimited(p, Frames.END, TOP, Return::new, 0)).value();
   }
 }

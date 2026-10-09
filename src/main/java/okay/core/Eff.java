@@ -21,8 +21,8 @@ import java.util.function.Supplier;
  * does not compile.
  */
 public sealed interface Eff<L, A>
-    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Shift0, EffLoop.Suspend, EffLoop.Handle, EffLoop.Reset,
-        EffLoop.Push, EffLoop.Resume {
+    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Delay, EffLoop.Sync, EffLoop.Shift0, EffLoop.Suspend,
+        EffLoop.Handle, EffLoop.Reset, EffLoop.Push, EffLoop.Resume {
 
   /** the level outside every handler: {@link #run}'s */
   interface Top {}
@@ -52,12 +52,12 @@ public sealed interface Eff<L, A>
 
   /** the value of {@code a}, computed when the loop gets to it: an operation answered in place reads a cell so */
   static <L, A> Eff<L, A> sync(Supplier<? extends A> a) {
-    return new EffLoop.Map<>(EffLoop.unit(), _ -> a.get());
+    return new EffLoop.Sync<>(a);
   }
 
   /** the program {@code c}, built when the loop gets to it: a tail call in constant stack */
   static <L, A> Eff<L, A> delay(Supplier<? extends Eff<? super L, A>> c) {
-    return new EffLoop.Bind<>(EffLoop.unit(), _ -> c.get());
+    return new EffLoop.Delay<>(c);
   }
 
   /** a handler's body: at a level of its own, {@code M}, fresh — given the delimiter's prompt */

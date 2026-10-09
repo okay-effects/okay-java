@@ -25,6 +25,8 @@ public final class Ref {
       case EffLoop.Return r -> new Res.Done(r.value());
       case EffLoop.Bind b -> then(eval(b.m()), x -> eval((Eff) b.f().apply(x)));
       case EffLoop.Map m -> then(eval(m.m()), x -> new Res.Done(m.f().apply(x)));
+      case EffLoop.Delay d -> eval((Eff) d.c().get());
+      case EffLoop.Sync s -> new Res.Done(s.a().get());
       case EffLoop.Shift0 s -> new Res.Cap(s.prompt(), s.f(), Res.Done::new);
       case EffLoop.Suspend s -> new Res.Cap(s.prompt(), s.f(), x -> eval((Eff) s.k().apply(x)));
       case EffLoop.Handle h -> {
