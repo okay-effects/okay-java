@@ -13,10 +13,10 @@ outside the delimiter, so its answers are programs of the level outside, `Cont0`
 `value` are built on the two. Each delimiter runs its body in a loop of its own, to where it leaves (`Loop0`). It is
 open: usable as a monad with raw `shift0` and `$`, as in `Cont0Test`, the printf, and `PState0`.
 
-## `Eff` (`Eff.java`, `Prompt.java`, `EffLoop.java`)
+## `Eff` (`Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java`)
 
-`Eff<L, A>` keeps `Cont0`'s machine and moves the answer types into the delimiters' prompts. The level `L` stays in
-the type as a phantom.
+`Eff<L, A>` keeps `Cont0`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
+in the type as a phantom.
 
 - **Two primitives.**
   - `Eff.handle(body, ret)` is `ret $ body` under a prompt made fresh each time the handler runs. Its body is an
@@ -24,27 +24,35 @@ the type as a phantom.
   - `p.shift0(clause)` is an operation at `M`: the rest up to `p`'s delimiter, the delimiter included, its clause
     run at `L`.
   - `p.shift` and `p.reset` are built on them, and `Eff.reset` is a handler that answers nothing.
-- **Nodes.**
+- **Nodes** (`Nodes`).
   - `Return`, `Bind`, `Map`, `Delay` and `Sync` are a value, a bind, a map, a tail call and a value computed in
     place.
   - `Shift0` is a capture. `Suspend` is a capture already bound.
   - `Handle` and `Reset` are delimiters.
-  - `Push` and `Resume` exist only inside the machine: a program with its rest as a stack, and a resumption.
-- **The loop, `delimited(c, k, prompt, ret, depth)`.** It is a delimiter's body run to where it leaves:
-  - A value goes to `ret`.
-  - A capture to this prompt runs its clause in the delimiter's place. `k` is the rest under the delimiter again,
-    `Resumed`, applied lazily.
-  - A capture to another prompt goes on outside as `Suspend`, with the rest re-delimited at once when answered
-    (`Redelimit`).
+  - `Push` and `Machine.Resumption` exist only inside the machine: a program with its rest as a stack, and a
+    resumption.
+- **The machine** (`Machine`). One loop over a program, the frames of the innermost segment, and an explicit stack
+  of delimiters on the heap: each delimiter with its prompt, its return and the frames outside it.
+  - **No Java frame per delimiter.** Handlers nest as deep as the heap allows: 100 000 nested, an operation across
+    them all, at `-Xss512k`.
+  - **Entering a handler** pushes a delimiter. A value that reaches the end of a segment goes to the delimiter's
+    return, outside it. A reset's return is the value itself, which goes on at once.
+  - **A capture** walks the delimiters to its prompt, with no allocation per delimiter crossed. Its clause runs in
+    the delimiter's place. The continuation `Kont` keeps the frames, the delimiters crossed (the first `n` of the
+    stack) and the delimiter itself.
+  - **A resumption** puts the crossed delimiters back in front of the current ones by one shared `Take` ("the first
+    `n` of that stack, then this"), which is never copied. It puts the delimiter back with the frames of the place
+    it was resumed from. A clause's `k(v)` resumed where it was captured keeps the very delimiter.
 - **`feed`.** A value goes through the maps on top of the stack in a small method of its own, which the JIT compiles
   apart from the loop.
-- **Nesting.** A reset or a resumption under a delimiter of its own prompt runs nested up to 64 deep. Past that it
-  runs out and back (`Rejoin`), so shifts' bodies nest in constant stack.
-- **Bound delimiters.** A handler that is bound is entered at once, and its value goes to the function with no
-  frame. A value computed in place, `Sync`, goes through the frames with no `Return` made for it.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
   `Eff<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
+- **The first machine.** Before this one, each delimiter's body ran in a Java frame of its own (`EffLoop`, up to
+  commit `fcd3868`). It was faster by 5–15% where a handler sits right over its operations, and by 60% on a `shift`
+  resumed in a chain, because the Java frame is a delimiter for free. But it overflowed the stack at about 1 000
+  nested handlers, and each handler crossed cost about 6 ns. The explicit stack took its place: 22 ns across 16
+  handlers where that was 110.
 
 ## `okay.std`
 

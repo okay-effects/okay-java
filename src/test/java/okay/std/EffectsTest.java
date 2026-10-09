@@ -210,6 +210,26 @@ class EffectsTest {
     })));
   }
 
+  static <L> Eff<L, Integer> deeper(Ask<L> a, int d) {
+    return d == 0 ? loop(a, 10, 0) : saying(new Said<L, Integer>() {
+      public <M extends L> Eff<M, Integer> in(Say<M> s) {
+        return deeper(a.at(), d - 1);
+      }
+    }).map(Log::value);
+  }
+
+  @Test
+  void aHundredThousandHandlersNestedOperationsAcrossThemAll() {
+    // the machine's delimiters on the heap, not Java frames: as deep as the heap allows (-Xss512k); the reference,
+    // recursive, on fewer
+    int d = backend == Backend.REF ? 1_000 : 100_000;
+    assertEquals((Integer) 10, run(asking(1, new Asked<Top, Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+        return deeper(a, d);
+      }
+    })));
+  }
+
   @Test
   void answeredInPlaceUnderMultiShotChooseAndSay() {
     assertEquals(List.of(new Log<>(List.of("15"), 5), new Log<>(List.of("25"), 10)),

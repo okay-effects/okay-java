@@ -12,7 +12,7 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 | File | What is in it |
 |---|---|
 | `Cont0.java`, `Loop0.java` | `Cont0<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont0` |
-| `Eff.java`, `Prompt.java`, `EffLoop.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts |
+| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; one loop over an explicit stack of delimiters, so handlers nest as deep as the heap allows |
 
 ### `okay.std`: effects written on `Eff`
 

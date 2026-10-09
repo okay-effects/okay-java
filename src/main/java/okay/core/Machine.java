@@ -1,30 +1,29 @@
 package okay.core;
 
 import java.util.function.Function;
-import okay.core.EffLoop.Bind;
-import okay.core.EffLoop.Delay;
-import okay.core.EffLoop.Fed;
-import okay.core.EffLoop.Frames;
-import okay.core.EffLoop.Handle;
-import okay.core.EffLoop.Map;
-import okay.core.EffLoop.Push;
-import okay.core.EffLoop.Reset;
-import okay.core.EffLoop.Resume;
-import okay.core.EffLoop.Return;
-import okay.core.EffLoop.Shift0;
-import okay.core.EffLoop.Suspend;
-import okay.core.EffLoop.Sync;
+import okay.core.Nodes.Bind;
+import okay.core.Nodes.Delay;
+import okay.core.Nodes.Fed;
+import okay.core.Nodes.Frames;
+import okay.core.Nodes.Handle;
+import okay.core.Nodes.Map;
+import okay.core.Nodes.Push;
+import okay.core.Nodes.Reset;
+import okay.core.Nodes.Return;
+import okay.core.Nodes.Shift0;
+import okay.core.Nodes.Suspend;
+import okay.core.Nodes.Sync;
 
 /**
- * {@link Eff}'s nodes run by ONE LOOP over an explicit stack of delimiters, where {@link EffLoop} runs a delimiter's
- * body in a Java frame of its own. The state: the program {@code c}, the frames of the innermost segment {@code k},
+ * THE MACHINE: {@link Eff}'s nodes run by ONE LOOP over an explicit stack of delimiters — no Java frame a delimiter,
+ * so handlers nest as deep as the heap allows. The state: the program {@code c}, the frames of the innermost segment {@code k},
  * and the delimiters outside it, {@code ms}, innermost first — each with its prompt, its return and the frames
  * outside it. A capture walks {@code ms} to its prompt: no allocation per delimiter crossed. A resumption puts the
  * captured delimiters back in front of the clause's own by one {@link Take}: no copy.
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-final class MetaLoop {
-  private MetaLoop() {}
+final class Machine {
+  private Machine() {}
 
   /** the delimiters outside the innermost segment, as a sequence */
   sealed interface Meta {}
@@ -124,7 +123,7 @@ final class MetaLoop {
           Object v = c instanceof Return r ? r.value() : ((Sync) c).a().get();
           while (true) {
             if (!(k instanceof Frames.End)) {
-              Fed fed = EffLoop.feed(v, k);
+              Fed fed = Nodes.feed(v, k);
               if (fed.c() != null) {
                 c = fed.c();
                 k = fed.k();
@@ -220,7 +219,7 @@ final class MetaLoop {
               c = new Return<>(x);
               k = Frames.END;
             } else {
-              Fed fed = EffLoop.feed(x, fr);
+              Fed fed = Nodes.feed(x, fr);
               if (fed.c() != null) {
                 c = fed.c();
                 k = fed.k();
@@ -234,7 +233,6 @@ final class MetaLoop {
             k = Frames.END;
           }
         }
-        case Resume _ -> throw new IllegalStateException("EffLoop's own node");
       }
     }
   }

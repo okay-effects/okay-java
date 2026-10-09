@@ -21,23 +21,23 @@ import java.util.function.Supplier;
  * does not compile.
  */
 public sealed interface Eff<L, A>
-    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Delay, EffLoop.Sync, EffLoop.Shift0, EffLoop.Suspend,
-        EffLoop.Handle, EffLoop.Reset, EffLoop.Push, EffLoop.Resume, MetaLoop.Resumption {
+    permits Nodes.Return, Nodes.Bind, Nodes.Map, Nodes.Delay, Nodes.Sync, Nodes.Shift0, Nodes.Suspend, Nodes.Handle,
+        Nodes.Reset, Nodes.Push, Machine.Resumption {
 
   /** the level outside every handler: {@link #run}'s */
   interface Top {}
 
   default <B> Eff<L, B> flatMap(Function<? super A, ? extends Eff<? super L, B>> f) {
-    return new EffLoop.Bind<>(this, f);
+    return new Nodes.Bind<>(this, f);
   }
 
   default <B> Eff<L, B> map(Function<? super A, ? extends B> f) {
-    return new EffLoop.Map<>(this, f);
+    return new Nodes.Map<>(this, f);
   }
 
   /** the next program after this one, this one's value dropped */
   default <B> Eff<L, B> then(Eff<? super L, B> next) {
-    return new EffLoop.Bind<>(this, _ -> next);
+    return new Nodes.Bind<>(this, _ -> next);
   }
 
   /** this program at a level further in: a program of a level outside runs inside, its handlers in force there */
@@ -47,17 +47,17 @@ public sealed interface Eff<L, A>
   }
 
   static <L, A> Eff<L, A> pure(A a) {
-    return new EffLoop.Return<>(a);
+    return new Nodes.Return<>(a);
   }
 
   /** the value of {@code a}, computed when the loop gets to it: an operation answered in place reads a cell so */
   static <L, A> Eff<L, A> sync(Supplier<? extends A> a) {
-    return new EffLoop.Sync<>(a);
+    return new Nodes.Sync<>(a);
   }
 
   /** the program {@code c}, built when the loop gets to it: a tail call in constant stack */
   static <L, A> Eff<L, A> delay(Supplier<? extends Eff<? super L, A>> c) {
-    return new EffLoop.Delay<>(c);
+    return new Nodes.Delay<>(c);
   }
 
   /** a handler's body: at a level of its own, {@code M}, fresh — given the delimiter's prompt */
@@ -68,17 +68,17 @@ public sealed interface Eff<L, A>
   /** a HANDLER: {@code ret $ body}, the body at a fresh level under a fresh prompt, made each time the loop enters
    * it. The body's value goes to {@code ret}, a program outside; a {@code shift0} to the prompt has its clause there */
   static <L, A, R> Eff<L, R> handle(Body<L, A, R> body, Function<? super A, ? extends Eff<? super L, R>> ret) {
-    return new EffLoop.Handle<>(body, ret);
+    return new Nodes.Handle<>(body, ret);
   }
 
   /** a RESET: a delimiter answering no operation, the body's value its answer, its prompt the body's for
    * {@link Prompt#shift} */
   static <L, R> Eff<L, R> reset(Body<L, R, R> body) {
-    return new EffLoop.Handle<L, R, R>(body, Eff::pure);
+    return new Nodes.Handle<L, R, R>(body, Eff::pure);
   }
 
   /** a program at the top, its value */
   static <A> A run(Eff<Top, A> p) {
-    return EffLoop.run(p);
+    return Machine.run(p);
   }
 }
