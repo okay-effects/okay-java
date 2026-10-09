@@ -120,7 +120,8 @@ class AgreeTest {
       crossing += crossing(p);
       if (disagree(p)) {
         Prog small = shrink(p);
-        assertEquals(outcome(Backend.REF, small), outcome(Backend.MACHINE, small), "shrunk from " + p + "\nto " + small);
+        assertEquals(List.of(outcome(Backend.REF, small), outcome(Backend.REF, small)),
+            List.of(outcome(Backend.MACHINE, small), outcome(Backend.META, small)), "shrunk from " + p + "\nto " + small);
       }
     }
     // the programs are not trivial: handlers nested, operations crossing them
@@ -137,7 +138,8 @@ class AgreeTest {
   }
 
   static boolean disagree(Prog p) {
-    return !java.util.Objects.equals(outcome(Backend.MACHINE, p), outcome(Backend.REF, p));
+    Object ref = outcome(Backend.REF, p);
+    return !java.util.Objects.equals(outcome(Backend.MACHINE, p), ref) || !java.util.Objects.equals(outcome(Backend.META, p), ref);
   }
 
   /** the programs one step smaller: a handler its body, a part a value, a sequence one of its halves, a number 0 */

@@ -10,6 +10,11 @@ public enum Backend {
       return Eff.run(p);
     }
   },
+  META {
+    public <A> A run(Eff<Eff.Top, A> p) {
+      return MetaLoop.run(p);
+    }
+  },
   REF {
     public <A> A run(Eff<Eff.Top, A> p) {
       return onLargeStack(() -> Ref.run(p));

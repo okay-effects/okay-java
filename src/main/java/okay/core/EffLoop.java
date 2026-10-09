@@ -153,9 +153,9 @@ final class EffLoop {
   /** a value through the maps on top of the stack, to the first bind — its program and the rest — or to the end. A
    * method of its own, small: compiled apart from the loop's, its own loop gets the JIT's full care — a capture's
    * rest, maps over maps, 40% faster so than walked inside the loop (okay-core's {@code feed}) */
-  private record Fed(Eff<?, ?> c, Object v, Frames k) {}
+  record Fed(Eff<?, ?> c, Object v, Frames k) {}
 
-  private static Fed feed(Object v, Frames k) {
+  static Fed feed(Object v, Frames k) {
     while (k instanceof Frames.Mapped(var f, var next)) {
       v = f.apply(v);
       k = next;

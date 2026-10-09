@@ -36,6 +36,15 @@ public class MonadsBenchmark {
   @Param("1000")
   public int n;
 
+  /** the machine: {@code loop}, EffLoop's, a Java frame a delimiter; {@code meta}, MetaLoop's, one loop over an
+   * explicit stack of delimiters */
+  @Param({"loop", "meta"})
+  public String backend;
+
+  <A> A run(Eff<Top, A> p) {
+    return backend.equals("meta") ? MetaLoop.run(p) : Eff.run(p);
+  }
+
   List<Integer> range;
 
   @Setup
@@ -58,7 +67,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public boolean pure() {
-    return Eff.run(isEven(n));
+    return run(isEven(n));
   }
 
   interface Tick<L> {
@@ -121,38 +130,38 @@ public class MonadsBenchmark {
 
   @Benchmark
   public boolean answered() {
-    return Eff.run(ticking(skipping(0)));
+    return run(ticking(skipping(0)));
   }
 
   @Benchmark
   public boolean general() {
-    return Eff.run(tickingK(skipping(0)));
+    return run(tickingK(skipping(0)));
   }
 
   @Benchmark
   public boolean forwarded() {
-    return Eff.run(ticking(skipping(1)));
+    return run(ticking(skipping(1)));
   }
 
   @Benchmark
   public boolean forwarded16() {
-    return Eff.run(ticking(skipping(16)));
+    return run(ticking(skipping(16)));
   }
 
   @Benchmark
   public boolean forwarded4() {
-    return Eff.run(ticking(skipping(4)));
+    return run(ticking(skipping(4)));
   }
 
   /** the general clause across 1 and 16 handlers: okay-core's forwarded are answering */
   @Benchmark
   public boolean forwardedGeneral() {
-    return Eff.run(tickingK(skipping(1)));
+    return run(tickingK(skipping(1)));
   }
 
   @Benchmark
   public boolean forwardedGeneral16() {
-    return Eff.run(tickingK(skipping(16)));
+    return run(tickingK(skipping(16)));
   }
 
   static <L> Eff<L, Integer> counting(State<L, Integer> st, int i) {
@@ -169,12 +178,12 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int state() {
-    return Eff.run(State.cell(0, counting())).state();
+    return run(State.cell(0, counting())).state();
   }
 
   @Benchmark
   public int stateFunctional() {
-    return Eff.run(State.state(0, counting())).state();
+    return run(State.state(0, counting())).state();
   }
 
   static <L> Eff<L, Void> telling(Writer<L, Integer> w, int i) {
@@ -183,7 +192,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int writer() {
-    return Eff.run(Writer.writer(new Writer.Body<Top, Integer, Void>() {
+    return run(Writer.writer(new Writer.Body<Top, Integer, Void>() {
       public <M extends Top> Eff<M, Void> in(Writer<M, Integer> w) {
         return telling(w, n);
       }
@@ -204,12 +213,12 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int throwing() {
-    return Eff.run(raising(n, 0));
+    return run(raising(n, 0));
   }
 
   @Benchmark
   public int choose() {
-    return Eff.run(Choose.all(new Choose.Body<Top, Integer>() {
+    return run(Choose.all(new Choose.Body<Top, Integer>() {
       public <M extends Top> Eff<M, Integer> in(Choose<M> ch) {
         return ch.among(range).map(x -> x + 1);
       }
@@ -223,7 +232,7 @@ public class MonadsBenchmark {
   @Benchmark
   public long collect() {
     long sum = 0;
-    for (long x : Eff.run(Emit.collect(new Emit.Body<Top, Long, Void>() {
+    for (long x : run(Emit.collect(new Emit.Body<Top, Long, Void>() {
       public <M extends Top> Eff<M, Void> in(Emit<M, Long> e) {
         return fibs(e, n, 0, 1);
       }
@@ -235,7 +244,7 @@ public class MonadsBenchmark {
   public int leftMaps() {
     Eff<Top, Integer> p = Eff.pure(0);
     for (int i = 0; i < n; i++) p = p.map(x -> x + 1);
-    return Eff.run(p);
+    return run(p);
   }
 
   static <L> Eff<L, Integer> rightMapping(int i) {
@@ -244,7 +253,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int rightMaps() {
-    return Eff.run(rightMapping(n));
+    return run(rightMapping(n));
   }
 
   static <L> Eff<L, Integer> shots(Function<Void, Eff<L, Integer>> k, int i, int acc) {
@@ -268,28 +277,28 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int capture() {
-    return Eff.run(Eff.reset(capturing(16, 8)));
+    return run(Eff.reset(capturing(16, 8)));
   }
 
   @Benchmark
   public int captureShallow() {
-    return Eff.run(Eff.reset(capturing(1, 8)));
+    return run(Eff.reset(capturing(1, 8)));
   }
 
   /** a shift to a handler's prompt: k the rest with the handler */
   @Benchmark
   public int captureHandled() {
-    return Eff.run(Eff.handle(capturing(16, 8), Eff::pure));
+    return run(Eff.handle(capturing(16, 8), Eff::pure));
   }
 
   @Benchmark
   public int captureHandledShallow() {
-    return Eff.run(Eff.handle(capturing(1, 8), Eff::pure));
+    return run(Eff.handle(capturing(1, 8), Eff::pure));
   }
 
   @Benchmark
   public int captureDeep() {
-    return Eff.run(Eff.reset(capturing(256, 8)));
+    return run(Eff.reset(capturing(256, 8)));
   }
 
   /** captureDeep's maps boxing by the constructor, {@code new Integer(x + 1)}, not by {@code Integer.valueOf}: every
@@ -303,7 +312,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int captureDeepNew() {
-    return Eff.run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
+    return run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
       public <M extends Top> Eff<M, Integer> in(Prompt<Top, M, Integer> p) {
         return capturedNew(p, 256, 8);
       }
@@ -326,7 +335,7 @@ public class MonadsBenchmark {
   /** capture's program, its maps over a record: no Integer.valueOf on the way */
   @Benchmark
   public int captureRecord() {
-    return Eff.run(Eff.reset(new Eff.Body<Top, Int, Int>() {
+    return run(Eff.reset(new Eff.Body<Top, Int, Int>() {
       public <M extends Top> Eff<M, Int> in(Prompt<Top, M, Int> p) {
         return capturedRecord(p, 16, 8);
       }
@@ -335,7 +344,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int captureDeepRecord() {
-    return Eff.run(Eff.reset(new Eff.Body<Top, Int, Int>() {
+    return run(Eff.reset(new Eff.Body<Top, Int, Int>() {
       public <M extends Top> Eff<M, Int> in(Prompt<Top, M, Int> p) {
         return capturedRecord(p, 256, 8);
       }
@@ -344,7 +353,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public int captureOnce() {
-    return Eff.run(Eff.reset(capturing(1, 1)));
+    return run(Eff.reset(capturing(1, 1)));
   }
 
   static <L> Eff<L, Boolean> evenDelayed(int i) {
@@ -357,14 +366,14 @@ public class MonadsBenchmark {
 
   @Benchmark
   public boolean tailcallDelay() {
-    return Eff.run(evenDelayed(n));
+    return run(evenDelayed(n));
   }
 
   @Benchmark
   public int leftBinds() {
     Eff<Top, Integer> p = Eff.pure(0);
     for (int i = 0; i < n; i++) p = p.flatMap(x -> Eff.pure(x + 1));
-    return Eff.run(p);
+    return run(p);
   }
 
   static <L> Eff<L, Long> sums(int i, long a, long b, long acc) {
@@ -373,7 +382,7 @@ public class MonadsBenchmark {
 
   @Benchmark
   public long fib() {
-    return Eff.run(sums(n, 0, 1, 0));
+    return run(sums(n, 0, 1, 0));
   }
 
   static boolean safe(int col, List<Integer> placed) {
@@ -399,7 +408,7 @@ public class MonadsBenchmark {
   /** the 92 solutions of 8 queens — not divided by n */
   @Benchmark
   public int queens() {
-    return Eff.run(Choose.all(new Choose.Body<Top, List<Integer>>() {
+    return run(Choose.all(new Choose.Body<Top, List<Integer>>() {
       public <M extends Top> Eff<M, List<Integer>> in(Choose<M> ch) {
         return place(ch, 0, List.of());
       }
