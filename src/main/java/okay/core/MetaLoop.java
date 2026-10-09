@@ -34,6 +34,9 @@ final class MetaLoop {
 
   static final Meta TOP = new Top();
 
+  /** a reset's return: the value as it is — told apart, so a value leaving a reset goes on with no program made */
+  static final Function<Object, Object> SAME = Return::new;
+
   /** a delimiter, its prompt and return, the frames outside it, and the delimiters further out */
   record Seg(Prompt<?, ?, ?> prompt, Function ret, Frames outer, Meta next) implements Meta {}
 
@@ -116,41 +119,29 @@ final class MetaLoop {
     Meta ms = TOP;
     while (true) {
       switch (c) {
-        case Return r -> {
-          Object v = r.value();
-          if (!(k instanceof Frames.End)) {
-            Fed fed = EffLoop.feed(v, k);
-            if (fed.c() != null) {
-              c = fed.c();
-              k = fed.k();
-              continue;
+        // a value, or one computed in place: through the frames, no Return made for it
+        case Return _, Sync _ -> {
+          Object v = c instanceof Return r ? r.value() : ((Sync) c).a().get();
+          while (true) {
+            if (!(k instanceof Frames.End)) {
+              Fed fed = EffLoop.feed(v, k);
+              if (fed.c() != null) {
+                c = fed.c();
+                k = fed.k();
+                break;
+              }
+              v = fed.v();
             }
-            v = fed.v();
-          }
-          // the segment done: its delimiter's return, outside it
-          if (ms instanceof Top) return (A) v;
-          Seg s = head(ms);
-          c = (Eff) s.ret().apply(v);
-          k = s.outer();
-          ms = drop(ms, 1);
-        }
-        // a value computed in place: through the frames as a Return's, no Return made for it
-        case Sync s -> {
-          Object v = s.a().get();
-          if (!(k instanceof Frames.End)) {
-            Fed fed = EffLoop.feed(v, k);
-            if (fed.c() != null) {
-              c = fed.c();
-              k = fed.k();
-              continue;
+            // the segment done: its delimiter's return, outside it — a reset's the value itself, on at once
+            if (ms instanceof Top) return (A) v;
+            Seg seg = ms instanceof Seg plain ? plain : head(ms);
+            k = seg.outer();
+            ms = ms instanceof Seg plain ? plain.next() : drop(ms, 1);
+            if (seg.ret() != SAME) {
+              c = (Eff) seg.ret().apply(v);
+              break;
             }
-            v = fed.v();
           }
-          if (ms instanceof Top) return (A) v;
-          Seg seg = head(ms);
-          c = (Eff) seg.ret().apply(v);
-          k = seg.outer();
-          ms = drop(ms, 1);
         }
         case Bind b -> {
           if (b.m() instanceof Return r) {
@@ -178,7 +169,7 @@ final class MetaLoop {
           c = h.body().in(p);
         }
         case Reset r -> {
-          ms = new Seg(r.prompt(), Return::new, k, ms);
+          ms = new Seg(r.prompt(), SAME, k, ms);
           k = Frames.END;
           c = r.body();
         }
