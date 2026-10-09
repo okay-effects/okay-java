@@ -135,36 +135,40 @@ top, outside the reader. With an answering capability there was no prompt to not
 
 ## Measured
 
-Measured on 2026-10-08 with JMH (2 forks, 3+5 iterations, `-prof gc`, JDK 25), one run after the other on the
-same machine (load average 2.5–3.5). Runs: okay-java `037967d` and okay-core `dbdb497` (branch `cont0`), CSVs in
-`bench.d/`. The time is per run, and the allocation per operation.
+`MonadsBenchmark` holds okay-core master's programs under the same names. Runs: okay-java `6ba623b` and okay-core
+`bb01100`, one after the other on the same machine (JMH, 2 forks, 3+5 iterations, `-prof gc`, JDK 25, load average
+1.3–2.0), CSVs in `bench.d/`. The machine got busier at the end of okay-core's run (load 5.2), so its last
+benchmarks (`throwing`, `writer`) are the least sure. Numbers are per operation, `n = 1000`, except captures and
+queens, which are per run.
 
-`EffBenchmark`: 10 000 operations, each crossing `crossed` handlers.
-
-| clause, crossed | Java `Eff` | okay-core `Cont0` | okay-core `Cont` |
+| | Java `Eff` | okay-core `cont` | okay-core `zero` |
 |---|---|---|---|
-| general, 0 | 68.5 µs, 96 B | 68.6 µs, 104 B | 80.4 µs, 136 B |
-| general, 1 | 121.4 µs, 144 B | 112.9 µs, 160 B | 131.2 µs, 184 B |
-| general, 4 | 276.2 µs, 288 B | 314.0 µs, 328 B | 263.5 µs, 328 B |
-| answering, 0 | 35.9 µs, 64 B | 82.9 µs, 96 B | 43.9 µs, 72 B |
-| answering, 1 | 36.4 µs, 64 B | 59.3 µs, 96 B | 110.5 µs, 120 B |
-| answering, 4 | 35.9 µs, 64 B | 82.2 µs, 96 B | 215.4 µs, 264 B |
+| pure binds | 3.33 ns, 56 B | 3.29 ns, 64 B | 3.24 ns, 64 B |
+| left binds / left maps | 6.83 / 5.56 ns | 8.29 / 4.85 ns | 8.42 / 4.86 ns |
+| right maps / tail calls by delay | 9.43 / 3.68 ns | 7.03 / 2.41 ns | 7.24 / 2.33 ns |
+| answered in place | 4.80 ns, 78 B | 6.51 ns, 86 B | 5.37 ns, 86 B |
+| general clause | 7.53 ns, 110 B | 8.96 ns, 150 B | 7.73 ns, 118 B |
+| answered across 1 / 4 / 16 handlers | 4.96 / 4.97 / 5.09 ns | 11.67 / 22.60 / 91.84 ns | 5.73 / 6.74 / 17.09 ns |
+| general clause across 1 / 16 handlers | 13.69 / 101.12 ns | — | — |
+| state (a cell) | 23.51 ns, 262 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
+| state, functional | 32.70 ns, 502 B | — | — |
+| writer, throwing, choose | 21.93, 17.04, 32.01 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
+| collect / generate | 7.16 / 14.44 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
+| a shift under a reset: 16 maps / 1, `k` 8 times | 949 / 238 ns | 433 / 136 ns | 323 / 126 ns |
+| the same under a handler | 951 / 237 ns | 410 / 122 ns | 363 / 139 ns |
+| 256 maps, `k` 8 times / 1 map, `k` once | 7097 / 49 ns | 5862 / 38 ns | 4676 / 38 ns |
+| queens 8 (all 92) | 141 µs | 541 µs | 1182 µs |
 
-`EffectsBenchmark`: 1 000 operations. okay-core's numbers are on `Cont`, because its `EffectsBenchmark` is.
-
-| | Java `Eff` | okay-core `Cont` |
-|---|---|---|
-| state get+put | 32.9 µs, 502 B functional; 24.0 µs, 262 B `cell` | 15.6 µs, 214 B (a cell) |
-| writer tell | 21.0 µs, 253 B | 20.1 µs, 258 B |
-| throws raise | 15.4 µs, 280 B | 13.5 µs, 192 B |
-| choose among | 32.2 µs, 284 B | 28.8 µs, 394 B |
-
-Queens 8: Java 143 µs, okay-core `Cont0` 1.19 ms, `Cont` 551 µs. That comparison is not like for like:
-okay-core's `Vector` concatenation and `zipWithIndex` are not Java's `ArrayList` and loop.
+An answered operation across any number of handlers costs the same in Java. The capability is the handler, so
+nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Captures by `shift` are 2–3×
+slower in Java. Each `p.shift` is a `shift0` and a reset, and a resumption under its own prompt goes out and back
+through the loop, where okay-core's machine resumes nested up to 64 deep. Delay and right maps are slower too: a
+delay is a bind on a unit, not a node. Queens is not like for like, because okay-core's `Vector` concatenation is not
+Java's `Rope`.
 
 ## Build
 
 ```sh
 ./gradlew test
-./gradlew bench --args='EffBenchmark -prof gc'   # JMH
+./gradlew bench --args='MonadsBenchmark -prof gc'   # JMH
 ```
