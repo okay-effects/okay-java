@@ -33,6 +33,11 @@ in the type as a phantom.
     resumption.
 - **The machine** (`Machine`). One loop over a program, the frames of the innermost segment, and an explicit stack
   of delimiters on the heap: each delimiter with its prompt, its return and the frames outside it.
+  - **A step a node.** The loop is `c = c.step(run)`: each kind of node steps in a method of its own, the frames
+    and the delimiters in the fields of a `Run`. C2 compiles each step apart, small, where one big loop got its
+    registers spilled and its inlining spread over every node. The nodes are final classes under an abstract
+    `Node`, so the call is a virtual one (a load and a jump), not an interface's. On `MixedBenchmark` this took
+    the machine from about 195 to 134 ns an order (the first machine 129); a `Run` is 24 B more a run.
   - **No Java frame per delimiter.** Handlers nest as deep as the heap allows: 100 000 nested, an operation across
     them all, at `-Xss512k`.
   - **Entering a handler** pushes a delimiter. A value that reaches the end of a segment goes to the delimiter's

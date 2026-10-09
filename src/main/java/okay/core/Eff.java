@@ -21,8 +21,7 @@ import java.util.function.Supplier;
  * does not compile.
  */
 public sealed interface Eff<L, A>
-    permits Nodes.Return, Nodes.Bind, Nodes.Map, Nodes.Delay, Nodes.Sync, Nodes.Shift0, Nodes.Suspend, Nodes.Handle,
-        Nodes.Reset, Nodes.Push, Machine.Resumption {
+    permits Nodes.Node {
 
   /** the level outside every handler: {@link #run}'s */
   interface Top {}
