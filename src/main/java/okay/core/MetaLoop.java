@@ -98,14 +98,17 @@ final class MetaLoop {
     return -1 - seen;
   }
 
-  /** a captured continuation: the frames of the innermost segment, the delimiters crossed — the first {@code n} of
-   * {@code ms} — and the delimiter captured up to, its prompt and return. Applied, a resumption node */
-  record Kont(Frames k, Meta ms, int n, Prompt<?, ?, ?> prompt, Function ret) implements Function<Object, Eff<?, ?>> {
+  /** a captured continuation: the rest of the innermost segment ({@code k}, frames or a function), the delimiters
+   * crossed — the first {@code n} of {@code ms} — and the delimiter captured up to. Applied, a resumption node */
+  record Kont(Function k, Meta ms, int n, Seg up) implements Function<Object, Eff<?, ?>> {
     @Override
     public Eff<?, ?> apply(Object x) {
-      return new Resume<>(x, this, null, null);
+      return new Resumption<>(x, this);
     }
   }
+
+  /** a captured continuation applied to {@code x} */
+  record Resumption<L, B>(Object x, Kont kont) implements Eff<L, B> {}
 
   static <A> A run(Eff<?, A> program) {
     Eff c = program;
@@ -163,42 +166,74 @@ final class MetaLoop {
           c = r.body();
         }
         case Shift0 s -> {
-          Object[] next = capture(s.prompt(), s.f(), k, ms);
-          c = (Eff) next[0];
-          k = (Frames) next[1];
-          ms = (Meta) next[2];
+          Prompt<?, ?, ?> to = s.prompt();
+          Function f = s.f();
+          // the nearest delimiter the usual one: no walk, no drop
+          if (ms instanceof Seg near && near.prompt() == to) {
+            c = (Eff) f.apply(new Kont(k, ms, 0, near));
+            k = near.outer();
+            ms = near.next();
+          } else {
+            int i = index(ms, to);
+            Seg d = head(drop(ms, i));
+            c = (Eff) f.apply(new Kont(k, ms, i, d));
+            k = d.outer();
+            ms = drop(ms, i + 1);
+          }
         }
         case Suspend s -> {
-          Object[] next = capture(s.prompt(), s.f(), k instanceof Frames.End ? wrap(s.k()) : new Frames.Then(s.k(), k), ms);
-          c = (Eff) next[0];
-          k = (Frames) next[1];
-          ms = (Meta) next[2];
+          Prompt<?, ?, ?> to = s.prompt();
+          Function f = s.f();
+          Function kk = k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k);
+          if (ms instanceof Seg near && near.prompt() == to) {
+            c = (Eff) f.apply(new Kont(kk, ms, 0, near));
+            k = near.outer();
+            ms = near.next();
+          } else {
+            int i = index(ms, to);
+            Seg d = head(drop(ms, i));
+            c = (Eff) f.apply(new Kont(kk, ms, i, d));
+            k = d.outer();
+            ms = drop(ms, i + 1);
+          }
         }
-        case Resume r -> {
-          // a captured continuation resumed here: its frames, its delimiters crossed, its delimiter again with the
-          // frames here outside it — in front of the delimiters here, by a take
-          Kont kont = (Kont) r.k();
-          ms = take(kont.ms(), kont.n(), new Seg(kont.prompt(), kont.ret(), k, ms));
-          k = kont.k();
-          c = new Return<>(r.x());
+        case Resumption r -> {
+          // a captured continuation resumed here: its delimiters crossed, its delimiter again with the frames here
+          // outside it — in front of the delimiters here, by a take; then x through its rest, no Return made
+          Kont kont = r.kont();
+          Seg up = kont.up();
+          ms = take(kont.ms(), kont.n(), new Seg(up.prompt(), up.ret(), k, ms));
+          Object x = r.x();
+          if (kont.k() instanceof Frames fr) {
+            if (fr instanceof Frames.End) {
+              c = new Return<>(x);
+              k = Frames.END;
+            } else {
+              Fed fed = EffLoop.feed(x, fr);
+              if (fed.c() != null) {
+                c = fed.c();
+                k = fed.k();
+              } else {
+                c = new Return<>(fed.v());
+                k = Frames.END;
+              }
+            }
+          } else {
+            c = (Eff) kont.k().apply(x);
+            k = Frames.END;
+          }
         }
+        case Resume _ -> throw new IllegalStateException("EffLoop's own node");
       }
     }
   }
 
-  /** a function as the frames of a segment: one {@code Then} */
-  private static Frames wrap(Function f) {
-    return f instanceof Frames fr ? fr : new Frames.Then(f, Frames.END);
-  }
 
-  /** a capture to {@code prompt}: the clause's program, run outside the delimiter, with the frames and delimiters
-   * there — the continuation the frames here and the delimiters crossed, the delimiter included */
-  private static Object[] capture(Prompt<?, ?, ?> prompt, Function f, Frames k, Meta ms) {
+  /** the index of {@code prompt}'s delimiter in {@code ms}: none, a capability out of its handler */
+  private static int index(Meta ms, Prompt<?, ?, ?> prompt) {
     int i = indexOf(ms, Integer.MAX_VALUE, prompt);
     if (i < 0) throw new IllegalStateException(
         "an operation with no handler in force: its capability was used outside the handler that made it");
-    Seg s = head(drop(ms, i));
-    Kont kont = new Kont(k, ms, i, s.prompt(), s.ret());
-    return new Object[] {f.apply(kont), s.outer(), drop(ms, i + 1)};
+    return i;
   }
 }

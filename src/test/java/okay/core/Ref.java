@@ -34,7 +34,7 @@ public final class Ref {
         yield delimit(p, h.ret(), eval(h.body().in(p)));
       }
       case EffLoop.Reset r -> delimit(r.prompt(), Eff::pure, eval(r.body()));
-      case EffLoop.Push _, EffLoop.Resume _ -> throw new IllegalStateException("the machine's own node: " + c);
+      case EffLoop.Push _, EffLoop.Resume _, MetaLoop.Resumption _ -> throw new IllegalStateException("the machine's own node: " + c);
     };
   }
 

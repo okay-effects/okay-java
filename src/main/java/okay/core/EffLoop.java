@@ -142,6 +142,7 @@ final class EffLoop {
           if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Rejoin(k, prompt, ret, depth));
           c = delimited(r.body(), Frames.END, r.prompt(), PURE, depth + 1);
         }
+        case MetaLoop.Resumption<?, ?> _ -> throw new IllegalStateException("MetaLoop's own node");
         case Resume r -> {
           if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Rejoin(k, prompt, ret, depth));
           c = resume(r.x(), r.k(), r.prompt(), r.ret(), depth + 1);

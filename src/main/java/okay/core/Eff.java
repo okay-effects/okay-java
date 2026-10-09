@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  */
 public sealed interface Eff<L, A>
     permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Delay, EffLoop.Sync, EffLoop.Shift0, EffLoop.Suspend,
-        EffLoop.Handle, EffLoop.Reset, EffLoop.Push, EffLoop.Resume {
+        EffLoop.Handle, EffLoop.Reset, EffLoop.Push, EffLoop.Resume, MetaLoop.Resumption {
 
   /** the level outside every handler: {@link #run}'s */
   interface Top {}
