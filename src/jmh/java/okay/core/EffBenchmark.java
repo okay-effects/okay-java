@@ -3,7 +3,7 @@ package okay.core;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import okay.core.Eff.Top;
 import okay.std.Choose;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -36,34 +36,42 @@ public class EffBenchmark {
   @Param({"general", "answering"})
   public String clause;
 
-  interface Tick {
-    Eff<Integer> tick(int a);
+  interface Tick<L> {
+    Eff<L, Integer> tick(int a);
+
+    @SuppressWarnings("unchecked")
+    default <N extends L> Tick<N> at() {
+      return (Tick<N>) (Tick<?>) this;
+    }
   }
 
-  interface Skip {
-    Eff<Integer> skip(int a);
-  }
-
-  static Eff<Integer> ticks(Tick t, int i, int acc) {
+  static <L> Eff<L, Integer> ticks(Tick<L> t, int i, int acc) {
     return i == 0 ? Eff.pure(acc) : t.tick(1).flatMap(x -> ticks(t, i - 1, acc + x));
   }
 
-  <A> Eff<A> ticking(Function<Tick, Eff<A>> body) {
-    if (clause.equals("answering")) return body.apply(Eff::pure);
-    return Eff.handle((Prompt<A> p) -> body.apply(a -> p.shift0(k -> k.apply(a))));
+  /** a handler of Tick: the body at a fresh level, given the capability */
+  Eff<Top, Integer> ticking() {
+    return Eff.handle(new Eff.Body<Top, Integer, Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Prompt<Top, M, Integer> p) {
+        Tick<M> t = clause.equals("answering") ? Eff::pure : a -> p.shift0(k -> k.apply(a));
+        return nest(t, crossed);
+      }
+    }, Eff::pure);
   }
 
-  static <A> Eff<A> skipping(Function<Skip, Eff<A>> body) {
-    return Eff.handle((Prompt<A> p) -> body.apply(a -> p.shift0(k -> k.apply(a))));
-  }
-
-  Eff<Integer> nest(Tick t, int d) {
-    return d == 0 ? ticks(t, n, 0) : skipping(_ -> nest(t, d - 1));
+  /** {@code d} handlers of another effect, each a general clause, never asked */
+  <L> Eff<L, Integer> nest(Tick<L> t, int d) {
+    if (d == 0) return ticks(t, n, 0);
+    return Eff.handle(new Eff.Body<L, Integer, Integer>() {
+      public <M extends L> Eff<M, Integer> in(Prompt<L, M, Integer> p) {
+        return nest(t.at(), d - 1);
+      }
+    }, Eff::pure);
   }
 
   @Benchmark
   public int opsEff() {
-    return Eff.run(ticking(t -> nest(t, crossed)));
+    return Eff.run(ticking());
   }
 
   @State(Scope.Thread)
@@ -76,7 +84,7 @@ public class EffBenchmark {
     @Param("8")
     public int size;
 
-    Eff<List<Integer>> place(Choose ch, int row, List<Integer> placed) {
+    <L> Eff<L, List<Integer>> place(Choose<L> ch, int row, List<Integer> placed) {
       if (row == size) return Eff.pure(placed);
       List<Integer> safe = new ArrayList<>();
       for (int col = 0; col < size; col++) if (safe(col, placed)) safe.add(col);
@@ -98,7 +106,11 @@ public class EffBenchmark {
 
     @Benchmark
     public int queensEff() {
-      return Eff.run(Choose.all(ch -> place(ch, 0, List.of()))).size();
+      return Eff.run(Choose.all(new Choose.Body<Top, List<Integer>>() {
+        public <M extends Top> Eff<M, List<Integer>> in(Choose<M> ch) {
+          return place(ch, 0, List.of());
+        }
+      })).size();
     }
   }
 }

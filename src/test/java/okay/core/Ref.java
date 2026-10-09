@@ -17,10 +17,10 @@ public final class Ref {
     record Done(Object value) implements Res {}
 
     /** a {@code shift0} to {@code prompt}, its clause {@code f}, the rest up to here {@code k} */
-    record Cap(Prompt<?> prompt, Function f, Function<Object, Res> k) implements Res {}
+    record Cap(Prompt<?, ?, ?> prompt, Function f, Function<Object, Res> k) implements Res {}
   }
 
-  static Res eval(Eff<?> c) {
+  static Res eval(Eff<?, ?> c) {
     return switch (c) {
       case EffLoop.Return r -> new Res.Done(r.value());
       case EffLoop.Bind b -> then(eval(b.m()), x -> eval((Eff) b.f().apply(x)));
@@ -28,8 +28,8 @@ public final class Ref {
       case EffLoop.Shift0 s -> new Res.Cap(s.prompt(), s.f(), Res.Done::new);
       case EffLoop.Suspend s -> new Res.Cap(s.prompt(), s.f(), x -> eval((Eff) s.k().apply(x)));
       case EffLoop.Handle h -> {
-        Prompt<?> p = new Prompt<>();
-        yield delimit(p, h.ret(), eval((Eff) h.body().apply(p)));
+        Prompt<?, ?, ?> p = new Prompt<>();
+        yield delimit(p, h.ret(), eval(h.body().in(p)));
       }
       case EffLoop.Reset r -> delimit(r.prompt(), Eff::pure, eval(r.body()));
       case EffLoop.Push _, EffLoop.Resume _ -> throw new IllegalStateException("the machine's own node: " + c);
@@ -46,17 +46,17 @@ public final class Ref {
 
   /** {@code ret $ body} under {@code p}, the body evaluated to {@code r}: a value, {@code ret}'s; a capture to {@code p},
    * its clause, k the rest under {@code p} again; another's, on outside, the rest under {@code p} again */
-  private static Res delimit(Prompt<?> p, Function<Object, Eff<?>> ret, Res r) {
+  private static Res delimit(Prompt<?, ?, ?> p, Function<Object, Eff<?, ?>> ret, Res r) {
     return switch (r) {
       case Res.Done d -> eval(ret.apply(d.value()));
       case Res.Cap cap when cap.prompt() == p ->
-          eval((Eff) cap.f().apply((Function<Object, Eff<?>>) x -> Eff.delay(() -> reify(delimit(p, ret, cap.k().apply(x))))));
+          eval((Eff) cap.f().apply((Function<Object, Eff<?, ?>>) x -> Eff.delay(() -> reify(delimit(p, ret, cap.k().apply(x))))));
       case Res.Cap cap -> new Res.Cap(cap.prompt(), cap.f(), x -> delimit(p, ret, cap.k().apply(x)));
     };
   }
 
   /** an answer as a program again: a value, or the capture it is */
-  private static Eff<?> reify(Res r) {
+  private static Eff<?, ?> reify(Res r) {
     return switch (r) {
       case Res.Done d -> Eff.pure(d.value());
       case Res.Cap cap -> new EffLoop.Suspend<>(cap.prompt(), cap.f(), x -> reify(cap.k().apply(x)));
@@ -64,7 +64,7 @@ public final class Ref {
   }
 
   /** a program at the top: its value — a capture there had no handler */
-  public static <A> A run(Eff<A> p) {
+  public static <A> A run(Eff<?, A> p) {
     return switch (eval(p)) {
       case Res.Done d -> (A) d.value();
       case Res.Cap _ -> throw new IllegalStateException(

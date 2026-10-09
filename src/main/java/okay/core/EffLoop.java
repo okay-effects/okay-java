@@ -9,45 +9,48 @@ import java.util.function.Function;
 final class EffLoop {
   private EffLoop() {}
 
-  record Return<A>(A value) implements Eff<A> {}
+  record Return<L, A>(A value) implements Eff<L, A> {}
 
-  record Bind<A, B>(Eff<A> m, Function<? super A, ? extends Eff<B>> f) implements Eff<B> {}
+  record Bind<L, A, B>(Eff<L, A> m, Function f) implements Eff<L, B> {}
 
-  record Map<A, B>(Eff<A> m, Function<? super A, ? extends B> f) implements Eff<B> {}
+  record Map<L, A, B>(Eff<L, A> m, Function<? super A, ? extends B> f) implements Eff<L, B> {}
 
-  record Shift0<X, R>(Prompt<R> prompt, Function<Function<X, Eff<R>>, Eff<R>> f) implements Eff<X> {
+  record Shift0<M, X>(Prompt<?, ?, ?> prompt, Function f) implements Eff<M, X> {
     /** an operation bound: one node, {@link Suspend} */
     @Override
-    public <B> Eff<B> flatMap(Function<? super X, ? extends Eff<B>> g) {
+    public <B> Eff<M, B> flatMap(Function<? super X, ? extends Eff<? super M, B>> g) {
       return new Suspend<>(prompt, f, g);
     }
   }
 
   /** a {@code shift0} with the rest bound to its value: {@code Bind(Shift0(p, f), k)} as one node — what
    * {@code flatMap} on an operation makes, and what a capture crossing a delimiter goes on outside as */
-  record Suspend<B>(Prompt<?> prompt, Function f, Function k) implements Eff<B> {}
+  record Suspend<L, B>(Prompt<?, ?, ?> prompt, Function f, Function k) implements Eff<L, B> {}
 
-  record Handle<A, R>(Function<? super Prompt<R>, ? extends Eff<A>> body, Function<? super A, ? extends Eff<R>> ret)
-      implements Eff<R> {}
+  record Handle<L, A, R>(Eff.Body<L, A, R> body, Function ret) implements Eff<L, R> {}
 
   /** a delimiter under a prompt there already: {@code p.reset(body)}, its answer the body's value */
-  record Reset<R>(Prompt<R> prompt, Eff<R> body) implements Eff<R> {}
+  record Reset<L, R>(Prompt<?, ?, ?> prompt, Eff<?, R> body) implements Eff<L, R> {}
 
   /** {@code m} with the rest as a stack already: what applying a captured k makes */
-  record Push<B>(Eff<?> m, Frames k) implements Eff<B> {}
+  record Push<L, B>(Eff<?, ?> m, Frames k) implements Eff<L, B> {}
 
   /** a clause's k applied to {@code x}: {@code ret $ K[x]} under {@code prompt} again — one node */
-  record Resume<B>(Object x, Function k, Prompt<?> prompt, Function<Object, Object> ret) implements Eff<B> {}
+  record Resume<L, B>(Object x, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) implements Eff<L, B> {}
 
-  static final Eff<Object> UNIT = new Return<>(null);
+  private static final Eff<?, Object> UNIT = new Return<>(null);
+
+  static <L> Eff<L, Object> unit() {
+    return (Eff<L, Object>) UNIT;
+  }
 
   /** a reset's return: the value as it is */
   private static final Function<Object, Object> PURE = Return::new;
 
   /** the prompt of the top: no capture is to it */
-  private static final Prompt<Object> TOP = new Prompt<>();
+  private static final Prompt<?, ?, ?> TOP = new Prompt<>();
 
-  sealed interface Frames extends Function<Object, Eff<?>> {
+  sealed interface Frames extends Function<Object, Eff<?, ?>> {
     Frames END = new End();
 
     record End() implements Frames {}
@@ -57,7 +60,7 @@ final class EffLoop {
     record Mapped(Function f, Frames next) implements Frames {}
 
     @Override
-    default Eff<?> apply(Object a) {
+    default Eff<?, ?> apply(Object a) {
       return switch (this) {
         case End _ -> new Return<>(a);
         case Then(var f, var next) -> next instanceof End ? (Eff) f.apply(a) : new Push<>((Eff) f.apply(a), next);
@@ -71,7 +74,7 @@ final class EffLoop {
    * value, answered by {@code ret}; a capture to this prompt, its clause in the delimiter's place, NOT under it, the
    * rest under it again as k; a capture to another, the same capture outside, the rest re-delimited when answered.
    * What leaves is the program outside, made here */
-  private static Eff<?> delimited(Eff<?> program, Frames frames, Prompt<?> prompt, Function<Object, Object> ret) {
+  private static Eff<?, ?> delimited(Eff<?, ?> program, Frames frames, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) {
     Eff c = program;
     Frames k = frames;
     while (true) {
@@ -112,8 +115,8 @@ final class EffLoop {
           return capture(s.prompt(), s.f(), k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k), prompt, ret);
         }
         case Handle h -> {
-          Prompt<?> p = new Prompt<>();
-          c = delimited((Eff) h.body().apply(p), Frames.END, p, h.ret());
+          Prompt<?, ?, ?> p = new Prompt<>();
+          c = delimited(h.body().in(p), Frames.END, p, h.ret());
         }
         case Reset r -> c = delimited(r.body(), Frames.END, r.prompt(), PURE);
         case Resume r -> {
@@ -129,7 +132,7 @@ final class EffLoop {
 
   /** a capture of the rest {@code k} at the delimiter of {@code prompt}: its own — the clause, k the rest under the
    * delimiter again, lazily; another's — the same capture outside, the rest re-delimited at once when answered */
-  private static Eff<?> capture(Prompt<?> to, Function f, Function k, Prompt<?> prompt, Function<Object, Object> ret) {
+  private static Eff<?, ?> capture(Prompt<?, ?, ?> to, Function f, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) {
     if (to == prompt) return (Eff) f.apply(new Resumed(k, prompt, ret));
     if (prompt == TOP) throw new IllegalStateException(
         "an operation with no handler in force: its capability was used outside the handler that made it");
@@ -137,7 +140,7 @@ final class EffLoop {
   }
 
   /** {@code x} through the rest {@code k} under the delimiter of {@code prompt}: a stack's first frame applied here */
-  private static Eff<?> resume(Object x, Function k, Prompt<?> prompt, Function<Object, Object> ret) {
+  private static Eff<?, ?> resume(Object x, Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) {
     return switch (k) {
       case Frames.End _ -> (Eff) ret.apply(x);
       case Frames.Then(var f, var next) -> delimited((Eff) f.apply(x), next, prompt, ret);
@@ -148,23 +151,23 @@ final class EffLoop {
 
   /** a clause's k: applied, the rest resumed under the delimiter again — LAZILY, a node, so a clause that keeps k
    * (a generator's next step) runs nothing by making it */
-  private record Resumed(Function k, Prompt<?> prompt, Function<Object, Object> ret) implements Function<Object, Eff<?>> {
+  private record Resumed(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) implements Function<Object, Eff<?, ?>> {
     @Override
-    public Eff<?> apply(Object x) {
+    public Eff<?, ?> apply(Object x) {
       return new Resume<>(x, k, prompt, ret);
     }
   }
 
   /** the rest of a delimiter's body once the capture that crossed it is answered outside: under the delimiter
    * again AT ONCE — applied by a loop already, one call deep per delimiter crossed */
-  private record Redelimit(Function k, Prompt<?> prompt, Function<Object, Object> ret) implements Function<Object, Eff<?>> {
+  private record Redelimit(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret) implements Function<Object, Eff<?, ?>> {
     @Override
-    public Eff<?> apply(Object x) {
+    public Eff<?, ?> apply(Object x) {
       return resume(x, k, prompt, ret);
     }
   }
 
-  static <A> A run(Eff<A> p) {
-    return ((Return<A>) delimited(p, Frames.END, TOP, Return::new)).value();
+  static <A> A run(Eff<?, A> p) {
+    return ((Return<?, A>) delimited(p, Frames.END, TOP, Return::new)).value();
   }
 }

@@ -12,31 +12,44 @@ import okay.core.Prompt;
  * answered in place, {@link #forEach}; into a list, {@link #collect}; or as a lazy {@link Iterator},
  * {@link #iterator}, the body suspended at each emit, a k kept until {@code next()} */
 @FunctionalInterface
-public interface Emit<X> {
-  Eff<Void> emit(X x);
+public interface Emit<L, X> {
+  Eff<L, Void> emit(X x);
+
+  /** this capability at a level further in */
+  @SuppressWarnings("unchecked")
+  default <N extends L> Emit<N, X> at() {
+    return (Emit<N, X>) (Emit<?, X>) this;
+  }
+
+  /** the body of a generator: at a fresh level, given the capability there */
+  interface Body<L, X, A> {
+    <M extends L> Eff<M, A> in(Emit<M, X> e);
+  }
 
   /** each value to {@code each}, its effects the context's: {@code shift0 k. each(x) >>= k} is {@code each(x)}
    * performed in place — the handler is the function, no prompt */
-  static <X, A> Eff<A> forEach(Function<Emit<X>, Eff<A>> body, Function<? super X, ? extends Eff<Void>> each) {
-    return Eff.delay(() -> body.apply(each::apply));
+  static <L, X, A> Eff<L, A> forEach(Body<L, X, A> body, Function<? super X, ? extends Eff<? super L, Void>> each) {
+    return Eff.delay(() -> body.<L>in(x -> each.apply(x).at()));
   }
 
   /** the values in a list, one per run of the handler: a k resumed twice from outside adds to the same */
-  static <X, A> Eff<List<X>> collect(Function<Emit<X>, Eff<A>> body) {
+  static <L, X, A> Eff<L, List<X>> collect(Body<L, X, A> body) {
     return Eff.delay(() -> {
       List<X> out = new ArrayList<>();
-      return forEach(body, x -> { out.add(x); return Eff.pure(null); }).map(_ -> out);
+      return Emit.<L, X, A>forEach(body, x -> { out.add(x); return Eff.<L, Void>pure(null); }).map(_ -> out);
     });
   }
 
   /** the body run as far as its next emit at each {@code next()}: the body pure but for {@code Emit} */
-  static <X, A> Iterator<X> iterator(Function<Emit<X>, Eff<A>> body) {
-    Eff<Step<X>> start = Eff.handle(
-        (Prompt<Step<X>> p) -> body.apply(x -> p.shift0(k -> Eff.pure(new Step.Next<>(x, k)))),
-        _ -> Eff.pure(new Step.End<>()));
+  static <X, A> Iterator<X> iterator(Body<Eff.Top, X, A> body) {
+    Eff<Eff.Top, Step<X>> start = Eff.handle(new Eff.Body<Eff.Top, A, Step<X>>() {
+      public <M extends Eff.Top> Eff<M, A> in(Prompt<Eff.Top, M, Step<X>> p) {
+        return body.in(x -> p.shift0(k -> Eff.pure(new Step.Next<>(x, k))));
+      }
+    }, _ -> Eff.pure(new Step.End<>()));
     return new Iterator<>() {
       Step<X> step;
-      Eff<Step<X>> rest = start;
+      Eff<Eff.Top, Step<X>> rest = start;
 
       private Step<X> step() {
         if (step == null) step = Eff.run(rest);
@@ -60,6 +73,6 @@ public interface Emit<X> {
   sealed interface Step<X> {
     record End<X>() implements Step<X> {}
 
-    record Next<X>(X value, Function<Void, Eff<Step<X>>> rest) implements Step<X> {}
+    record Next<X>(X value, Function<Void, Eff<Eff.Top, Step<X>>> rest) implements Step<X> {}
   }
 }

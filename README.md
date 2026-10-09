@@ -10,44 +10,58 @@ okay-core's delimited continuations in Java 25, and effects on `shift0`.
 |---|---|
 | `Cont.java`, `Loop.java`, `Frames.java`, `Head.java`, `Push.java` | `Cont<I, O, A>`: `shift` and `reset` with answer-type modification, the loop in constant stack |
 | `Cont0.java`, `Loop0.java` | `Cont0<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont0` |
-| `Eff.java`, `Prompt.java`, `EffLoop.java` | `Eff<A>`: effects on `shift0` by prompt, the answer types erased into the prompts |
-| `Fx.java`, `Cap.java` | `Fx<L, A>`: `Eff` with its row in the type, a level `Under<Under<Top, E1>, E2>`; `Cap<L, E>` a capability at a level; `lift` |
+| `Eff.java`, `Prompt.java`, `EffLoop.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts |
 
 ### `okay.std`: effects written on `Eff`
 
+Each effect is an interface at a level, `E<L, …>`, with an `at()` that moves a capability to a level further in.
+Each handler takes a `Body` whose method `<M extends L> Eff<M, A> in(E<M, …> cap)` is the handler's body at its
+fresh level.
+
 | Effect | Operations | Handlers |
 |---|---|---|
-| `Reader<E>` | `ask` | `reader(e, r -> body)`: answered in place, no prompt |
-| `State<S>` | `get`, `put`, `modify` | `state(s0, st -> body)` → `Final(s, a)`, functional: a k resumed twice resumes the state of its time; `cell(s0, st -> body)`: okay-core's, answered in place from a cell, one per run |
-| `Writer<W>` | `tell` | `writer(w -> body)` → `Log(ws, a)` |
-| `Throws<E>` | `raise` | `catching(t -> body, e -> recovery)`, `attempt(t -> body)` → `Result` (`Ok` / `Failed`) |
-| `Choose` | `among`, `fail` (multi-shot) | `all(ch -> body)` → `List`, `first(ch -> body)` → `Optional` |
-| `PState<S>` | `get`, `put` (a new type), `done` | `pstate(s0, st -> body)`: the type in the capability, a typestate |
+| `Reader<L, E>` | `ask` | `reader(e, body)`: answered in place, no prompt |
+| `State<L, S>` | `get`, `put`, `modify` | `state(s0, body)` → `Final(s, a)`, functional: a k resumed twice resumes the state of its time; `cell(s0, body)`: okay-core's, answered in place from a cell, one per run |
+| `Writer<L, W>` | `tell` | `writer(body)` → `Log(ws, a)` |
+| `Throws<L, E>` | `raise` | `catching(body, e -> recovery)`, `attempt(body)` → `Result` (`Ok` / `Failed`) |
+| `Choose<L>` | `among`, `fail` (multi-shot) | `all(body)` → `List`, `first(body)` → `Optional` |
+| `PState<L, S>` | `get`, `put` (a new type), `done` | `pstate(s0, body)`: the type in the capability, a typestate |
 | `PState0` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont0`: okay-core's, the type in the answer type |
-| `Async` | `async`, `await` (callback or `CompletionStage`), `raise` | `runAsync(as -> body)` → `CompletableFuture`; `run(t, as -> body)` waits, its failure raised to `t` |
-| `Emit<X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `iterator(body)` → lazy `java.util.Iterator` |
+| `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
+| `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `iterator(body)` → lazy `java.util.Iterator` |
 
 ## Effects on `shift0`
 
-There are two primitives. `Eff.handle(p -> body, ret)` is `ret $ body` under a prompt that is fresh each time the
-handler runs. `p.shift0(k -> clause)` captures the rest up to that prompt's delimiter, the delimiter included. The
-clause runs outside the delimiter, in its place.
+A program is `Eff<L, A>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
+`Eff.handle(body, ret)` is `ret $ body` under a prompt that is fresh each time the handler runs. Its body is a
+generic method at a level of its own, also fresh: `<M extends L> Eff<M, A> in(Prompt<L, M, R> p)`.
+`p.shift0(k -> clause)` is an operation at `M`. It captures the rest up to the prompt's delimiter, the delimiter
+included, and runs the clause outside the delimiter, at `L`, in its place.
 
-An effect is an interface. A handler is an implementation of that interface over a prompt, and the body receives
-it as a capability:
+An effect is an interface at a level. A handler is an implementation of it over a prompt, and the body gets it as a
+capability at its fresh level:
 
 ```java
-interface Ask { Eff<Integer> number(); }
+interface Ask<L> { Eff<L, Integer> number(); }
+interface Asked<L, A> { <M extends L> Eff<M, A> in(Ask<M> a); }   // a handler's body: a level of its own
 
-static <A> Eff<A> asking(int n, Function<Ask, Eff<A>> body) {
-  return Eff.handle((Prompt<A> p) -> body.apply(() -> p.shift0(k -> k.apply(n))));
+static <L, A> Eff<L, A> asking(int n, Asked<L, A> body) {
+  return Eff.handle(new Eff.Body<L, A, A>() {
+    public <M extends L> Eff<M, A> in(Prompt<L, M, A> p) { return body.in(() -> p.shift0(k -> k.apply(n))); }
+  }, Eff::pure);
 }
 
-static Eff<Integer> twoEffects(Ask a, Writer<String> w) {
-  return a.number().flatMap(n -> w.tell(n.toString()).map(_ -> n + 1));
+static <L> Eff<L, Integer> step(State<L, Integer> st, Choose<L> ch) {   // the row: what it is given, at its level
+  return ch.among(List.of(1, 2)).flatMap(x -> st.modify(v -> v + x)).then(st.get());
 }
 
-Eff.run(Writer.writer(w -> asking(41, a -> twoEffects(a, w))));   // Log([41], 42)
+Eff.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
+  public <M extends Top> Eff<M, List<Integer>> in(State<M, Integer> st) {
+    return Choose.all(new Choose.Body<M, Integer>() {
+      public <N extends M> Eff<N, Integer> in(Choose<N> ch) { return step(st.at(), ch); }
+    });
+  }
+}));                                                                     // Final(3, [1, 3])
 ```
 
 An operation goes to its own handler by prompt, and any nearer handlers are crossed. Each crossing is a lift, one
@@ -68,61 +82,45 @@ An operation goes to its own handler by prompt, and any nearer handlers are cros
   operation goes to the one it was taken from. Effect-polymorphic code is plain Java: `traverse(xs, f)` passes
   through whatever effects `f` has.
 
-The trade-offs, and what each is answered with:
+The trade-offs:
 
-- **Effect safety comes from holding a capability, not from types.** A capability used after its handler is gone
-  fails at `run` (`IllegalStateException`). `Fx` puts the row back in the type, see below.
 - **No answer-type modification in `Eff`.** The handler's answer is erased into its prompt, so there is nothing to
   modify. A type that changes moves into the capability, see `PState` below. Full ATM is `Cont0`'s, see printf.
 - **Crossing a handler costs a lift.** An operation allocates 96 B under its handler and 48 B more per handler
   crossed (okay-core before its Redelimit: 104 B and 96 B). An operation answered in place allocates 64 B however
   many handlers it crosses.
+- **Every handler's body is an anonymous class.** A lambda can't implement a generic method, and the fresh level
+  is a generic method. That is the price of the static guarantee below.
 
-## Rows: levels
+## No leaks: a fresh level for each handler
 
-A row in Cont0 is the nesting of its answer types: each handler is a delimiter, one level more. `Fx<L, A>` keeps
-that nesting and drops the answers. A level is `Top`, or `Under<L, E>` for a handler of `E` over `L`. A capability
-is at its handler's body's level, `Cap<L, E>`, and only gives programs at that level. To use a program or a
-capability under one more handler, you `lift` it.
+A row in Cont0 is the nesting of its answer types: each handler is a delimiter, one level more. `Eff<L, A>` keeps
+that nesting and drops the answers. A handler's body is at a level of its own, `M extends L`, a type variable that
+nobody outside the body can name (runST's rank-2 trick). Its capabilities and its prompt are at `M`. So whatever
+leaves the body, a capability, a prompt or a program built there, is at a level no program outside is at. Each of
+these is a compile error, and `LeakTest` compiles each beside the right version, which compiles:
 
-```java
-static <L> Fx<L, Integer> step(Cap<L, State<Integer>> st, Cap<L, Choose> ch) {   // the row: what it is given
-  return ch.perform(c -> c.among(List.of(1, 2)))
-      .flatMap(x -> st.perform(s -> s.modify(v -> v + x)))
-      .then(st.perform(State::get));
-}
+- a capability out of its handler, used at the top;
+- the same, used in another handler at the same place;
+- an inner handler's capability used at the level outside it;
+- a program built inside a body, run outside;
+- a prompt out of its handler.
 
-Fx.run(Fx.handle(state(0), st -> Fx.handle(all(), ch -> step(st.lift(), ch))));   // Final(3, [1, 3])
-```
+This is the only way to write a handler, and it costs nothing at run time: the levels are types only, a lift is
+nothing, and the allocation per operation is the same as without them. An unchecked cast can still force a
+capability out. The prompt then catches a general operation at run time
+(`aCapabilityForcedOutByAnUncheckedCastHasNoneToReach`), but an answering capability has no prompt to check.
 
-Each of the following is a compile error (`FxTest` compiles them):
-- a capability used outside its handler;
-- a capability of an inner handler used at the level outside it;
-- an outer capability that was not lifted;
-- `run` of a program with a handler still missing.
+Levels go one way. A level further in is a subtype, `M extends L`, so a program of a level outside runs inside as
+it is:
+- In a bind's function it fits on its own, `flatMap(Function<A, Eff<? super L, B>>)`.
+- At the head of a chain, `.at()` moves it in, for example `outer.get().<N>at().flatMap(…)`.
+- A capability goes in with its own `at()`: `step(st.at(), ch)`.
 
-At run time a lift does nothing, since an operation finds its handler by prompt. That is the difference from Cont0,
-where a lift is a `shift0` per delimiter crossed: the type does Cont0's bookkeeping, and the prompt does the work.
-The cost is a record around `Eff`: 112 B per operation against 96 B. What the types don't cover is two handlers of
-the same effect at the same level, for example a capability leaked from one `state` and used in another. Those
-stay apart only by prompt, at run time.
+Moving anything outward does not compile.
 
-`Fx.scoped` closes that gap with a level that is fresh for each handler. This is runST's rank-2 trick: the body is a
-generic method `<M> Fx<M, A> apply(Cap<M, E> cap, Lift<L, M> up)`, and `M` is a type variable nobody outside the
-body can name. A capability leaked from one handler and used in another at the same place is then a type error
-too. The cost is that the body has to be an anonymous class, because a lambda can't implement a generic method:
-
-```java
-Fx.scoped(state(0), new Fx.Body<>() {
-  public <M> Fx<M, List<Integer>> apply(Cap<M, State<Integer>> st, Fx.Lift<Top, M> up) {
-    return Fx.scoped(all(), new Fx.Body<M, Choose, Integer>() {
-      public <N> Fx<N, Integer> apply(Cap<N, Choose> ch, Fx.Lift<M, N> in) { return step(in.cap(st), ch); }
-    });
-  }
-});
-```
-
-Lifts are explicit in both styles, because a lift is a subtyping of rows and Java can't express that.
+The types already caught one leak in the old tests: a Reader's capability used inside a separate async run, at the
+top, outside the reader. With an answering capability there was no prompt to notice it.
 
 ## Answer-type modification
 
@@ -131,7 +129,7 @@ Lifts are explicit in both styles, because a lift is a subtyping of rows and Jav
   `Function<Integer, Function<String, String>>`. `PState0` is okay-core's `PState`: the state's type is carried in
   the answer type, and a `get` of the wrong type doesn't compile.
 - **On `Eff`, as a typestate.** What ATM is mostly used for is a state whose type changes (okay-core's `PState`).
-  Here the type is in the capability: `put` of a `T` gives a `PState<T>`, and the old capability is stale. Java has
+  Here the type is in the capability: `put` of a `T` gives a `PState<L, T>`, and the old capability is stale. Java has
   no linear types, so a stale use is an `IllegalStateException`, checked by a generation that the state carries
   and that backtracks with it.
 

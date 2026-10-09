@@ -6,17 +6,17 @@ import java.util.concurrent.atomic.AtomicReference;
  * stack, recursive as it is. The tests written once run on each, and must agree */
 public enum Backend {
   MACHINE {
-    public <A> A run(Eff<A> p) {
+    public <A> A run(Eff<Eff.Top, A> p) {
       return Eff.run(p);
     }
   },
   REF {
-    public <A> A run(Eff<A> p) {
+    public <A> A run(Eff<Eff.Top, A> p) {
       return onLargeStack(() -> Ref.run(p));
     }
   };
 
-  public abstract <A> A run(Eff<A> p);
+  public abstract <A> A run(Eff<Eff.Top, A> p);
 
   interface Body<A> {
     A get();

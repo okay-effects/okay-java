@@ -12,44 +12,51 @@ import okay.std.State.Final;
  * is at run time, by a generation the state carries. The handler's answer is erased, so it needs no modifying: the
  * body ends with {@code done} of the last capability, and the type of the final state is its.
  */
-public interface PState<S> {
-  Eff<S> get();
+public interface PState<L, S> {
+  Eff<L, S> get();
 
   /** the state replaced by one of another type: this capability stale, the one given in force */
-  <T> Eff<PState<T>> put(T t);
+  <T> Eff<L, PState<L, T>> put(T t);
 
-  default <A> Eff<Final<S, A>> done(A a) {
+  default <A> Eff<L, Final<S, A>> done(A a) {
     return get().map(s -> new Final<>(s, a));
   }
 
-  static <S, T, A> Eff<Final<T, A>> pstate(S init, Function<PState<S>, Eff<Final<T, A>>> body) {
-    Eff<Function<Cell, Eff<Final<T, A>>>> handled = Eff.handle(
-        (Prompt<Function<Cell, Eff<Final<T, A>>>> p) -> body.apply(new At<>(p, 0)),
-        f -> Eff.pure(_ -> Eff.pure(f)));
+  /** the body of {@link #pstate}: at a fresh level, given the capability there, ending with the last one's done */
+  interface Body<L, S, T, A> {
+    <M extends L> Eff<M, Final<T, A>> in(PState<M, S> st);
+  }
+
+  static <L, S, T, A> Eff<L, Final<T, A>> pstate(S init, Body<L, S, T, A> body) {
+    Eff<L, Function<Cell, Eff<L, Final<T, A>>>> handled = Eff.handle(new Eff.Body<L, Final<T, A>, Function<Cell, Eff<L, Final<T, A>>>>() {
+      public <M extends L> Eff<M, Final<T, A>> in(Prompt<L, M, Function<Cell, Eff<L, Final<T, A>>>> p) {
+        return body.in(new At<>(p, 0));
+      }
+    }, f -> Eff.pure(_ -> Eff.pure(f)));
     return handled.flatMap(f -> f.apply(new Cell(0, init)));
   }
 
   /** the state and the generation of the capability in force */
   record Cell(int generation, Object value) {}
 
-  final class At<S, R> implements PState<S> {
-    private final Prompt<Function<Cell, Eff<R>>> p;
+  final class At<L, M, S, R> implements PState<M, S> {
+    private final Prompt<L, M, Function<Cell, Eff<L, R>>> p;
     private final int generation;
 
-    At(Prompt<Function<Cell, Eff<R>>> p, int generation) {
+    At(Prompt<L, M, Function<Cell, Eff<L, R>>> p, int generation) {
       this.p = p;
       this.generation = generation;
     }
 
     @SuppressWarnings("unchecked")
-    public Eff<S> get() {
+    public Eff<M, S> get() {
       return p.shift0(k -> Eff.pure(c -> k.apply((S) live(c).value()).flatMap(f -> f.apply(c))));
     }
 
-    public <T> Eff<PState<T>> put(T t) {
+    public <T> Eff<M, PState<M, T>> put(T t) {
       return p.shift0(k -> Eff.pure(c -> {
         Cell next = new Cell(live(c).generation() + 1, t);
-        return k.apply(new At<T, R>(p, next.generation())).flatMap(f -> f.apply(next));
+        return k.apply(new At<L, M, T, R>(p, next.generation())).flatMap(f -> f.apply(next));
       }));
     }
 

@@ -1,16 +1,28 @@
 package okay.std;
 
-import java.util.function.Function;
 import okay.core.Eff;
 
 /** an environment to ask. Its one operation is answered in place, {@code shift0 k. k(env)} is {@code env}: the
- * handler is the capability itself, no prompt, no capture — okay-core's {@code Answering}, here for nothing */
+ * capability is the handler, no prompt, no capture — and at the body's fresh level, so it does not leave it */
 @FunctionalInterface
-public interface Reader<E> {
-  Eff<E> ask();
+public interface Reader<L, E> {
+  Eff<L, E> ask();
 
-  static <E, A> Eff<A> reader(E env, Function<Reader<E>, Eff<A>> body) {
-    Eff<E> value = Eff.pure(env);
-    return Eff.delay(() -> body.apply(() -> value));
+  /** this capability at a level further in */
+  @SuppressWarnings("unchecked")
+  default <N extends L> Reader<N, E> at() {
+    return (Reader<N, E>) (Reader<?, E>) this;
+  }
+
+  /** the body of {@link #reader}: at a fresh level, given the capability there */
+  interface Body<L, E, A> {
+    <M extends L> Eff<M, A> in(Reader<M, E> r);
+  }
+
+  static <L, E, A> Eff<L, A> reader(E env, Body<L, E, A> body) {
+    return Eff.delay(() -> {
+      Eff<L, E> value = Eff.pure(env);
+      return body.<L>in(() -> value);
+    });
   }
 }

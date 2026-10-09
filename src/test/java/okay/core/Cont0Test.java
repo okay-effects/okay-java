@@ -89,8 +89,8 @@ class Cont0Test {
 
   @Test
   void pstateAGetOfTheWrongTypeDoesNotCompile() throws java.io.IOException {
-    assertEquals(List.of(), FxTest.errors(pstateGetting("String")));
-    assertFalse(FxTest.errors(pstateGetting("Integer")).isEmpty());
+    assertEquals(List.of(), Javac.errors(pstateGetting("String")));
+    assertFalse(Javac.errors(pstateGetting("Integer")).isEmpty());
   }
 
   @Test

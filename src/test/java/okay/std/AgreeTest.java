@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Random;
 import okay.core.Backend;
 import okay.core.Eff;
+import okay.core.Eff.Top;
 import okay.core.Prompt;
 import org.junit.jupiter.api.Test;
 
@@ -45,31 +46,59 @@ class AgreeTest {
     return new Prog.Handle(k, r.nextInt(10), make(r, inner, budget - 1));
   }
 
-  /** the program built over the capabilities in scope, innermost last */
+  /** the program built over the capabilities in scope, innermost last, at the level of the innermost handler. The
+   * capabilities are kept as they come, of any level outside; each is cast back to its effect at this level — a
+   * level further in, where a capability of a level outside is good: unchecked, so the generator can pick them */
   @SuppressWarnings("unchecked")
-  static Eff<Integer> build(Prog p, List<Object> caps) {
+  static <L> Eff<L, Integer> build(Prog p, List<Object> caps) {
     return switch (p) {
       case Prog.Pure(var n) -> Eff.pure(n);
-      case Prog.Seq(var a, var b) -> build(a, caps).flatMap(x -> build(b, caps).map(y -> x * 3 + y));
+      case Prog.Seq(var a, var b) -> AgreeTest.<L>build(a, caps).flatMap(x -> AgreeTest.<L>build(b, caps).map(y -> x * 3 + y));
       case Prog.Op(var i, var n) -> switch (caps.get(caps.size() - 1 - i)) {
-        case Writer<?> w -> ((Writer<Integer>) w).tell(n).map(_ -> n);
-        case State<?> s -> ((State<Integer>) s).modify(x -> x + n).then(((State<Integer>) s).get());
-        case Choose c -> c.among(List.of(n, n + 1));
-        case Throws<?> t -> ((Throws<Integer>) t).raise(n);
-        case Reader<?> rd -> ((Reader<Integer>) rd).ask().map(x -> x + n);
-        case Prompt<?> pr -> ((Prompt<Integer>) pr).<Integer>shift(k -> k.apply(n).flatMap(x -> k.apply(x + 1)).map(x -> x * 5));
+        case Writer<?, ?> w -> ((Writer<L, Integer>) w).tell(n).map(_ -> n);
+        case State<?, ?> s -> ((State<L, Integer>) s).modify(x -> x + n).then(((State<L, Integer>) s).get());
+        case Choose<?> c -> ((Choose<L>) c).among(List.of(n, n + 1));
+        case Throws<?, ?> t -> ((Throws<L, Integer>) t).raise(n);
+        case Reader<?, ?> rd -> ((Reader<L, Integer>) rd).ask().map(x -> x + n);
+        case Prompt<?, ?, ?> pr -> ((Prompt<Object, L, Integer>) pr).<Integer>shift(k -> k.apply(n).flatMap(x -> k.apply(x + 1)).map(x -> x * 5).at());
         default -> throw new IllegalStateException();
       };
       case Prog.Handle(var k, var n, var body) -> switch (k) {
-        case WRITER -> Writer.<Integer, Integer>writer(w -> build(body, with(caps, w)))
-            .map(l -> l.value() * 31 + l.log().stream().mapToInt(Integer::intValue).sum() * 7 + l.log().size());
-        case STATE -> State.<Integer, Integer>state(n, s -> build(body, with(caps, s))).map(f -> f.state() * 31 + f.value());
-        case CELL -> State.<Integer, Integer>cell(n, s -> build(body, with(caps, s))).map(f -> f.state() * 31 + f.value());
-        case CHOOSE -> Choose.<Integer>all(c -> build(body, with(caps, c)))
-            .map(l -> l.stream().reduce(17, (h, x) -> h * 31 + x));
-        case THROWS -> Throws.<Integer, Integer>catching(t -> build(body, with(caps, t)), e -> Eff.pure(-e));
-        case READER -> Reader.<Integer, Integer>reader(n, rd -> build(body, with(caps, rd)));
-        case RESET -> Eff.<Integer>reset(pr -> build(body, with(caps, pr))).map(x -> x + n);
+        case WRITER -> Writer.writer(new Writer.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(Writer<M, Integer> w) {
+            return build(body, with(caps, w));
+          }
+        }).map(l -> l.value() * 31 + l.log().stream().mapToInt(Integer::intValue).sum() * 7 + l.log().size());
+        case STATE -> State.state(n, new State.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(State<M, Integer> s) {
+            return build(body, with(caps, s));
+          }
+        }).map(f -> f.state() * 31 + f.value());
+        case CELL -> State.cell(n, new State.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(State<M, Integer> s) {
+            return build(body, with(caps, s));
+          }
+        }).map(f -> f.state() * 31 + f.value());
+        case CHOOSE -> Choose.all(new Choose.Body<L, Integer>() {
+          public <M extends L> Eff<M, Integer> in(Choose<M> c) {
+            return build(body, with(caps, c));
+          }
+        }).map(l -> l.stream().reduce(17, (h, x) -> h * 31 + x));
+        case THROWS -> Throws.catching(new Throws.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(Throws<M, Integer> t) {
+            return build(body, with(caps, t));
+          }
+        }, e -> Eff.pure(-e));
+        case READER -> Reader.reader(n, new Reader.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(Reader<M, Integer> rd) {
+            return build(body, with(caps, rd));
+          }
+        });
+        case RESET -> Eff.reset(new Eff.Body<L, Integer, Integer>() {
+          public <M extends L> Eff<M, Integer> in(Prompt<L, M, Integer> pr) {
+            return build(body, with(caps, pr));
+          }
+        }).map(x -> x + n);
       };
     };
   }
@@ -89,7 +118,7 @@ class AgreeTest {
       Prog p = make(r, List.of(), 32);
       handlers += count(p);
       crossing += crossing(p);
-      Eff<Integer> program = build(p, List.of());
+      Eff<Top, Integer> program = build(p, List.of());
       assertEquals(Backend.REF.run(program), Backend.MACHINE.run(program), p.toString());
     }
     // the programs are not trivial: handlers nested, operations crossing them
