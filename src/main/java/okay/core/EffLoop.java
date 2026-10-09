@@ -91,6 +91,15 @@ final class EffLoop {
           c = fed.c();
           k = fed.k();
         }
+        // a value computed in place: through the frames as a Return's, no Return made for it
+        case Sync s -> {
+          Object v = s.a().get();
+          if (k instanceof Frames.End) return (Eff) ret.apply(v);
+          Fed fed = feed(v, k);
+          if (fed.c() == null) return (Eff) ret.apply(fed.v());
+          c = fed.c();
+          k = fed.k();
+        }
         case Bind b -> {
           if (b.m() instanceof Return r) {
             c = (Eff) b.f().apply(r.value());
@@ -116,7 +125,6 @@ final class EffLoop {
           c = m.m();
         }
         case Delay d -> c = (Eff) d.c().get();
-        case Sync s -> c = new Return<>(s.a().get());
         case Push p -> {
           k = k instanceof Frames.End ? p.k() : new Frames.Then(p.k(), k);
           c = p.m();
