@@ -373,6 +373,53 @@ class EffectsTest {
     assertEquals(5, emitted[0]);
   }
 
+  @Test
+  void aGeneratorAsALazyJavaStream() {
+    int[] emitted = {0};
+    List<Integer> squares = Emit.stream(new Emit.Body<Top, Integer, Void>() {
+      public <M extends Top> Eff<M, Void> in(Emit<M, Integer> em) {
+        return naturals(em, 0, emitted);
+      }
+    }).map(x -> x * x).limit(4).toList();
+    assertEquals(List.of(0, 1, 4, 9), squares);
+    assertEquals(4, emitted[0]);
+  }
+
+  /** a generator's consumer type: an element and the rest, a program at the consumer's level, or the end */
+  sealed interface Gen<L> {
+    record More<L>(int x, Eff<L, Gen<L>> rest) implements Gen<L> {}
+
+    record End<L>() implements Gen<L> {}
+  }
+
+  /** the first {@code n} elements summed, the rest run only as far as asked */
+  static <L> Eff<L, Integer> take(int n, Eff<L, Gen<L>> g) {
+    return n == 0 ? pure(0) : g.flatMap(gen -> switch (gen) {
+      case Gen.More<L>(var x, var rest) -> take(n - 1, rest).map(s -> s + x);
+      case Gen.End<L> _ -> pure(0);
+    });
+  }
+
+  @Test
+  void aGeneratorUnderAnEffectStillToBeHandledItsRestAProgramThere() {
+    // the body tells before each element, to a writer outside the generator; two elements pulled, two told
+    Log<String, Integer> r = run(Writer.writer(new Writer.Body<Top, String, Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Writer<M, String> w) {
+        Eff<M, Gen<M>> g = Emit.generate(new Emit.Body<M, Integer, Void>() {
+          public <N extends M> Eff<N, Void> in(Emit<N, Integer> e) {
+            return counting(w.at(), e, 1);
+          }
+        }, Gen.More::new, new Gen.End<>());
+        return take(2, g);
+      }
+    }));
+    assertEquals(new Log<>(List.of("made 1", "made 2"), 3), r);
+  }
+
+  static <L> Eff<L, Void> counting(Writer<L, String> w, Emit<L, Integer> e, int i) {
+    return w.tell("made " + i).then(e.emit(i)).flatMap(_ -> counting(w, e, i + 1));
+  }
+
   static <L> Eff<L, Void> naturals(Emit<L, Integer> em, int i, int[] emitted) {
     return Eff.<L, Void>delay(() -> { emitted[0]++; return em.emit(i); }).then(Eff.delay(() -> naturals(em, i + 1, emitted)));
   }

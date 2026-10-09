@@ -31,7 +31,7 @@ fresh level.
 | `PState<L, S>` | `get`, `put` (a new type), `done` | `pstate(s0, body)`: the type in the capability, a typestate |
 | `PState0` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont0`: okay-core's, the type in the answer type |
 | `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
-| `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `iterator(body)` → lazy `java.util.Iterator` |
+| `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `generate(body, next, done)` (lazy, of the consumer's type, under any effects; okay-core's), `iterator(body)` → `Iterator`, `stream(body)` → a lazy `java.util.stream.Stream` |
 
 ## Effects on `shift0`
 
@@ -158,7 +158,10 @@ machine: okay-java `4009fed` (2026-10-09 11:38) and okay-core `bb01100` (08:45).
 | a shift under a reset: 16 maps / 1, `k` 8 times | 519 / 130 ns | 433 / 136 ns | 323 / 126 ns |
 | the same under a handler | 512 / 115 ns | 410 / 122 ns | 363 / 139 ns |
 | 256 maps, `k` 8 times / 1 map, `k` once | 6708 / 36 ns | 5862 / 38 ns | 4676 / 38 ns |
-| 256 maps boxed by a record (`captureDeepRecord`) | 4966 ns | — | — |
+| 16 maps / 256 maps over a record (`captureRecord`, `captureDeepRecord`) | 339 / 4966 ns | — | — |
+
+Captures by `shift` over a record instead of autoboxed `Integer`s are even with `zero`: 339 ns against 323 with 16
+maps. Even when every value comes from `Integer.valueOf`'s cache, its branch costs the loop a third.
 
 An answered operation costs the same in Java whatever the number of handlers it crosses. The capability is the
 handler, so nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Queens is left

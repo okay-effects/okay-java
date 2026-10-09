@@ -70,7 +70,7 @@ check(log, new Log<>(List.of("a", "b"), 2));
 | `Choose<L>` | `among`, `fail` | `all(body)` → `List`, `first(body)` → `Optional` |
 | `PState<L, S>` | `get`, `put` (a new type), `done` | `pstate(s0, body)` |
 | `Async<L>` | `async`, `await`, `raise` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` |
-| `Emit<L, X>` | `emit` | `forEach(body, f)`, `collect(body)`, `iterator(body)` |
+| `Emit<L, X>` | `emit` | `forEach(body, f)`, `collect(body)`, `generate(body, next, done)`, `iterator(body)`, `stream(body)` |
 
 ## Several effects
 
@@ -260,7 +260,9 @@ wrong type does not compile.
 
 ## Generators
 
-`Emit.iterator` runs the body as far as its next `emit` at each `next()`. The body may go on forever:
+`Emit.stream` makes the body a lazy `java.util.stream.Stream`: an element pulled is a run of the rest, so `limit`,
+`takeWhile` and the like stop the body where they stop. The body may go on forever. `Emit.iterator` gives the same
+as an `Iterator`:
 
 ```java
 static <L> Eff<L, Void> naturals(Emit<L, Integer> e, int i) {
@@ -270,12 +272,48 @@ static <L> Eff<L, Void> naturals(Emit<L, Integer> e, int i) {
 
 ```java
 // run
-java.util.Iterator<Integer> it = Emit.iterator(new Emit.Body<Top, Integer, Void>() {
+List<Integer> squares = Emit.stream(new Emit.Body<Top, Integer, Void>() {
   public <M extends Top> Eff<M, Void> in(Emit<M, Integer> e) {
     return naturals(e, 0);
   }
-});
-check(List.of(it.next(), it.next(), it.next()), List.of(0, 1, 2));
+}).map(x -> x * x).limit(4).toList();
+check(squares, List.of(0, 1, 4, 9));
+```
+
+Under effects still to be handled, `Emit.generate(body, next, done)` makes a generator of the consumer's own type.
+Each element comes with the rest, a program at the generator's level, and the body's other effects go to their
+handlers as the rest is run:
+
+```java
+sealed interface Gen<L> {
+  record More<L>(int x, Eff<L, Gen<L>> rest) implements Gen<L> {}
+  record End<L>() implements Gen<L> {}
+}
+
+static <L> Eff<L, Integer> sumOf(int n, Eff<L, Gen<L>> g) {   // the first n, the rest run only as far as asked
+  return n == 0 ? Eff.pure(0) : g.flatMap(gen -> switch (gen) {
+    case Gen.More<L>(var x, var rest) -> sumOf(n - 1, rest).map(s -> s + x);
+    case Gen.End<L> _ -> Eff.pure(0);
+  });
+}
+
+static <L> Eff<L, Void> told(Writer<L, String> w, Emit<L, Integer> e, int i) {
+  return w.tell("made " + i).then(e.emit(i)).flatMap(_ -> told(w, e, i + 1));
+}
+```
+
+```java
+// run
+Log<String, Integer> two = Eff.run(Writer.writer(new Writer.Body<Top, String, Integer>() {
+  public <M extends Top> Eff<M, Integer> in(Writer<M, String> w) {
+    return sumOf(2, Emit.generate(new Emit.Body<M, Integer, Void>() {
+      public <N extends M> Eff<N, Void> in(Emit<N, Integer> e) {
+        return told(w.at(), e, 1);
+      }
+    }, Gen.More::new, new Gen.End<>()));
+  }
+}));
+check(two, new Log<>(List.of("made 1", "made 2"), 3));   // two pulled, two told: the third never made
 ```
 
 ## Async

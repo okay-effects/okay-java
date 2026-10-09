@@ -13,6 +13,9 @@ sealed interface Rope<A> {
 
   record Cat<A>(Rope<A> left, Rope<A> right) implements Rope<A> {}
 
+  /** an element in front of the rest: a writer's tell, one object */
+  record Cons<A>(A head, Rope<A> tail) implements Rope<A> {}
+
   Rope<?> EMPTY = new Empty<>();
 
   @SuppressWarnings("unchecked")
@@ -33,6 +36,10 @@ sealed interface Rope<A> {
       switch (todo.pop()) {
         case Empty<A> _ -> {}
         case Leaf<A>(var a) -> out.add(a);
+        case Cons<A>(var h, var t) -> {
+          out.add(h);
+          todo.push(t);
+        }
         case Cat<A>(var l, var r) -> {
           todo.push(r);
           todo.push(l);

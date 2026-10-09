@@ -323,6 +323,16 @@ public class MonadsBenchmark {
     return c;
   }
 
+  /** capture's program, its maps over a record: no Integer.valueOf on the way */
+  @Benchmark
+  public int captureRecord() {
+    return Eff.run(Eff.reset(new Eff.Body<Top, Int, Int>() {
+      public <M extends Top> Eff<M, Int> in(Prompt<Top, M, Int> p) {
+        return capturedRecord(p, 16, 8);
+      }
+    })).value();
+  }
+
   @Benchmark
   public int captureDeepRecord() {
     return Eff.run(Eff.reset(new Eff.Body<Top, Int, Int>() {

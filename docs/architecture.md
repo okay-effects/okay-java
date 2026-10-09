@@ -55,7 +55,7 @@ the type as a phantom.
 Each effect is an interface at a level with an `at()`. Each handler takes a `Body` of its own, a generic method at a
 fresh level, and is written with `Eff.handle` and `p.shift0`. A clause of the form `k(v)` is answered in place by
 the capability itself, with no prompt: `Reader`, `Emit.forEach`, `State.cell`. `Writer` and `Choose.all` build their
-answers in a `Rope`, joined in constant time and turned into a list once at the end. `Async` resumes the run in the
+answers in a `Rope`, joined in constant time and turned into a list once at the end. `Emit.generate` gives each element with the rest, a program at its level, so a generator runs under effects still to be handled. `iterator` and `stream` are built on it at the top. `Async` resumes the run in the
 callback's thread, and the handlers inside go on with it, since `k` holds their delimiters by prompt.
 
 ## Tests

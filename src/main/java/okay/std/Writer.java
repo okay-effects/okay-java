@@ -25,7 +25,7 @@ public interface Writer<L, W> {
   static <L, W, A> Eff<L, Log<W, A>> writer(Body<L, W, A> body) {
     return Eff.handle(new Eff.Body<L, A, Built<W, A>>() {
       public <M extends L> Eff<M, A> in(Prompt<L, M, Built<W, A>> p) {
-        return body.in(w -> p.shift0(k -> k.apply(null).map(r -> new Built<>(new Rope.Cat<>(new Rope.Leaf<>(w), r.log()), r.value()))));
+        return body.in(w -> p.shift0(k -> k.apply(null).map(r -> new Built<>(new Rope.Cons<>(w, r.log()), r.value()))));
       }
     }, a -> Eff.pure(new Built<>(Rope.<W>empty(), a))).map(b -> new Log<>(b.log().toList(), b.value()));
   }

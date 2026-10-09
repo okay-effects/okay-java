@@ -9,8 +9,9 @@ import okay.core.Eff;
 import okay.core.Prompt;
 
 /** values emitted one by one: a generator. Handled three ways — each value to a function of the context outside,
- * answered in place, {@link #forEach}; into a list, {@link #collect}; or as a lazy {@link Iterator},
- * {@link #iterator}, the body suspended at each emit, a k kept until {@code next()} */
+ * answered in place, {@link #forEach}; into a list, {@link #collect}; or lazily, the body suspended at each emit —
+ * {@link #generate}, of the consumer's own type and under any effects, and on it a {@link Iterator},
+ * {@link #iterator}, and a {@link java.util.stream.Stream}, {@link #stream} */
 @FunctionalInterface
 public interface Emit<L, X> {
   Eff<L, Void> emit(X x);
@@ -40,13 +41,27 @@ public interface Emit<L, X> {
     });
   }
 
+  /** what a generator's consumer makes of an element and the rest — the rest a program at the generator's own
+   * level, run when it pulls: so the consumer, as the body, may be under effects still to be handled */
+  @FunctionalInterface
+  interface Next<L, X, G> {
+    G next(X x, Eff<L, G> rest);
+  }
+
+  /** okay-core's {@code generate}: the body as a lazy generator of the consumer's own type {@code G} — each element
+   * with the rest by {@code next}, the end {@code done}. Nothing runs past an element until the rest is run. At any
+   * level: the body's other effects go to their handlers outside, from the rest as from the start */
+  static <L, X, A, G> Eff<L, G> generate(Body<L, X, A> body, Next<L, X, G> next, G done) {
+    return Eff.handle(new Eff.Body<L, A, G>() {
+      public <M extends L> Eff<M, A> in(Prompt<L, M, G> p) {
+        return body.in(x -> p.shift0(k -> Eff.pure(next.next(x, k.apply(null)))));
+      }
+    }, _ -> Eff.pure(done));
+  }
+
   /** the body run as far as its next emit at each {@code next()}: the body pure but for {@code Emit} */
   static <X, A> Iterator<X> iterator(Body<Eff.Top, X, A> body) {
-    Eff<Eff.Top, Step<X>> start = Eff.handle(new Eff.Body<Eff.Top, A, Step<X>>() {
-      public <M extends Eff.Top> Eff<M, A> in(Prompt<Eff.Top, M, Step<X>> p) {
-        return body.in(x -> p.shift0(k -> Eff.pure(new Step.Next<>(x, k))));
-      }
-    }, _ -> Eff.pure(new Step.End<>()));
+    Eff<Eff.Top, Step<X>> start = generate(body, Step.Next::new, new Step.End<>());
     return new Iterator<>() {
       Step<X> step;
       Eff<Eff.Top, Step<X>> rest = start;
@@ -61,18 +76,25 @@ public interface Emit<L, X> {
       }
 
       public X next() {
-        if (!(step() instanceof Step.Next<X>(var x, var k))) throw new NoSuchElementException();
+        if (!(step() instanceof Step.Next<X>(var x, var r))) throw new NoSuchElementException();
         step = null;
-        rest = k.apply(null);
+        rest = r;
         return x;
       }
     };
   }
 
-  /** where the generator is: done, or at a value with the rest */
+  /** the body as a lazy, sequential {@link java.util.stream.Stream}: an element pulled, a run of the rest — so
+   * {@code limit}, {@code takeWhile} and the like stop the body where they stop */
+  static <X, A> java.util.stream.Stream<X> stream(Body<Eff.Top, X, A> body) {
+    return java.util.stream.StreamSupport.stream(
+        java.util.Spliterators.spliteratorUnknownSize(iterator(body), java.util.Spliterator.ORDERED), false);
+  }
+
+  /** where an iterator is: done, or at a value with the rest */
   sealed interface Step<X> {
     record End<X>() implements Step<X> {}
 
-    record Next<X>(X value, Function<Void, Eff<Eff.Top, Step<X>>> rest) implements Step<X> {}
+    record Next<X>(X value, Eff<Eff.Top, Step<X>> rest) implements Step<X> {}
   }
 }
