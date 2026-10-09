@@ -310,6 +310,28 @@ public class MonadsBenchmark {
     }));
   }
 
+  static <L> Eff<L, Int> shotsInt(Function<Void, Eff<L, Int>> k, int i, int acc) {
+    return i == 0 ? Eff.pure(new Int(acc)) : k.apply(null).flatMap(r -> shotsInt(k, i - 1, acc + r.value()));
+  }
+
+  /** a box of one's own: no cache, not deprecated — every map a plain allocation */
+  record Int(int value) {}
+
+  static <L, M extends L> Eff<M, Int> capturedRecord(Prompt<L, M, Int> p, int depth, int times) {
+    Eff<M, Int> c = p.<Void>shift(k -> shotsInt(k, times, 0).at()).map(_ -> new Int(1));
+    for (int i = 0; i < depth; i++) c = c.map(x -> new Int(x.value() + 1));
+    return c;
+  }
+
+  @Benchmark
+  public int captureDeepRecord() {
+    return Eff.run(Eff.reset(new Eff.Body<Top, Int, Int>() {
+      public <M extends Top> Eff<M, Int> in(Prompt<Top, M, Int> p) {
+        return capturedRecord(p, 256, 8);
+      }
+    })).value();
+  }
+
   @Benchmark
   public int captureOnce() {
     return Eff.run(Eff.reset(capturing(1, 1)));

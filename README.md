@@ -183,9 +183,12 @@ Same JDK (26), the same harness (`java` straight), 3 forks:
 |---|---|---|
 | `x -> x + 1`, autoboxed: `Integer.valueOf` | 7.79 µs, 30 KB | 4.67 µs, 30 KB |
 | `x -> new Integer(x + 1)` (`captureDeepNew`) | 4.95 µs, 46 KB | 5.15 µs, 47 KB |
+| `x -> new Int(x.value() + 1)`, `record Int(int value)` (`captureDeepRecord`) | 4.95 µs, 47 KB | — |
 | `x -> x`, no box made | 4.4–4.6 µs | 4.6–4.8 µs |
 
-With the constructor, every map allocates, 50% more than through the cache, and Java is faster than `zero`. What
+With the constructor, every map allocates, 50% more than through the cache, and Java is faster than `zero`.
+`new Integer(int)` has been deprecated for removal since Java 16. A box of one's own, a record, is not cached and not
+deprecated, and is as fast. What
 makes the difference is escape analysis, in its part that eliminates boxes: C2 replaces `valueOf(x).intValue()` by
 `x`, not reading the box back. Turned off (`-XX:-DoEscapeAnalysis`, `-XX:-EliminateAutoBox` or
 `-XX:-AggressiveUnboxing`), `zero`'s deep capture goes from 4.8 to 6.4 µs, while Java's barely moves (8.3 to 8.5–8.9):
