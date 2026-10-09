@@ -134,7 +134,24 @@ final class MetaLoop {
           k = s.outer();
           ms = drop(ms, 1);
         }
-        case Sync s -> c = new Return<>(s.a().get());
+        // a value computed in place: through the frames as a Return's, no Return made for it
+        case Sync s -> {
+          Object v = s.a().get();
+          if (!(k instanceof Frames.End)) {
+            Fed fed = EffLoop.feed(v, k);
+            if (fed.c() != null) {
+              c = fed.c();
+              k = fed.k();
+              continue;
+            }
+            v = fed.v();
+          }
+          if (ms instanceof Top) return (A) v;
+          Seg seg = head(ms);
+          c = (Eff) seg.ret().apply(v);
+          k = seg.outer();
+          ms = drop(ms, 1);
+        }
         case Bind b -> {
           if (b.m() instanceof Return r) {
             c = (Eff) b.f().apply(r.value());
@@ -202,7 +219,10 @@ final class MetaLoop {
           // outside it — in front of the delimiters here, by a take; then x through its rest, no Return made
           Kont kont = r.kont();
           Seg up = kont.up();
-          ms = take(kont.ms(), kont.n(), new Seg(up.prompt(), up.ret(), k, ms));
+          // resumed where it was captured up to — a clause's k(v) as it is, the usual — the delimiter the same: kept,
+          // not made again
+          Seg again = k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
+          ms = take(kont.ms(), kont.n(), again);
           Object x = r.x();
           if (kont.k() instanceof Frames fr) {
             if (fr instanceof Frames.End) {
