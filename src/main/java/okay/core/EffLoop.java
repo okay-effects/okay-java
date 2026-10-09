@@ -133,11 +133,11 @@ final class EffLoop {
         // Java frame, while not too deep; past it, out and back — the delimiter a frame on the heap: shifts' bodies
         // nest in constant stack
         case Reset r -> {
-          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Redelimit(k, prompt, ret, depth));
+          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Rejoin(k, prompt, ret, depth));
           c = delimited(r.body(), Frames.END, r.prompt(), PURE, depth + 1);
         }
         case Resume r -> {
-          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Redelimit(k, prompt, ret, depth));
+          if (r.prompt() == prompt && depth >= NESTED) return new Bind(r, new Rejoin(k, prompt, ret, depth));
           c = resume(r.x(), r.k(), r.prompt(), r.ret(), depth + 1);
         }
       }
@@ -150,7 +150,7 @@ final class EffLoop {
     if (to == prompt) return (Eff) f.apply(new Resumed(k, prompt, ret));
     if (prompt == TOP) throw new IllegalStateException(
         "an operation with no handler in force: its capability was used outside the handler that made it");
-    return new Suspend<>(to, f, new Redelimit(k, prompt, ret, 0));
+    return new Suspend<>(to, f, new Redelimit(k, prompt, ret));
   }
 
   /** {@code x} through the rest {@code k} under the delimiter of {@code prompt}: a stack's first frame applied here */
@@ -174,7 +174,17 @@ final class EffLoop {
 
   /** the rest of a delimiter's body once the capture that crossed it is answered outside: under the delimiter
    * again AT ONCE — applied by a loop already, one call deep per delimiter crossed */
-  private record Redelimit(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret, int depth)
+  private record Redelimit(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret)
+      implements Function<Object, Eff<?, ?>> {
+    @Override
+    public Eff<?, ?> apply(Object x) {
+      return resume(x, k, prompt, ret, 0);
+    }
+  }
+
+  /** the rest of a delimiter's body once a reset or a resumption of its prompt, run out and back, is answered: under
+   * the delimiter again, as deep as it was — so the nesting it was taken out of does not start over */
+  private record Rejoin(Function k, Prompt<?, ?, ?> prompt, Function<Object, Object> ret, int depth)
       implements Function<Object, Eff<?, ?>> {
     @Override
     public Eff<?, ?> apply(Object x) {

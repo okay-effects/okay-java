@@ -145,26 +145,33 @@ queens, which are per run.
 |---|---|---|---|
 | pure binds | 3.33 ns, 56 B | 3.29 ns, 64 B | 3.24 ns, 64 B |
 | left binds / left maps | 6.83 / 5.56 ns | 8.29 / 4.85 ns | 8.42 / 4.86 ns |
-| right maps / tail calls by delay | 9.43 / 3.68 ns | 7.03 / 2.41 ns | 7.24 / 2.33 ns |
+| right maps / tail calls by delay | 7.7 / 2.1 ns (was 9.43 / 3.68) | 7.03 / 2.41 ns | 7.24 / 2.33 ns |
 | answered in place | 4.80 ns, 78 B | 6.51 ns, 86 B | 5.37 ns, 86 B |
 | general clause | 7.53 ns, 110 B | 8.96 ns, 150 B | 7.73 ns, 118 B |
 | answered across 1 / 4 / 16 handlers | 4.96 / 4.97 / 5.09 ns | 11.67 / 22.60 / 91.84 ns | 5.73 / 6.74 / 17.09 ns |
-| general clause across 1 / 16 handlers | 13.69 / 101.12 ns | — | — |
-| state (a cell) | 23.51 ns, 262 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
+| general clause across 1 / 16 handlers | 13.69 / 108.0 ns (was 101.12) | — | — |
+| state (a cell) | 16.7 ns, 182 B (was 23.51, 262 B) | 15.53 ns, 214 B | 14.16 ns, 214 B |
 | state, functional | 32.70 ns, 502 B | — | — |
 | writer, throwing, choose | 21.93, 17.04, 32.01 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
 | collect / generate | 7.16 / 14.44 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
-| a shift under a reset: 16 maps / 1, `k` 8 times | 949 / 238 ns | 433 / 136 ns | 323 / 126 ns |
-| the same under a handler | 951 / 237 ns | 410 / 122 ns | 363 / 139 ns |
-| 256 maps, `k` 8 times / 1 map, `k` once | 7097 / 49 ns | 5862 / 38 ns | 4676 / 38 ns |
+| a shift under a reset: 16 maps / 1, `k` 8 times | 724 / 152 ns (was 949 / 238) | 433 / 136 ns | 323 / 126 ns |
+| the same under a handler | 739 ns (was 951) | 410 / 122 ns | 363 / 139 ns |
+| 256 maps, `k` 8 times / 1 map, `k` once | 7736 / 49 ns (was 6625 / 49) | 5862 / 38 ns | 4676 / 38 ns |
 | queens 8 (all 92) | 141 µs | 541 µs | 1182 µs |
 
 An answered operation across any number of handlers costs the same in Java. The capability is the handler, so
-nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Captures by `shift` are 2–3×
-slower in Java. Each `p.shift` is a `shift0` and a reset, and a resumption under its own prompt goes out and back
-through the loop, where okay-core's machine resumes nested up to 64 deep. Delay and right maps are slower too: a
-delay is a bind on a unit, not a node. Queens is not like for like, because okay-core's `Vector` concatenation is not
-Java's `Rope`.
+nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Queens is not like for like,
+because okay-core's `Vector` concatenation is not Java's `Rope`.
+
+The rows marked "was" changed after these runs, measured against the code before on the same machine (CSVs in
+`bench.d/`):
+- A delay is a node of its own, and so is a value computed in place (`Sync`), which a bind takes without a frame.
+- A reset or a resumption under a delimiter of its own prompt runs nested up to 64 deep, as in `zero`.
+
+Captures got 24–36% faster, tail calls 43%, a cell's state 29%. Captures by `shift` are still 1.7× `zero`'s. Two
+benchmarks lost: the deep capture by 15%, and the general clause across 16 handlers by 7%, with 24 B more per
+operation under JMH only. Outside JMH the allocation is the same byte for byte, so this is the JIT's doing as the
+loop grew, not more work. Taking the handler's entry out of the loop does not change it.
 
 ## Build
 
