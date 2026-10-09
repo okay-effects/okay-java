@@ -118,11 +118,67 @@ class AgreeTest {
       Prog p = make(r, List.of(), 32);
       handlers += count(p);
       crossing += crossing(p);
-      Eff<Top, Integer> program = build(p, List.of());
-      assertEquals(Backend.REF.run(program), Backend.MACHINE.run(program), p.toString());
+      if (disagree(p)) {
+        Prog small = shrink(p);
+        assertEquals(outcome(Backend.REF, small), outcome(Backend.MACHINE, small), "shrunk from " + p + "\nto " + small);
+      }
     }
     // the programs are not trivial: handlers nested, operations crossing them
     assert handlers > 3000 && crossing > 500 : handlers + " handlers, " + crossing + " operations crossing one";
+  }
+
+  /** a program's run on a backend: its value, or the failure's class — what the two must agree on */
+  static Object outcome(Backend b, Prog p) {
+    try {
+      return b.run(AgreeTest.<Top>build(p, List.of()));
+    } catch (RuntimeException e) {
+      return e.getClass();
+    }
+  }
+
+  static boolean disagree(Prog p) {
+    return !java.util.Objects.equals(outcome(Backend.MACHINE, p), outcome(Backend.REF, p));
+  }
+
+  /** the programs one step smaller: a part a value, a sequence one of its halves, a number 0 — each in the same scope */
+  static List<Prog> smaller(Prog p) {
+    List<Prog> r = new ArrayList<>();
+    switch (p) {
+      case Prog.Pure(var n) -> { if (n != 0) r.add(new Prog.Pure(0)); }
+      case Prog.Op(var i, var n) -> {
+        r.add(new Prog.Pure(n));
+        if (n != 0) r.add(new Prog.Op(i, 0));
+      }
+      case Prog.Seq(var a, var b) -> {
+        r.add(a);
+        r.add(b);
+        for (Prog a2 : smaller(a)) r.add(new Prog.Seq(a2, b));
+        for (Prog b2 : smaller(b)) r.add(new Prog.Seq(a, b2));
+      }
+      case Prog.Handle(var k, var n, var body) -> {
+        r.add(new Prog.Pure(0));
+        if (n != 0) r.add(new Prog.Handle(k, 0, body));
+        for (Prog b2 : smaller(body)) r.add(new Prog.Handle(k, n, b2));
+      }
+    }
+    return r;
+  }
+
+  /** a disagreeing program shrunk, greedily, to one no step smaller of which disagrees */
+  static Prog shrink(Prog p) {
+    Prog at = p;
+    boolean smallerFound = true;
+    while (smallerFound) {
+      smallerFound = false;
+      for (Prog q : smaller(at)) {
+        if (disagree(q)) {
+          at = q;
+          smallerFound = true;
+          break;
+        }
+      }
+    }
+    return at;
   }
 
   /** the operations of a handler further out than the nearest */
