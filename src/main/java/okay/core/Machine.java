@@ -227,8 +227,15 @@ final class Machine {
       k = d.outer();
       if (d.then() != null) {
         // the clause's answer the delimiter's: to the function it is bound to — at once if a value
-        if (c instanceof Return a) return (Eff) d.then().apply(a.value());
-        k = new Frames.Then(d.then(), k);
+        if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
+        else k = new Frames.Then(d.then(), k);
+      }
+      // the usual clauses, k(x) and k(x) bound: resumed right here, no step of the loop between
+      if (c instanceof Resumption r) return resume(r, null);
+      if (c instanceof Bind b && b.m() instanceof Resumption r) return resume(r, b.f());
+      if (c instanceof Map mp && mp.m() instanceof Resumption r) {
+        k = new Frames.Mapped(mp.f(), k);
+        return resume(r, null);
       }
       return c;
     }
