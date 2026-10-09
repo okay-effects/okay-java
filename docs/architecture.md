@@ -64,7 +64,14 @@ in the type as a phantom.
     crossed, finds those delimiters still in front of it: the stack is the captured one, with no `Take` made. The
     next capture walks plain delimiters, not a take. A general clause across one handler: 33 to 12 ns, across 16:
     66 to 49.
-  - **Where C2 still loses.** A deep chain of maps that allocate (`captureRecord`, 16 maps over a record) runs
+  - **A bind in the delimiter.** A clause's usual `k.apply(x).flatMap(f)`, and `handle(..).flatMap(f)`, put `f` in
+    the delimiter they make (`Seg.then`, a field a `Seg` has room for free), not in a frame of its own: one object,
+    not two. The answer, a value the usual, goes to `f` at once. Capture with 16 maps: 550 to 300 ns (the first
+    machine 510), with one map 170 to 70, functional state 37 to 28, throwing 15.5 to 10.7.
+  - **Where C2 still loses.** `MixedBenchmark` is a program of five effects, with a throw and a choice handled per
+    order, so many functions at each call site. On it the first machine is faster: 129 against about 200 ns an
+    order. With no inlining (`-XX:-Inline`) this machine is faster, 434 against 640: its own work is less, but C2
+    makes more of the first machine's small methods and Java frames than of one big loop. A deep chain of maps that allocate (`captureRecord`, 16 maps over a record) runs
     slower than in a loop of its own. Inlined into the big loop, the loop's values live on the stack, six loads
     and stores a map. And the same benchmark can come out 30–80% apart from a change to an unrelated branch, by
     what C2 inlines. With type profiles off (`-XX:-UseTypeProfile`), as in a program whose call sites see many
@@ -104,6 +111,11 @@ callback's thread, and the handlers inside go on with it, since `k` holds their 
 - **`AsyncTest`.** Callbacks from other threads, constant stack, failures.
 
 ## Benchmarks (`src/jmh`)
+
+- `MixedBenchmark`: one program of reader, writer, functional state, throws and choose, two of them handled per
+  order — what a program is, not one effect in a loop.
+- `Megamorphic.Monads`, `Megamorphic.Mixed`: the same with `-XX:-UseTypeProfile`, so no call site inlines the one
+  function a benchmark happened to show it — the machine's own cost.
 
 - `MonadsBenchmark` has okay-core master's programs, under its names, plus:
   - the general clause across 1 and 16 handlers;

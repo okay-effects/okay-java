@@ -35,8 +35,11 @@ final class Machine {
   /** a reset's return: the value as it is — told apart, so a value leaving a reset goes on with no program made */
   static final Function<Object, Object> SAME = Return::new;
 
-  /** a delimiter, its prompt and return, the frames outside it, and the delimiters further out */
-  record Seg(Prompt<?, ?, ?> prompt, Function ret, Frames outer, Meta next) implements Meta {}
+  /** a delimiter, its prompt and return, the function its answer is bound to if any, the frames outside it, and the
+   * delimiters further out. {@code then}: a handler or a resumption bound — {@code handle(..).flatMap(f)}, a clause's
+   * {@code k.apply(x).flatMap(f)}, the usual clause — its bind in the delimiter, no frame made: a field a Seg has room
+   * for free */
+  record Seg(Prompt<?, ?, ?> prompt, Function ret, Function then, Frames outer, Meta next) implements Meta {}
 
   /** the first {@code n} delimiters of {@code m}, then {@code tail}: a resumed continuation's, shared, not copied */
   record Take(Meta m, int n, Meta tail) implements Meta {}
@@ -125,6 +128,12 @@ final class Machine {
     Meta ms = TOP;
     while (true) {
       Object v;
+      // a handler or a resumption bound: the function to its delimiter, below, no frame made
+      Function then = null;
+      if (c instanceof Bind b && (b.m() instanceof Resumption || b.m() instanceof Handle)) {
+        then = b.f();
+        c = b.m();
+      }
       // by instanceof, the nodes most run first: each a final class, a test a compare — no type switch's bootstrap
       // and index in the way
       if (c instanceof Return r) {
@@ -164,7 +173,7 @@ final class Machine {
           }
           if (next != null) {
             // a bind in its rest: its delimiter again, under it the rest's program
-            ms = again(r, k, ms);
+            ms = again(r, then, k, ms);
             c = next;
             k = fr;
             continue;
@@ -172,19 +181,26 @@ final class Machine {
           if (r.to() instanceof Seg up) {
             // its rest done, the delimiter next: the frames and delimiters here as they are, its return applied
             Function ret = up.ret();
-            if (ret == SAME) {
-              v = x;
-            } else {
+            if (ret != SAME) {
               c = (Eff) ret.apply(x);
+              if (then != null) {
+                if (c instanceof Return a) c = (Eff) then.apply(a.value());
+                else k = new Frames.Then(then, k);
+              }
               continue;
             }
+            if (then != null) {
+              c = (Eff) then.apply(x);
+              continue;
+            }
+            v = x;
           } else {
-            ms = again(r, k, ms);
+            ms = again(r, then, k, ms);
             k = Frames.END;
             v = x;
           }
         } else {
-          ms = again(r, k, ms);
+          ms = again(r, then, k, ms);
           c = (Eff) r.k().apply(x);
           k = Frames.END;
           continue;
@@ -196,12 +212,21 @@ final class Machine {
           c = (Eff) s.f().apply(new Kont(kk, ms, 0));
           k = near.outer();
           ms = near.next();
+          if (near.then() != null) {
+            // the clause's answer the delimiter's: to the function it is bound to — at once if a value
+            if (c instanceof Return a) c = (Eff) near.then().apply(a.value());
+            else k = new Frames.Then(near.then(), k);
+          }
         } else {
           Kont kont = far(kk, ms, s.prompt());
           Seg d = kont.up();
           c = (Eff) s.f().apply(kont);
           k = d.outer();
           ms = drop(ms, kont.n() + 1);
+          if (d.then() != null) {
+            if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
+            else k = new Frames.Then(d.then(), k);
+          }
         }
         continue;
       } else if (c instanceof Shift0 s) {
@@ -209,12 +234,21 @@ final class Machine {
           c = (Eff) s.f().apply(new Kont(k, ms, 0));
           k = near.outer();
           ms = near.next();
+          if (near.then() != null) {
+            // the clause's answer the delimiter's: to the function it is bound to — at once if a value
+            if (c instanceof Return a) c = (Eff) near.then().apply(a.value());
+            else k = new Frames.Then(near.then(), k);
+          }
         } else {
           Kont kont = far(k, ms, s.prompt());
           Seg d = kont.up();
           c = (Eff) s.f().apply(kont);
           k = d.outer();
           ms = drop(ms, kont.n() + 1);
+          if (d.then() != null) {
+            if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
+            else k = new Frames.Then(d.then(), k);
+          }
         }
         continue;
       } else if (c instanceof Map m) {
@@ -231,14 +265,14 @@ final class Machine {
         c = p.m();
         continue;
       } else if (c instanceof Reset r) {
-        ms = new Seg(r.prompt(), SAME, k, ms);
+        ms = new Seg(r.prompt(), SAME, null, k, ms);
         k = Frames.END;
         c = r.body();
         continue;
       } else {
         Handle h = (Handle) c;
         Prompt<?, ?, ?> p = new Prompt<>();
-        ms = new Seg(p, h.ret(), k, ms);
+        ms = new Seg(p, h.ret(), then, k, ms);
         k = Frames.END;
         c = h.body().in(p);
         continue;
@@ -266,6 +300,17 @@ final class Machine {
           ms = drop(ms, 1);
         }
         k = seg.outer();
+        if (seg.then() != null) {
+          // a bound delimiter's answer: its return, then the function bound — at once if the return a value
+          if (seg.ret() == SAME) {
+            c = (Eff) seg.then().apply(v);
+          } else {
+            c = (Eff) seg.ret().apply(v);
+            if (c instanceof Return a) c = (Eff) seg.then().apply(a.value());
+            else k = new Frames.Then(seg.then(), k);
+          }
+          break;
+        }
         if (seg.ret() != SAME) {
           c = (Eff) seg.ret().apply(v);
           break;
@@ -298,19 +343,21 @@ final class Machine {
    * it, in front of the delimiters here {@code ms}. Resumed where it was captured up to — a clause's {@code k(v)} as
    * it is, the usual — the delimiter the same: kept, not made again. Straight code for none crossed, the usual: the
    * loop the JIT compiles the machine's into has no loop of a take's in it */
-  private static Meta again(Resumption r, Frames k, Meta ms) {
+  private static Meta again(Resumption r, Function then, Frames k, Meta ms) {
     if (r.to() instanceof Seg up)
-      return k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
-    return againCrossed((Kont) r.to(), k, ms);
+      return then == null && up.then() == null && k == up.outer() && ms == up.next() ? up
+          : new Seg(up.prompt(), up.ret(), then, k, ms);
+    return againCrossed((Kont) r.to(), then, k, ms);
   }
 
-  private static Meta againCrossed(Kont kont, Frames k, Meta ms) {
+  private static Meta againCrossed(Kont kont, Function then, Frames k, Meta ms) {
     Meta at = drop(kont.ms(), kont.n());
     Seg up = head(at);
     // resumed where it was captured: the delimiters crossed are in front of their delimiter still — the stack as it
     // was, no take made, so the next capture walks plain delimiters again
-    if (k == up.outer() && ms == up.next()) return at == up ? kont.ms() : take(kont.ms(), kont.n(), up);
-    return take(kont.ms(), kont.n(), new Seg(up.prompt(), up.ret(), k, ms));
+    if (then == null && up.then() == null && k == up.outer() && ms == up.next())
+      return at == up ? kont.ms() : take(kont.ms(), kont.n(), up);
+    return take(kont.ms(), kont.n(), new Seg(up.prompt(), up.ret(), then, k, ms));
   }
 
   /** the index of {@code prompt}'s delimiter in {@code ms}: none, a capability out of its handler */
