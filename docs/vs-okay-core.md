@@ -23,12 +23,14 @@ an operation unless noted:
 
 | | okay-java | okay-core `zero` |
 |---|---|---|
-| answered across 1 / 16 handlers | 4.7 / 4.7 | 5.7 / 17.1 |
+| answered across 1 / 16 handlers | 4.4 / 4.5 | 5.7 / 17.1 |
 | a general clause | 7.8 | 7.7 |
-| throws | 13.1 | 14.4 |
-| choose | 25.4 | 33.9 |
-| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 130 / 486 ns | 126 / 323 ns |
+| state (a cell) / writer | 15.7 / 20.4 | 14.2 / 18.3 |
+| throws / choose | 13.3 / 25.8 | 14.9 / 33.9 |
+| tail calls by delay | 2.0 | 2.3 |
+| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 130 / 519 ns | 126 / 323 ns |
 | a deep shift, 256 maps boxed by a record or a constructor (a run) | 4.95 µs | 5.15 µs |
-| a deep shift, 256 maps autoboxed (a run) | 7.6–8.7 µs | 4.7 µs |
+| a deep shift, 256 maps autoboxed (a run) | 6.7–8.7 µs | 4.7 µs |
 
-The last row is escape analysis's box elimination: it works in `zero`'s loop and not in ours (see the README).
+The last row is `Integer.valueOf`: escape analysis's box elimination works in `zero`'s loop and not in ours (see
+the README).

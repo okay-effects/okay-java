@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#fcfcfb;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#0b0b0b}
+.wrap{width:1200px;height:627px;box-sizing:border-box;padding:56px 72px}
+h1{font-size:40px;margin:0 0 10px;font-weight:700;letter-spacing:-0.5px}
+.sub{font-size:22px;color:#52514e;margin:0 0 44px}
+.row{display:flex;align-items:center;height:78px}
+.lab{width:360px;font-size:22px;line-height:1.25}
+.lab small{display:block;font-size:17px;color:#52514e}
+.track{flex:1;position:relative;height:40px}
+.bar{height:40px;border-radius:0 4px 4px 0;background:#2a78d6}
+.bar.hl{background:#eb6834}
+.val{position:absolute;top:6px;font-size:22px;font-weight:600}
+.foot{position:absolute;top:560px;left:72px;font-size:16px;color:#52514e}
+</style></head><body><div class="wrap">
+<h1>Autoboxing made the same loop 1.5× slower</h1>
+<p class="sub">Java, 256 boxed <code>map</code>s resumed 8 times · µs per run, lower is better · JDK 26, JMH</p>
+<div class="row"><div class="lab"><code>Integer.valueOf(x)</code><small>autoboxing, cached −128…127</small></div><div class="track"><div class="bar hl" style="width:calc(7.58/8*100%)"></div><div class="val" style="left:calc(7.58/8*100% + 12px)">7.58</div></div></div>
+<div class="row"><div class="lab"><code>new Integer(x)</code><small>deprecated for removal since Java 16</small></div><div class="track"><div class="bar" style="width:calc(4.93/8*100%)"></div><div class="val" style="left:calc(4.93/8*100% + 12px)">4.93</div></div></div>
+<div class="row"><div class="lab"><code>record Int(int value)</code><small>a box of your own, never cached</small></div><div class="track"><div class="bar" style="width:calc(4.95/8*100%)"></div><div class="val" style="left:calc(4.95/8*100% + 12px)">4.95</div></div></div>
+<div class="row"><div class="lab">no new box<small><code>x -> x</code>, the value stays in the cache</small></div><div class="track"><div class="bar" style="width:calc(4.48/8*100%)"></div><div class="val" style="left:calc(4.48/8*100% + 12px)">4.48</div></div></div>
+<div class="foot">More allocation, yet faster: with the constructor every step allocates (46 KB a run against 30 KB).</div>
+</div></body></html>
