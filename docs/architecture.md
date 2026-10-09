@@ -60,6 +60,10 @@ in the type as a phantom.
   - **No loop on the hot path that does not run.** Putting the delimiters back is straight code when none was
     crossed. The `take` for the others is a call on a cold branch. A loop compiled into the big one, even one that
     never runs, costs the hot path registers. Queens: 162 to 137 µs.
+  - **Resumed in place, the stack as it was.** A `k(a)` where its delimiter was captured, across handlers it
+    crossed, finds those delimiters still in front of it: the stack is the captured one, with no `Take` made. The
+    next capture walks plain delimiters, not a take. A general clause across one handler: 33 to 12 ns, across 16:
+    66 to 49.
   - **Where C2 still loses.** A deep chain of maps that allocate (`captureRecord`, 16 maps over a record) runs
     slower than in a loop of its own. Inlined into the big loop, the loop's values live on the stack, six loads
     and stores a map. And the same benchmark can come out 30–80% apart from a change to an unrelated branch, by
@@ -71,10 +75,9 @@ in the type as a phantom.
 - **The first machine.** Before this one, each delimiter's body ran in a Java frame of its own (`EffLoop`, up to
   commit `fcd3868`). It overflowed the stack at about 1 000 nested handlers, and each handler crossed cost about
   6 ns. Measured on JDK 26 against this machine after its tuning (JMH, `bench.d/monads-machine-jdk26.csv`, the
-  first machine's numbers from the README before): this one is faster on a general clause across 16 handlers (68
-  against 110 ns), generate (11.4 against 14.3), a general clause (6.9 against 7.8) and left binds (6.2 against
-  6.6); even on choose, state, functional state and a capture with 16 maps; slower on writer (20.2 against 17.3),
-  a general clause across one handler (34 against 14), a capture with one map (169 against 130 ns) and captures
+  first machine's numbers from the README before): this one is faster on a general clause across 1 and 16 handlers
+  (11.7 against 14.1 ns, 48.6 against 110), generate (11.4 against 14.3), a general clause (6.9 against 7.8) and left binds (6.2 against
+  6.6); even on choose, state, functional state and a capture with 16 maps; slower on writer (20.2 against 17.3), a capture with one map (169 against 130 ns) and captures
   over a record (569 against 339). Queens, measured one JVM a benchmark side by side: 137–155 against 110–145 µs.
 
 ## `okay.std`

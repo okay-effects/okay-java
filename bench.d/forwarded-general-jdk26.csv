@@ -1,0 +1,11 @@
+"Benchmark","Mode","Threads","Samples","Score","Score Error (99.9%)","Unit","Param: n"
+"okay.core.MonadsBenchmark.forwardedGeneral","avgt",1,10,11.694252,0.117030,"us/op",1000
+"okay.core.MonadsBenchmark.forwardedGeneral:gc.alloc.rate","avgt",1,10,10294.068696,101.822180,"MB/sec",1000
+"okay.core.MonadsBenchmark.forwardedGeneral:gc.alloc.rate.norm","avgt",1,10,126240.081585,0.001094,"B/op",1000
+"okay.core.MonadsBenchmark.forwardedGeneral:gc.count","avgt",1,10,150.000000,NaN,"counts",1000
+"okay.core.MonadsBenchmark.forwardedGeneral:gc.time","avgt",1,10,60.000000,NaN,"ms",1000
+"okay.core.MonadsBenchmark.forwardedGeneral16","avgt",1,10,48.640734,1.037201,"us/op",1000
+"okay.core.MonadsBenchmark.forwardedGeneral16:gc.alloc.rate","avgt",1,10,2508.192584,53.036423,"MB/sec",1000
+"okay.core.MonadsBenchmark.forwardedGeneral16:gc.alloc.rate.norm","avgt",1,10,127920.340622,0.009201,"B/op",1000
+"okay.core.MonadsBenchmark.forwardedGeneral16:gc.count","avgt",1,10,166.000000,NaN,"counts",1000
+"okay.core.MonadsBenchmark.forwardedGeneral16:gc.time","avgt",1,10,53.000000,NaN,"ms",1000

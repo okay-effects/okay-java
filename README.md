@@ -152,7 +152,7 @@ machine: okay-java's machine (2026-10-09 16:12, `bench.d/monads-machine-jdk26.cs
 | answered in place | 4.58 ns, 78 B | 6.51 ns, 86 B | 5.37 ns, 86 B |
 | general clause | 6.94 ns, 102 B | 8.96 ns, 150 B | 7.73 ns, 118 B |
 | answered across 1 / 4 / 16 handlers | 4.61 / 4.61 / 4.72 ns | 11.67 / 22.60 / 91.84 ns | 5.73 / 6.74 / 17.09 ns |
-| general clause across 1 / 16 handlers | 34.45 / 68.31 ns | — | — |
+| general clause across 1 / 16 handlers | 11.69 / 48.64 ns | — | — |
 | state (a cell) | 15.90 ns, 166 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
 | state, functional | 34.26 ns, 550 B | — | — |
 | writer, throwing, choose | 20.21, 14.22, 28.60 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |

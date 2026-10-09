@@ -305,9 +305,12 @@ final class Machine {
   }
 
   private static Meta againCrossed(Kont kont, Frames k, Meta ms) {
-    Seg up = kont.up();
-    Seg again = k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
-    return take(kont.ms(), kont.n(), again);
+    Meta at = drop(kont.ms(), kont.n());
+    Seg up = head(at);
+    // resumed where it was captured: the delimiters crossed are in front of their delimiter still — the stack as it
+    // was, no take made, so the next capture walks plain delimiters again
+    if (k == up.outer() && ms == up.next()) return at == up ? kont.ms() : take(kont.ms(), kont.n(), up);
+    return take(kont.ms(), kont.n(), new Seg(up.prompt(), up.ret(), k, ms));
   }
 
   /** the index of {@code prompt}'s delimiter in {@code ms}: none, a capability out of its handler */
