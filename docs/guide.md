@@ -72,6 +72,26 @@ check(log, new Log<>(List.of("a", "b"), 2));
 | `Async<L>` | `async`, `await`, `raise` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` |
 | `Emit<L, X>` | `emit` | `forEach(body, f)`, `collect(body)`, `generate(body, next, done)`, `iterator(body)`, `stream(body)` |
 
+### Bodies as methods
+
+A lambda cannot implement a generic method, but a method reference can. So a body can be a method of its own,
+generic in its level, and a handler is given it by reference. Its level is inferred:
+
+```java
+static <M> Eff<M, Integer> counter(State<M, Integer> st) {
+  return st.modify(x -> x + 1).then(st.get());
+}
+```
+
+```java
+// run
+check(Eff.run(State.state(0, Guide::counter)), new Final<>(1, 1));
+```
+
+A body that needs a capability from outside keeps it in a record, and the record's method is at the level in.
+There the handler's level is written out: `Choose.<M, Integer>all(new Stepping<>(st)::in)`. The anonymous class is
+for a body that needs local variables.
+
 ## Several effects
 
 A program that needs several effects takes their capabilities, all at its level. Its parameters are its row:
@@ -218,7 +238,9 @@ State<?, Integer> leaked = Eff.run(State.state(0, new State.Body<Top, Integer, S
 Integer n = Eff.run(leaked.get());   // a level no program is at
 ```
 
-The same holds in another handler's body at the same place: its level is another variable.
+The same holds in another handler's body at the same place: its level is another variable. A body by method
+reference may even return its capability (javac infers the handler's answer with the body's own level in it), and
+the capability is of no use either: its level is no program's.
 
 ## Delimited control
 

@@ -19,7 +19,9 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 
 Each effect is an interface at a level, `E<L, …>`, with an `at()` that moves a capability to a level further in.
 Each handler takes a `Body` whose method `<M extends L> Eff<M, A> in(E<M, …> cap)` is the handler's body at its
-fresh level.
+fresh level. A body is an anonymous class, or a method of your own by reference, `State.state(0, X::counter)` with
+`static <M> Eff<M, Integer> counter(State<M, Integer> st)`: a lambda cannot implement a generic method, a method
+reference can.
 
 | Effect | Operations | Handlers |
 |---|---|---|

@@ -109,4 +109,27 @@ class LeakTest {
     rightCompilesWrongDoesNot(body.formatted("State<N, Integer> in = outer.at(); return in.get();"),
         body.formatted("State<M, Integer> out = inner; return inner.get();"));
   }
+
+  /** a body by method reference may return its capability — javac infers the handler's answer with the body's own
+   * level in it — but nothing can use it: its level is the functional method's type variable, no program's */
+  private static String leakedByReference(String use) {
+    return """
+        class Bodies {
+          static <M> Eff<M, State<M, Integer>> leak(State<M, Integer> st) { return Eff.pure(st); }
+          static <K> Eff<K, Integer> counter(State<K, Integer> st) { return st.get(); }
+        }
+        var leaked = Eff.run(State.state(0, Bodies::leak)).value();
+        %s
+        """.formatted(use);
+  }
+
+  @Test
+  void aCapabilityOutByMethodReferenceIsOfNoUse() throws IOException {
+    String right = leakedByReference("Final<Integer, Integer> r = Eff.run(State.state(1, Bodies::counter));");
+    rightCompilesWrongDoesNot(right, leakedByReference("Integer n = Eff.run(leaked.get());"));
+    rightCompilesWrongDoesNot(right, leakedByReference("""
+        Final<Integer, Integer> r = Eff.run(State.state(1, new State.Body<Top, Integer, Integer>() {
+          public <M extends Top> Eff<M, Integer> in(State<M, Integer> st) { return leaked.get(); }
+        }));"""));
+  }
 }

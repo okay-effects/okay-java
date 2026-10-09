@@ -259,6 +259,28 @@ class EffectsTest {
     })));
   }
 
+  /** a handler's body as a method of its own, generic in its level: passed by reference, its level inferred */
+  static <M> Eff<M, Integer> counter(State<M, Integer> st) {
+    return st.modify(x -> x + 1).then(st.get());
+  }
+
+  /** a body that needs a capability from outside: a record keeping it, its method at the level in */
+  record Stepping<M>(State<M, Integer> st) {
+    <N extends M> Eff<N, Integer> in(Choose<N> ch) {
+      return step(st.at(), ch);
+    }
+  }
+
+  static <M> Eff<M, List<Integer>> stepping(State<M, Integer> st) {
+    return Choose.<M, Integer>all(new Stepping<>(st)::in);
+  }
+
+  @Test
+  void bodiesAsMethodsByReference() {
+    assertEquals(new Final<>(1, 1), run(State.state(0, EffectsTest::counter)));
+    assertEquals(new Final<>(3, List.of(1, 3)), run(State.state(0, EffectsTest::stepping)));
+  }
+
   @Test
   void twoHandlersOfOneEffectAtOnceEachOperationToItsOwn() {
     // a row picks the nearest State % Int; a capability names its handler
