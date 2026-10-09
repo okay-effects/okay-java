@@ -3,6 +3,7 @@ package okay.std;
 import static okay.core.Eff.run;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -141,6 +142,86 @@ class AsyncTest {
         }));
       }
     })));
+  }
+
+  @Test
+  void aBlockingCallOnAVirtualThreadTheRunGoingOnInIt() {
+    boolean[] virtual = {false, false};
+    Result<String, Integer> r = runIO(new Async.Body<Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+        return as.blocking(() -> {
+          virtual[0] = Thread.currentThread().isVirtual();
+          Thread.sleep(5);
+          return 41;
+        }).flatMap(x -> as.async(() -> {
+          virtual[1] = Thread.currentThread().isVirtual();
+          return x + 1;
+        }));
+      }
+    });
+    assertEquals(new Result.Ok<>(42), r);
+    // the call on a virtual thread, and the rest of the run in it after
+    assertEquals(List.of(true, true), List.of(virtual[0], virtual[1]));
+  }
+
+  @Test
+  void aBlockingCallsThrowTheRunsFailure() {
+    assertEquals(new Result.Failed<>("io"), runIO(new Async.Body<Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+        return as.blocking(() -> { throw new java.io.IOException("io"); });
+      }
+    }));
+  }
+
+  /** a run of its own: a blocking sleep, then its number */
+  static Async.Body<Integer> sleeper(int i) {
+    return new Async.Body<>() {
+      public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+        return as.blocking(() -> {
+          Thread.sleep(50);
+          return i;
+        });
+      }
+    };
+  }
+
+  static <L> Eff<L, Integer> joinAll(Async<L> as, List<java.util.concurrent.CompletableFuture<Integer>> fs, int i, int acc) {
+    return i == fs.size() ? Eff.pure(acc) : as.await(fs.get(i)).flatMap(x -> joinAll(as, fs, i + 1, acc + x));
+  }
+
+  static <L> Eff<L, List<java.util.concurrent.CompletableFuture<Integer>>> forkAll(Async<L> as, int n, int i,
+      List<java.util.concurrent.CompletableFuture<Integer>> acc) {
+    return i == n ? Eff.pure(acc) : as.fork(sleeper(i)).flatMap(f -> {
+      acc.add(f);
+      return forkAll(as, n, i + 1, acc);
+    });
+  }
+
+  @Test
+  void tenThousandRunsForkedEachBlockingFiftyMillisecondsJoinedAtOnce() {
+    // on virtual threads: 10 000 blocking sleeps of 50 ms side by side — 500 s one after the other
+    long t0 = System.nanoTime();
+    Result<String, Integer> r = runIO(new Async.Body<Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+        return forkAll(as, 10_000, 0, new java.util.ArrayList<>()).flatMap(fs -> joinAll(as, fs, 0, 0));
+      }
+    });
+    long ms = (System.nanoTime() - t0) / 1_000_000;
+    assertEquals(new Result.Ok<>(10_000 * 9_999 / 2), r);
+    assertTrue(ms < 20_000, ms + " ms");
+  }
+
+  @Test
+  void aForkedRunsFailureAtItsAwait() {
+    assertEquals(new Result.Failed<>("forked"), runIO(new Async.Body<Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+        return as.fork(new Async.Body<Integer>() {
+          public <N extends Top> Eff<N, Integer> in(Async<N> inner) {
+            return inner.raise(new IllegalStateException("forked"));
+          }
+        }).flatMap(as::await);
+      }
+    }));
   }
 
   @Test

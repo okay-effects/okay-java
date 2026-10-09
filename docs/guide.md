@@ -353,6 +353,23 @@ check(Async.runAsync(new Async.Body<Integer>() {
 }).join(), 21);
 ```
 
+On virtual threads: `blocking(() -> …)` runs a blocking call (a database, a file, a socket) on a virtual thread of
+its own. The run waits for it without holding a thread, and goes on in that thread. `fork(body)` starts a run of
+its own on a virtual thread, and `await(future)` joins it:
+
+```java
+// run
+check(Async.runAsync(new Async.Body<Integer>() {
+  public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+    return as.fork(new Async.Body<Integer>() {
+      public <N extends Top> Eff<N, Integer> in(Async<N> other) {
+        return other.blocking(() -> { Thread.sleep(10); return 40; });
+      }
+    }).flatMap(f -> as.blocking(() -> 2).flatMap(b -> as.await(f).map(a -> a + b)));
+  }
+}).join(), 42);
+```
+
 ## Performance notes
 
 - Answering in place costs a call: about 4.7 ns an operation, the same across 1 or 16 handlers.
