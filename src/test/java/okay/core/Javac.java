@@ -28,9 +28,13 @@ public final class Javac {
       """;
 
   public static List<String> errors(String body) throws IOException {
-    Path dir = Files.createTempDirectory("javac");
-    Path src = dir.resolve("Snippet.java");
-    Files.writeString(src, PRELUDE + body + "\n  }\n}\n");
+    return compile(Files.createTempDirectory("javac"), "Snippet", PRELUDE + body + "\n  }\n}\n");
+  }
+
+  /** the class {@code name} of {@code source} compiled into {@code dir}: the errors, none if it is right */
+  public static List<String> compile(Path dir, String name, String source) throws IOException {
+    Path src = dir.resolve(name + ".java");
+    Files.writeString(src, source);
     JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     try (var files = javac.getStandardFileManager(null, null, null)) {

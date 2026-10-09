@@ -2,6 +2,9 @@
 
 okay-core's delimited continuations in Java 25, and effects on `shift0`.
 
+The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
+`GuideTest`, the [architecture](docs/architecture.md), and [how it differs from okay-core](docs/vs-okay-core.md).
+
 ## Layout
 
 ### `okay.core`
