@@ -43,16 +43,39 @@ in the type as a phantom.
   - **A resumption** puts the crossed delimiters back in front of the current ones by one shared `Take` ("the first
     `n` of that stack, then this"), which is never copied. It puts the delimiter back with the frames of the place
     it was resumed from. A clause's `k(v)` resumed where it was captured keeps the very delimiter.
-- **`feed`.** A value goes through the maps on top of the stack in a small method of its own, which the JIT compiles
-  apart from the loop.
+- **Fast for the JIT.** One loop runs every program, so what C2 makes of that loop is most of the speed. What
+  counted, each measured one JVM a benchmark against the code before:
+  - **Dispatch by `instanceof`, not a pattern `switch`.** The nodes are final records, so each test is one compare,
+    the most run first. A `switch` on the sealed type goes through a `typeSwitch` bootstrap and an index. State,
+    functional: 57 to 34 ns.
+  - **A resumption's frames at call sites of their own.** Its first frame (the operation's own `map`) is applied
+    in place, the deeper ones in `feed`. Each call site's profile then holds one or two functions, which C2
+    inlines. Through the loop's one call site they were all mixed, and none was inlined. A capture with 16 maps:
+    720 to 450 ns.
+  - **No delimiter made till a bind needs it.** A resumed rest that is only maps ends in the delimiter's return,
+    applied right there, with the frames and delimiters of the place it was resumed from. Choose: 292 to 260 B.
+  - **A resumption does not keep the continuation.** When it crossed no delimiter (the usual), the node holds that
+    delimiter, not the `Kont`. A clause that applies `k` once then leaves the `Kont` to escape analysis, and it is
+    never made. Writer: 285 to 261 B, 22 to 19.5 ns.
+  - **No loop on the hot path that does not run.** Putting the delimiters back is straight code when none was
+    crossed. The `take` for the others is a call on a cold branch. A loop compiled into the big one, even one that
+    never runs, costs the hot path registers. Queens: 162 to 137 µs.
+  - **Where C2 still loses.** A deep chain of maps that allocate (`captureRecord`, 16 maps over a record) runs
+    slower than in a loop of its own. Inlined into the big loop, the loop's values live on the stack, six loads
+    and stores a map. And the same benchmark can come out 30–80% apart from a change to an unrelated branch, by
+    what C2 inlines. With type profiles off (`-XX:-UseTypeProfile`), as in a program whose call sites see many
+    functions, this machine and the first one are even, or this one is faster.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
   `Eff<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
 - **The first machine.** Before this one, each delimiter's body ran in a Java frame of its own (`EffLoop`, up to
-  commit `fcd3868`). It was faster by 5–15% where a handler sits right over its operations, and by 60% on a `shift`
-  resumed in a chain, because the Java frame is a delimiter for free. But it overflowed the stack at about 1 000
-  nested handlers, and each handler crossed cost about 6 ns. The explicit stack took its place: 22 ns across 16
-  handlers where that was 110.
+  commit `fcd3868`). It overflowed the stack at about 1 000 nested handlers, and each handler crossed cost about
+  6 ns. Measured on JDK 26 against this machine after its tuning (JMH, `bench.d/monads-machine-jdk26.csv`, the
+  first machine's numbers from the README before): this one is faster on a general clause across 16 handlers (68
+  against 110 ns), generate (11.4 against 14.3), a general clause (6.9 against 7.8) and left binds (6.2 against
+  6.6); even on choose, state, functional state and a capture with 16 maps; slower on writer (20.2 against 17.3),
+  a general clause across one handler (34 against 14), a capture with one map (169 against 130 ns) and captures
+  over a record (569 against 339). Queens, measured one JVM a benchmark side by side: 137–155 against 110–145 µs.
 
 ## `okay.std`
 

@@ -59,18 +59,4 @@ final class Nodes {
       };
     }
   }
-
-  /** a value through the maps on top of the stack, to the first bind — its program and the rest — or to the end. A
-   * method of its own, small: compiled apart from the machine's loop, its own loop gets the JIT's full care (okay-core's
-   * {@code feed}) */
-  record Fed(Eff<?, ?> c, Object v, Frames k) {}
-
-  static Fed feed(Object v, Frames k) {
-    while (k instanceof Frames.Mapped(var f, var next)) {
-      v = f.apply(v);
-      k = next;
-    }
-    return k instanceof Frames.Then(var f, var next) ? new Fed((Eff) f.apply(v), null, next) : new Fed(null, v, k);
-  }
-
 }

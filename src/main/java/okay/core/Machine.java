@@ -3,7 +3,6 @@ package okay.core;
 import java.util.function.Function;
 import okay.core.Nodes.Bind;
 import okay.core.Nodes.Delay;
-import okay.core.Nodes.Fed;
 import okay.core.Nodes.Frames;
 import okay.core.Nodes.Handle;
 import okay.core.Nodes.Map;
@@ -100,143 +99,216 @@ final class Machine {
     return -1 - seen;
   }
 
-  /** a captured continuation: the rest of the innermost segment ({@code k}, frames or a function), the delimiters
-   * crossed — the first {@code n} of {@code ms} — and the delimiter captured up to. Applied, a resumption node */
-  record Kont(Function k, Meta ms, int n, Seg up) implements Function<Object, Eff<?, ?>> {
+  /** a captured continuation: the rest of the innermost segment ({@code k}, frames or a function), and the delimiters
+   * crossed and the one captured up to — the first {@code n + 1} of {@code ms}. Applied, a resumption node */
+  record Kont(Function k, Meta ms, int n) implements Function<Object, Eff<?, ?>> {
     @Override
     public Eff<?, ?> apply(Object x) {
-      return new Resumption<>(x, this);
+      // not itself kept: its delimiter, when none crossed — the usual — so a clause that only applies k once, most,
+      // leaves the Kont to the JIT's escape analysis, never made
+      return new Resumption<>(x, k, n == 0 && ms instanceof Seg up ? up : this);
+    }
+
+    /** the delimiter captured up to */
+    Seg up() {
+      return n == 0 && ms instanceof Seg s ? s : head(drop(ms, n));
     }
   }
 
-  /** a captured continuation applied to {@code x} */
-  record Resumption<L, B>(Object x, Kont kont) implements Eff<L, B> {}
+  /** a captured continuation — its rest {@code k}, and {@code to}: its delimiter if it crossed none, else itself —
+   * applied to {@code x} */
+  record Resumption<L, B>(Object x, Function k, Object to) implements Eff<L, B> {}
 
   static <A> A run(Eff<?, A> program) {
     Eff c = program;
     Frames k = Frames.END;
     Meta ms = TOP;
     while (true) {
-      switch (c) {
-        // a value, or one computed in place: through the frames, no Return made for it
-        case Return _, Sync _ -> {
-          Object v = c instanceof Return r ? r.value() : ((Sync) c).a().get();
-          while (true) {
-            if (!(k instanceof Frames.End)) {
-              Fed fed = Nodes.feed(v, k);
-              if (fed.c() != null) {
-                c = fed.c();
-                k = fed.k();
-                break;
-              }
-              v = fed.v();
+      Object v;
+      // by instanceof, the nodes most run first: each a final class, a test a compare — no type switch's bootstrap
+      // and index in the way
+      if (c instanceof Return r) {
+        v = r.value();
+      } else if (c instanceof Bind b) {
+        Eff m = b.m();
+        if (m instanceof Return r) {
+          c = (Eff) b.f().apply(r.value());
+        } else if (m instanceof Sync s) {
+          c = (Eff) b.f().apply(s.a().get());
+        } else {
+          k = new Frames.Then(b.f(), k);
+          c = m;
+        }
+        continue;
+      } else if (c instanceof Resumption r) {
+        // a captured continuation resumed here: x through its rest, then its delimiters crossed and its delimiter
+        // again, the frames here outside it. Its frames applied HERE, call sites of their own — the JIT's profile of
+        // them the continuation's — and no delimiter made till a bind needs it
+        Object x = r.x();
+        if (r.k() instanceof Frames fr) {
+          // its first frame — the operation's own, {@code op.map(f)} — at a site of its own, the rest — deeper, other
+          // code's — at feed's: each profile the narrower
+          Eff next = null;
+          if (fr instanceof Frames.Mapped m) {
+            x = m.f().apply(x);
+            fr = m.next();
+            if (!(fr instanceof Frames.End)) {
+              Fed fed = feed(x, fr);
+              next = fed.c();
+              x = fed.v();
+              fr = fed.k();
             }
-            // the segment done: its delimiter's return, outside it — a reset's the value itself, on at once
-            if (ms instanceof Top) return (A) v;
-            Seg seg = ms instanceof Seg plain ? plain : head(ms);
-            k = seg.outer();
-            ms = ms instanceof Seg plain ? plain.next() : drop(ms, 1);
-            if (seg.ret() != SAME) {
-              c = (Eff) seg.ret().apply(v);
-              break;
-            }
+          } else if (fr instanceof Frames.Then t) {
+            next = (Eff) t.f().apply(x);
+            fr = t.next();
           }
-        }
-        case Bind b -> {
-          if (b.m() instanceof Return r) {
-            c = (Eff) b.f().apply(r.value());
-          } else if (b.m() instanceof Sync s) {
-            c = (Eff) b.f().apply(s.a().get());
-          } else {
-            k = new Frames.Then(b.f(), k);
-            c = b.m();
+          if (next != null) {
+            // a bind in its rest: its delimiter again, under it the rest's program
+            ms = again(r, k, ms);
+            c = next;
+            k = fr;
+            continue;
           }
-        }
-        case Map m -> {
-          k = new Frames.Mapped(m.f(), k);
-          c = m.m();
-        }
-        case Delay d -> c = (Eff) d.c().get();
-        case Push p -> {
-          k = k instanceof Frames.End ? p.k() : new Frames.Then(p.k(), k);
-          c = p.m();
-        }
-        case Handle h -> {
-          Prompt<?, ?, ?> p = new Prompt<>();
-          ms = new Seg(p, h.ret(), k, ms);
-          k = Frames.END;
-          c = h.body().in(p);
-        }
-        case Reset r -> {
-          ms = new Seg(r.prompt(), SAME, k, ms);
-          k = Frames.END;
-          c = r.body();
-        }
-        case Shift0 s -> {
-          Prompt<?, ?, ?> to = s.prompt();
-          Function f = s.f();
-          // the nearest delimiter the usual one: no walk, no drop
-          if (ms instanceof Seg near && near.prompt() == to) {
-            c = (Eff) f.apply(new Kont(k, ms, 0, near));
-            k = near.outer();
-            ms = near.next();
-          } else {
-            int i = index(ms, to);
-            Seg d = head(drop(ms, i));
-            c = (Eff) f.apply(new Kont(k, ms, i, d));
-            k = d.outer();
-            ms = drop(ms, i + 1);
-          }
-        }
-        case Suspend s -> {
-          Prompt<?, ?, ?> to = s.prompt();
-          Function f = s.f();
-          Function kk = k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k);
-          if (ms instanceof Seg near && near.prompt() == to) {
-            c = (Eff) f.apply(new Kont(kk, ms, 0, near));
-            k = near.outer();
-            ms = near.next();
-          } else {
-            int i = index(ms, to);
-            Seg d = head(drop(ms, i));
-            c = (Eff) f.apply(new Kont(kk, ms, i, d));
-            k = d.outer();
-            ms = drop(ms, i + 1);
-          }
-        }
-        case Resumption r -> {
-          // a captured continuation resumed here: its delimiters crossed, its delimiter again with the frames here
-          // outside it — in front of the delimiters here, by a take; then x through its rest, no Return made
-          Kont kont = r.kont();
-          Seg up = kont.up();
-          // resumed where it was captured up to — a clause's k(v) as it is, the usual — the delimiter the same: kept,
-          // not made again
-          Seg again = k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
-          ms = take(kont.ms(), kont.n(), again);
-          Object x = r.x();
-          if (kont.k() instanceof Frames fr) {
-            if (fr instanceof Frames.End) {
-              c = new Return<>(x);
-              k = Frames.END;
+          if (r.to() instanceof Seg up) {
+            // its rest done, the delimiter next: the frames and delimiters here as they are, its return applied
+            Function ret = up.ret();
+            if (ret == SAME) {
+              v = x;
             } else {
-              Fed fed = Nodes.feed(x, fr);
-              if (fed.c() != null) {
-                c = fed.c();
-                k = fed.k();
-              } else {
-                c = new Return<>(fed.v());
-                k = Frames.END;
-              }
+              c = (Eff) ret.apply(x);
+              continue;
             }
           } else {
-            c = (Eff) kont.k().apply(x);
+            ms = again(r, k, ms);
             k = Frames.END;
+            v = x;
           }
+        } else {
+          ms = again(r, k, ms);
+          c = (Eff) r.k().apply(x);
+          k = Frames.END;
+          continue;
+        }
+      } else if (c instanceof Suspend s) {
+        Function kk = k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k);
+        // the nearest delimiter the usual one: no walk, no drop
+        if (ms instanceof Seg near && near.prompt() == s.prompt()) {
+          c = (Eff) s.f().apply(new Kont(kk, ms, 0));
+          k = near.outer();
+          ms = near.next();
+        } else {
+          Kont kont = far(kk, ms, s.prompt());
+          Seg d = kont.up();
+          c = (Eff) s.f().apply(kont);
+          k = d.outer();
+          ms = drop(ms, kont.n() + 1);
+        }
+        continue;
+      } else if (c instanceof Shift0 s) {
+        if (ms instanceof Seg near && near.prompt() == s.prompt()) {
+          c = (Eff) s.f().apply(new Kont(k, ms, 0));
+          k = near.outer();
+          ms = near.next();
+        } else {
+          Kont kont = far(k, ms, s.prompt());
+          Seg d = kont.up();
+          c = (Eff) s.f().apply(kont);
+          k = d.outer();
+          ms = drop(ms, kont.n() + 1);
+        }
+        continue;
+      } else if (c instanceof Map m) {
+        k = new Frames.Mapped(m.f(), k);
+        c = m.m();
+        continue;
+      } else if (c instanceof Sync s) {
+        v = s.a().get();
+      } else if (c instanceof Delay d) {
+        c = (Eff) d.c().get();
+        continue;
+      } else if (c instanceof Push p) {
+        k = k instanceof Frames.End ? p.k() : new Frames.Then(p.k(), k);
+        c = p.m();
+        continue;
+      } else if (c instanceof Reset r) {
+        ms = new Seg(r.prompt(), SAME, k, ms);
+        k = Frames.END;
+        c = r.body();
+        continue;
+      } else {
+        Handle h = (Handle) c;
+        Prompt<?, ?, ?> p = new Prompt<>();
+        ms = new Seg(p, h.ret(), k, ms);
+        k = Frames.END;
+        c = h.body().in(p);
+        continue;
+      }
+      // a value: through the maps to the first bind, or out of the segment — its delimiter's return, outside it; a
+      // reset's the value itself, on at once. No Return made for it
+      while (true) {
+        while (k instanceof Frames.Mapped m) {
+          v = m.f().apply(v);
+          k = m.next();
+        }
+        if (k instanceof Frames.Then t) {
+          c = (Eff) t.f().apply(v);
+          k = t.next();
+          break;
+        }
+        Seg seg;
+        if (ms instanceof Seg plain) {
+          seg = plain;
+          ms = plain.next();
+        } else if (ms instanceof Top) {
+          return (A) v;
+        } else {
+          seg = head(ms);
+          ms = drop(ms, 1);
+        }
+        k = seg.outer();
+        if (seg.ret() != SAME) {
+          c = (Eff) seg.ret().apply(v);
+          break;
         }
       }
     }
   }
 
+  /** a value through the maps on top of the frames, to the first bind — its program and the frames under it — or to
+   * the end, {@code c} null */
+  record Fed(Eff<?, ?> c, Object v, Frames k) {}
+
+  /** a resumed continuation's frames below its first: a method of its own, so the profile of its call to a frame's
+   * function is the deeper frames' only — a capture's rest, maps over maps, one function mostly: inlined, as the old
+   * loop's {@code feed} had it (okay-core's {@code feed}) */
+  private static Fed feed(Object x, Frames fr) {
+    while (fr instanceof Frames.Mapped m) {
+      x = m.f().apply(x);
+      fr = m.next();
+    }
+    return fr instanceof Frames.Then t ? new Fed((Eff) t.f().apply(x), null, t.next()) : new Fed(null, x, fr);
+  }
+
+  /** a capture to a delimiter not the nearest: its index walked to */
+  private static Kont far(Function k, Meta ms, Prompt<?, ?, ?> prompt) {
+    return new Kont(k, ms, index(ms, prompt));
+  }
+
+  /** a resumption's delimiters: those it crossed, then its delimiter again with the frames {@code k} here outside
+   * it, in front of the delimiters here {@code ms}. Resumed where it was captured up to — a clause's {@code k(v)} as
+   * it is, the usual — the delimiter the same: kept, not made again. Straight code for none crossed, the usual: the
+   * loop the JIT compiles the machine's into has no loop of a take's in it */
+  private static Meta again(Resumption r, Frames k, Meta ms) {
+    if (r.to() instanceof Seg up)
+      return k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
+    return againCrossed((Kont) r.to(), k, ms);
+  }
+
+  private static Meta againCrossed(Kont kont, Frames k, Meta ms) {
+    Seg up = kont.up();
+    Seg again = k == up.outer() && ms == up.next() ? up : new Seg(up.prompt(), up.ret(), k, ms);
+    return take(kont.ms(), kont.n(), again);
+  }
 
   /** the index of {@code prompt}'s delimiter in {@code ms}: none, a capability out of its handler */
   private static int index(Meta ms, Prompt<?, ?, ?> prompt) {
