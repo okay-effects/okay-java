@@ -5,7 +5,7 @@ import java.util.function.Supplier;
 
 /**
  * THE MONAD OF DELIMITED CONTINUATIONS with {@code shift0} and {@code $} — Materzok–Biernacki's: {@code Cont0<I, O, A>}
- * is a program of value {@code A} which, with a continuation answering {@code I}, answers {@code O}, as {@link Cont}'s.
+ * is a program of value {@code A} which, with a continuation answering {@code I}, answers {@code O}, as Danvy–Filinski's.
  * Not as there: what an answer is. {@code shift0}'s body runs OUTSIDE the delimiter it captured up to, in its place,
  * so the body is a program of the level outside — and the answers are that level's programs, {@code Cont0} again:
  * the levels nested in the answer types, {@code Cont0<Cont0<…>, Cont0<…>, A>}, the stack of delimiters typed.

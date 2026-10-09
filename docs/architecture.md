@@ -1,14 +1,10 @@
 # Architecture
 
 okay-java has three layers:
-- the monads of delimited continuations: `Cont` with `shift`/`reset`, and `Cont0` with `shift0`/`$`;
+- the monad of delimited continuations, `Cont0`, with `shift0`/`$` (the first port's `Cont`, `shift`/`reset`, is
+  gone; `Eff`'s `p.shift` is Danvy–Filinski's `shift`, and `Cont0Test` compares the two with it);
 - `Eff`, effects at a level, run by a machine with prompts;
 - `okay.std`, the effects written on `Eff`.
-
-## `Cont` (`Cont.java`, `Loop.java`, `Frames.java`, `Head.java`, `Push.java`)
-
-`Cont<I, O, A>` is Danvy–Filinski's `shift` and `reset`, with the answer type modified (Asai–Kameyama). A program is
-a tree of nodes. The loop reads it to its head in constant stack, with a stack of frames of its own.
 
 ## `Cont0` (`Cont0.java`, `Loop0.java`)
 

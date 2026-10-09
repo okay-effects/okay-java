@@ -11,7 +11,6 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 
 | File | What is in it |
 |---|---|
-| `Cont.java`, `Loop.java`, `Frames.java`, `Head.java`, `Push.java` | `Cont<I, O, A>`: `shift` and `reset` with answer-type modification, the loop in constant stack |
 | `Cont0.java`, `Loop0.java` | `Cont0<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont0` |
 | `Eff.java`, `Prompt.java`, `EffLoop.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts |
 
@@ -77,8 +76,8 @@ An operation goes to its own handler by prompt, and any nearer handlers are cros
 - **A clause runs outside its handler**, so deep handlers need nothing more. A clause can perform the effects of
   the context. A recovery that raises again goes to the handler further out. With `shift`, the clause runs under a
   `reset`, so it has to be lifted out or the handler re-folded.
-- **Nothing nests.** A clause's body is not wrapped, so 100 000 captures in a row run in constant stack without
-  the `Reset` check in `Loop.delimited`.
+- **Nothing nests.** A clause's body is not wrapped, so 100 000 captures in a row run in constant stack. A `shift`'s
+  body has to be put under its reset again, and needs a check that a `shift0`'s does not.
 - **A tail-resumptive handler is a plain function.** `shift0 k. m >>= k` is `m` performed in place. So a handler
   whose clauses have the form `m.flatMap(k)` is the capability itself, with no prompt and no capture. That covers
   `Reader`, `Emit.forEach`, and forwarding to an outer effect. This is okay-core's `Answering`, which here costs

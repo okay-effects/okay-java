@@ -112,12 +112,17 @@ class Cont0Test {
                 k2 -> k1.apply(1).flatMap(k2).flatMap(k2)))
             .map(x -> x + 10));
     assertEquals(44, value(reset0(inner.map(x -> x * 2))));
-    // with shift, k2 is the empty context under the delimiter the first body runs under: 11, doubled once
-    Cont<Integer, Integer, Integer> onCont = Cont.reset(
-        Cont.<Integer, Integer, Integer>reset(Cont.<Integer, Integer, Integer>shift(
-                k1 -> Cont.<Integer, Integer, Integer>shift(k2 -> k1.apply(1).flatMap(k2).flatMap(k2)))
-            .map(x -> x + 10)).map(x -> x * 2));
-    assertEquals(22, Cont.run(onCont));
+    // with shift (Eff's, Danvy–Filinski's), k2 is the empty context under the reset the first body runs under: 11,
+    // doubled once
+    assertEquals(22, (int) Eff.run(Eff.reset(new Eff.Body<Eff.Top, Integer, Integer>() {
+      public <M extends Eff.Top> Eff<M, Integer> in(Prompt<Eff.Top, M, Integer> outer) {
+        return Eff.reset(new Eff.Body<M, Integer, Integer>() {
+          public <N extends M> Eff<N, Integer> in(Prompt<M, N, Integer> p) {
+            return p.<Integer>shift(k1 -> p.<Integer>shift(k2 -> k1.apply(1).flatMap(k2).flatMap(k2).at())).map(x -> x + 10);
+          }
+        }).map(x -> x * 2);
+      }
+    })));
   }
 
   @Test
@@ -128,11 +133,15 @@ class Cont0Test {
             .map(x -> x + 10));
     assertEquals(-1, value(reset0(inner.map(x -> x * 2))));
     // a shift gets out of one only
-    Cont<Integer, Integer, Integer> onCont = Cont.reset(
-        Cont.<Integer, Integer, Integer>reset(Cont.<Integer, Integer, Integer>shift(
-                _ -> Cont.<Integer, Integer, Integer>shift(_ -> Cont.pure(-1)))
-            .map(x -> x + 10)).map(x -> x * 2));
-    assertEquals(-2, Cont.run(onCont));
+    assertEquals(-2, (int) Eff.run(Eff.reset(new Eff.Body<Eff.Top, Integer, Integer>() {
+      public <M extends Eff.Top> Eff<M, Integer> in(Prompt<Eff.Top, M, Integer> outer) {
+        return Eff.reset(new Eff.Body<M, Integer, Integer>() {
+          public <N extends M> Eff<N, Integer> in(Prompt<M, N, Integer> p) {
+            return p.<Integer>shift(_ -> p.<Integer>shift(_ -> Eff.pure(-1))).map(x -> x + 10);
+          }
+        }).map(x -> x * 2);
+      }
+    })));
   }
 
   @Test

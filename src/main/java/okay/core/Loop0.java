@@ -37,7 +37,7 @@ final class Loop0 {
 
   /** THE DELIMITER'S LOOP, {@code ret $ c}, {@code k} bound under it, run to where it leaves the delimiter: a value,
    * answered by {@code ret}; a capture, its body the delimiter's program outside, in its place — NOT put under a
-   * delimiter, as {@link Loop#delimited} puts shift's — the rest under it again, {@code ret} included, as k. What
+   * delimiter, as a shift's is put under its reset again — the rest under it again, {@code ret} included, as k. What
    * leaves is made here, no head between; nothing wraps the body, so nothing nests */
   private static Object delimited(Cont0<?, ?, ?> program, Frames0 frames, Function<Object, Object> ret) {
     Cont0 c = program;
