@@ -27,13 +27,18 @@ public interface Throws<L, E> {
     <M extends L> Eff<M, A> in(Throws<M, E> t);
   }
 
-  /** okay-core's {@code throws}: the value as {@code Ok}, or the first {@code raise} as {@code Failed} */
+  /** okay-core's {@code throws}: the value as {@code Ok}, or the first {@code raise} as {@code Failed} — a handler of
+   * its own, {@code Ok} its return, {@code Failed} its clause: no recovery, no map in between */
   static <L, E, A> Eff<L, Result<E, A>> attempt(Body<L, E, A> body) {
-    return Throws.<L, E, Result<E, A>>catching(new Body<>() {
-      public <M extends L> Eff<M, Result<E, A>> in(Throws<M, E> t) {
-        return body.in(t).map(Result.Ok::new);
+    return Eff.handle(new Eff.Body<L, A, Result<E, A>>() {
+      public <M extends L> Eff<M, A> in(Prompt<L, M, Result<E, A>> p) {
+        return body.in(new Throws<M, E>() {
+          public <X> Eff<M, X> raise(E e) {
+            return p.shift0(_ -> Eff.pure(new Result.Failed<>(e)));
+          }
+        });
       }
-    }, e -> Eff.pure(new Result.Failed<>(e)));
+    }, a -> Eff.pure(new Result.Ok<>(a)));
   }
 
   static <L, E, A> Eff<L, A> catching(Body<L, E, A> body, Function<? super E, ? extends Eff<? super L, A>> recover) {

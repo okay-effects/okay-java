@@ -97,6 +97,15 @@ final class EffLoop {
           } else if (b.m() instanceof Sync s) {
             // a value computed in place, bound: to the function at once, no frame
             c = (Eff) b.f().apply(s.a().get());
+          } else if (b.m() instanceof Handle h) {
+            // a handler bound: entered at once — its value, the usual, to the function with no frame pushed
+            Eff out = enter(h, depth);
+            if (out instanceof Return r) {
+              c = (Eff) b.f().apply(r.value());
+            } else {
+              k = new Frames.Then(b.f(), k);
+              c = out;
+            }
           } else {
             k = new Frames.Then(b.f(), k);
             c = b.m();
@@ -116,10 +125,7 @@ final class EffLoop {
         case Suspend s -> {
           return capture(s.prompt(), s.f(), k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k), prompt, ret);
         }
-        case Handle h -> {
-          Prompt<?, ?, ?> p = new Prompt<>();
-          c = delimited(h.body().in(p), Frames.END, p, h.ret(), depth + 1);
-        }
+        case Handle h -> c = enter(h, depth);
         // a reset or a resumption under a delimiter of its own prompt: whatever it captures to that prompt its own
         // delimiter takes, so it may run OUTSIDE this one, its value back into the rest under it. Nested here, a
         // Java frame, while not too deep; past it, out and back — the delimiter a frame on the heap: shifts' bodies
@@ -147,6 +153,12 @@ final class EffLoop {
       k = next;
     }
     return k instanceof Frames.Then(var f, var next) ? new Fed((Eff) f.apply(v), null, next) : new Fed(null, v, k);
+  }
+
+  /** a handler entered: its body in a loop of its own under a fresh prompt, to the program leaving it */
+  private static Eff<?, ?> enter(Handle h, int depth) {
+    Prompt<?, ?, ?> p = new Prompt<>();
+    return delimited(h.body().in(p), Frames.END, p, h.ret(), depth + 1);
   }
 
   /** a capture of the rest {@code k} at the delimiter of {@code prompt}: its own — the clause, k the rest under the
