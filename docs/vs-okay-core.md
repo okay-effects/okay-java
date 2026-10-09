@@ -25,10 +25,10 @@ an operation unless noted:
 |---|---|---|
 | answered across 1 / 16 handlers | 4.4 / 4.5 | 5.7 / 17.1 |
 | a general clause | 7.8 | 7.7 |
-| state (a cell) / writer | 15.7 / 20.4 | 14.2 / 18.3 |
+| state (a cell) / writer | 15.7 / 17.3 | 14.2 / 18.3 |
 | throws / choose | 13.3 / 25.8 | 14.9 / 33.9 |
 | tail calls by delay | 2.0 | 2.3 |
-| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 130 / 519 ns | 126 / 323 ns |
+| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 130 / 519 ns; 339 ns over a record | 126 / 323 ns |
 | a deep shift, 256 maps boxed by a record or a constructor (a run) | 4.95 µs | 5.15 µs |
 | a deep shift, 256 maps autoboxed (a run) | 6.7–8.7 µs | 4.7 µs |
 

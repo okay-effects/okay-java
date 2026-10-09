@@ -153,8 +153,8 @@ machine: okay-java `4009fed` (2026-10-09 11:38) and okay-core `bb01100` (08:45).
 | general clause across 1 / 16 handlers | 14.06 / 109.87 ns | — | — |
 | state (a cell) | 15.71 ns, 166 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
 | state, functional | 32.00 ns, 502 B | — | — |
-| writer, throwing, choose | 20.42, 13.34, 25.83 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
-| collect / generate | 7.00 / 15.33 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
+| writer, throwing, choose | 17.32, 13.34, 25.83 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
+| collect / generate | 6.80 / 14.25 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
 | a shift under a reset: 16 maps / 1, `k` 8 times | 519 / 130 ns | 433 / 136 ns | 323 / 126 ns |
 | the same under a handler | 512 / 115 ns | 410 / 122 ns | 363 / 139 ns |
 | 256 maps, `k` 8 times / 1 map, `k` once | 6708 / 36 ns | 5862 / 38 ns | 4676 / 38 ns |
@@ -176,6 +176,8 @@ How the rows got here, measured against the code before on the same machine:
   486–519 ns.
 - A handler that is bound is entered at once (okay-core's `248fd36`), and `Throws.attempt` is a handler of its own.
   `throwing` went from 17.2 to 13.3 ns.
+- Writer's `tell` puts a `Rope.Cons` in front of the log, one object where `Cat` and `Leaf` were two: 20.4 to
+  17.3 ns. The writer, collect and generate rows are from a run of their own after it (3 forks, the same JDK).
 
 Why the deep capture (256 maps) is 1.7× `zero`'s: not the machine, and not the allocation, but `Integer.valueOf`.
 Same JDK (26), the same harness (`java` straight), 3 forks:
