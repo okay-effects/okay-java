@@ -176,6 +176,15 @@ benchmarks lost: the deep capture by 15%, and the general clause across 16 handl
 operation under JMH only. Outside JMH the allocation is the same byte for byte, so this is the JIT's doing as the
 loop grew, not more work. Taking the handler's entry out of the loop does not change it.
 
+Why the deep capture (256 maps) is 1.7× `zero`'s: not the machine. Run on the same JDK (26), the same way (`java`
+straight, 6 forks), with the maps `x -> x` instead of `x -> x + 1`, the two are even (4.4–4.6 µs against
+4.6–4.8). With `x + 1` past 127 every map boxes a new `Integer`. Both allocate the same 1 040 a run, yet in Java's
+loop each costs about 3 ns more. This holds under G1, Parallel and Serial GC alike. The JIT inlines the lambda,
+`Integer.valueOf` and the allocation, and the TLAB fast path, the `dmb ishst` after the final field and the class
+check of the box are the same instructions in both loops (hsdis). What differs is their order: here the box's
+header is read back about 10 instructions after the barrier, in `zero` about 25. Reordering `feed`'s checks as
+`zero`'s does not change it. What remains is the CPU's, not the continuations'.
+
 ## Build
 
 ```sh
