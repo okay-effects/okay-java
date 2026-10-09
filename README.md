@@ -185,9 +185,17 @@ Same JDK (26), the same harness (`java` straight), 3 forks:
 | `x -> new Integer(x + 1)` (`captureDeepNew`) | 4.95 µs, 46 KB | 5.15 µs, 47 KB |
 | `x -> x`, no box made | 4.4–4.6 µs | 4.6–4.8 µs |
 
-With the constructor, every map allocates, 50% more than through the cache, and Java is faster than `zero`. So what
-was slow is `valueOf`'s branch, a cached box or a new one, as the JIT laid it out in this loop. The allocation, the
-GC (the same under G1, Parallel and Serial) and the machine are not the cause.
+With the constructor, every map allocates, 50% more than through the cache, and Java is faster than `zero`. What
+makes the difference is escape analysis, in its part that eliminates boxes: C2 replaces `valueOf(x).intValue()` by
+`x`, not reading the box back. Turned off (`-XX:-DoEscapeAnalysis`, `-XX:-EliminateAutoBox` or
+`-XX:-AggressiveUnboxing`), `zero`'s deep capture goes from 4.8 to 6.4 µs, while Java's barely moves (8.3 to 8.5–8.9):
+in `zero`'s loop it works, in ours it does not. It removes no allocation in either (30 KB a run both ways), only the
+unboxing.
+
+The shape of the function matters too. A map written as Scala's specialized one (a static `unbox`, an `int` function,
+`valueOf`) runs Java's deep capture in 5.6 µs without the box elimination, faster than `zero` without it (6.4). With
+it, the same loop slows to 7.9. Why C2 helps one loop and hurts the other is not visible on a product JVM: the flags
+that trace escape analysis are a debug build's.
 
 ## Build
 
