@@ -292,6 +292,24 @@ public class MonadsBenchmark {
     return Eff.run(Eff.reset(capturing(256, 8)));
   }
 
+  /** captureDeep's maps boxing by the constructor, {@code new Integer(x + 1)}, not by {@code Integer.valueOf}: every
+   * map allocates, the cache never asked */
+  @SuppressWarnings({"removal", "deprecation"})
+  static <L, M extends L> Eff<M, Integer> capturedNew(Prompt<L, M, Integer> p, int depth, int times) {
+    Eff<M, Integer> c = p.<Void>shift(k -> shots(k, times, 0).at()).map(_ -> 1);
+    for (int i = 0; i < depth; i++) c = c.map(x -> new Integer(x.intValue() + 1));
+    return c;
+  }
+
+  @Benchmark
+  public int captureDeepNew() {
+    return Eff.run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
+      public <M extends Top> Eff<M, Integer> in(Prompt<Top, M, Integer> p) {
+        return capturedNew(p, 256, 8);
+      }
+    }));
+  }
+
   @Benchmark
   public int captureOnce() {
     return Eff.run(Eff.reset(capturing(1, 1)));
