@@ -31,6 +31,7 @@ public final class Ref {
         Prompt<?> p = new Prompt<>();
         yield delimit(p, h.ret(), eval((Eff) h.body().apply(p)));
       }
+      case EffLoop.Reset r -> delimit(r.prompt(), Eff::pure, eval(r.body()));
       case EffLoop.Push _, EffLoop.Resume _ -> throw new IllegalStateException("the machine's own node: " + c);
     };
   }

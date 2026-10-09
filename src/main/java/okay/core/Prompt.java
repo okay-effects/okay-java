@@ -13,4 +13,17 @@ public final class Prompt<R> {
   public <X> Eff<X> shift0(Function<Function<X, Eff<R>>, Eff<R>> clause) {
     return new EffLoop.Shift0<>(this, clause);
   }
+
+  /** Danvy–Filinski's {@code shift} to this prompt: {@code shift0} with its clause under the delimiter again —
+   * {@code shift k. e = shift0 k. reset e}. So a shift in the clause reaches this delimiter again; at a handler's
+   * prompt k is the rest WITH the handler, its {@code ret} in each resumption, the clause under the handler with
+   * no {@code ret}: its operations the handler's still */
+  public <X> Eff<X> shift(Function<Function<X, Eff<R>>, Eff<R>> clause) {
+    return shift0(k -> reset(clause.apply(k)));
+  }
+
+  /** {@code body} under this prompt's delimiter again, its value the answer: a capture to this prompt in it stops here */
+  public Eff<R> reset(Eff<R> body) {
+    return new EffLoop.Reset<>(this, body);
+  }
 }

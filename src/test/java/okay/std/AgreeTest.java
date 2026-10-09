@@ -7,13 +7,14 @@ import java.util.List;
 import java.util.Random;
 import okay.core.Backend;
 import okay.core.Eff;
+import okay.core.Prompt;
 import org.junit.jupiter.api.Test;
 
 /** the machine against the reference on programs made at random: handlers nested in any order, operations of the
- * capabilities in scope — whatever the machine does fast, the reference does by the book, and they agree */
+ * capabilities in scope, resets and shifts to them — whatever the machine does fast, the reference does by the book, and they agree */
 class AgreeTest {
 
-  enum Kind { WRITER, STATE, CELL, CHOOSE, THROWS, READER }
+  enum Kind { WRITER, STATE, CELL, CHOOSE, THROWS, READER, RESET }
 
   /** a program, as data: made first, then built — so both runs build the same, whatever runs twice */
   sealed interface Prog {
@@ -56,6 +57,7 @@ class AgreeTest {
         case Choose c -> c.among(List.of(n, n + 1));
         case Throws<?> t -> ((Throws<Integer>) t).raise(n);
         case Reader<?> rd -> ((Reader<Integer>) rd).ask().map(x -> x + n);
+        case Prompt<?> pr -> ((Prompt<Integer>) pr).<Integer>shift(k -> k.apply(n).flatMap(x -> k.apply(x + 1)).map(x -> x * 5));
         default -> throw new IllegalStateException();
       };
       case Prog.Handle(var k, var n, var body) -> switch (k) {
@@ -67,6 +69,7 @@ class AgreeTest {
             .map(l -> l.stream().reduce(17, (h, x) -> h * 31 + x));
         case THROWS -> Throws.<Integer, Integer>catching(t -> build(body, with(caps, t)), e -> Eff.pure(-e));
         case READER -> Reader.<Integer, Integer>reader(n, rd -> build(body, with(caps, rd)));
+        case RESET -> Eff.<Integer>reset(pr -> build(body, with(caps, pr))).map(x -> x + n);
       };
     };
   }

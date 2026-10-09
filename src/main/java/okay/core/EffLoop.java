@@ -30,6 +30,9 @@ final class EffLoop {
   record Handle<A, R>(Function<? super Prompt<R>, ? extends Eff<A>> body, Function<? super A, ? extends Eff<R>> ret)
       implements Eff<R> {}
 
+  /** a delimiter under a prompt there already: {@code p.reset(body)}, its answer the body's value */
+  record Reset<R>(Prompt<R> prompt, Eff<R> body) implements Eff<R> {}
+
   /** {@code m} with the rest as a stack already: what applying a captured k makes */
   record Push<B>(Eff<?> m, Frames k) implements Eff<B> {}
 
@@ -37,6 +40,9 @@ final class EffLoop {
   record Resume<B>(Object x, Function k, Prompt<?> prompt, Function<Object, Object> ret) implements Eff<B> {}
 
   static final Eff<Object> UNIT = new Return<>(null);
+
+  /** a reset's return: the value as it is */
+  private static final Function<Object, Object> PURE = Return::new;
 
   /** the prompt of the top: no capture is to it */
   private static final Prompt<Object> TOP = new Prompt<>();
@@ -109,7 +115,14 @@ final class EffLoop {
           Prompt<?> p = new Prompt<>();
           c = delimited((Eff) h.body().apply(p), Frames.END, p, h.ret());
         }
-        case Resume r -> c = resume(r.x(), r.k(), r.prompt(), r.ret());
+        case Reset r -> c = delimited(r.body(), Frames.END, r.prompt(), PURE);
+        case Resume r -> {
+          // a resumption under a delimiter of its own prompt: whatever it captures to that prompt its own delimiter
+          // takes, so it runs OUTSIDE this one, its value back into the rest under it — out and back, the delimiter
+          // a frame on the heap, not a Java frame: shifts' bodies nest in constant stack
+          if (r.prompt() == prompt) return new Bind(r, new Redelimit(k, prompt, ret));
+          c = resume(r.x(), r.k(), r.prompt(), r.ret());
+        }
       }
     }
   }

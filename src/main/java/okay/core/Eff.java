@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * its handler is gone has no delimiter to reach: {@link #run} says so.
  */
 public sealed interface Eff<A>
-    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Shift0, EffLoop.Suspend, EffLoop.Handle, EffLoop.Push, EffLoop.Resume {
+    permits EffLoop.Return, EffLoop.Bind, EffLoop.Map, EffLoop.Shift0, EffLoop.Suspend, EffLoop.Handle, EffLoop.Reset, EffLoop.Push, EffLoop.Resume {
 
   default <B> Eff<B> flatMap(Function<? super A, ? extends Eff<B>> f) {
     return new EffLoop.Bind<>(this, f);
@@ -60,6 +60,12 @@ public sealed interface Eff<A>
   /** a handler whose body's value is its answer */
   static <R> Eff<R> handle(Function<? super Prompt<R>, ? extends Eff<R>> body) {
     return new EffLoop.Handle<R, R>(body, Eff::pure);
+  }
+
+  /** a RESET: a delimiter answering no operation, its prompt given to the body for {@link Prompt#shift} — a
+   * handler whose body's value is its answer, by another name */
+  static <R> Eff<R> reset(Function<? super Prompt<R>, ? extends Eff<R>> body) {
+    return handle(body);
   }
 
   /** a program at the top, its value. An operation reaching the top had no handler in force: its capability
