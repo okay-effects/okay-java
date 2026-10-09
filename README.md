@@ -140,31 +140,34 @@ top, outside the reader. With an answering capability there was no prompt to not
 ## Measured
 
 `MonadsBenchmark` runs okay-core master's programs under the same names. Both sides ran on JDK 26 on the same
-machine: okay-java's machine (2026-10-09 16:12, `bench.d/monads-machine-jdk26.csv`, load about 4) and okay-core
-`bb01100` (08:45). JMH, 2 forks, 3+5 iterations,
-`-prof gc`. The CSVs are in `bench.d/`. Numbers are per operation, `n = 1000`, except captures, which are per run.
+machine: okay-java's machine, a step a node (2026-10-09 20:40, `bench.d/monads-steps-jdk26.csv`, load about 4), and
+okay-core `bb01100` (08:45). JMH, 2 forks, 3+5 iterations, `-prof gc`. The CSVs are in `bench.d/`. Numbers are per
+operation, `n = 1000`, except captures, which are per run.
 
 | | Java `Eff` | okay-core `cont` | okay-core `zero` |
 |---|---|---|---|
-| pure binds | 3.02 ns, 56 B | 3.29 ns, 64 B | 3.24 ns, 64 B |
-| left binds / left maps | 6.17 / 5.40 ns | 8.29 / 4.85 ns | 8.42 / 4.86 ns |
-| right maps / tail calls by delay | 7.13 / 1.99 ns | 7.03 / 2.41 ns | 7.24 / 2.33 ns |
-| answered in place | 4.58 ns, 78 B | 6.51 ns, 86 B | 5.37 ns, 86 B |
-| general clause | 6.94 ns, 102 B | 8.96 ns, 150 B | 7.73 ns, 118 B |
-| answered across 1 / 4 / 16 handlers | 4.61 / 4.61 / 4.72 ns | 11.67 / 22.60 / 91.84 ns | 5.73 / 6.74 / 17.09 ns |
-| general clause across 1 / 16 handlers | 11.69 / 48.64 ns | — | — |
-| state (a cell) | 15.90 ns, 166 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
-| state, functional | 34.26 ns, 550 B | — | — |
-| writer, throwing, choose | 20.21, 14.22, 28.60 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
-| collect / generate | 7.29 / 11.40 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
-| a shift under a reset: 16 maps / 1, `k` 8 times | 518 / 169 ns | 433 / 136 ns | 323 / 126 ns |
-| the same under a handler | 521 / 168 ns | 410 / 122 ns | 363 / 139 ns |
-| 256 maps, `k` 8 times / 1 map, `k` once | 6774 / 50 ns | 5862 / 38 ns | 4676 / 38 ns |
-| 16 maps / 256 maps over a record (`captureRecord`, `captureDeepRecord`) | 569 / 8949 ns | — | — |
+| pure binds | 3.50 ns, 56 B | 3.29 ns, 64 B | 3.24 ns, 64 B |
+| left binds / left maps | 6.89 / 5.61 ns | 8.29 / 4.85 ns | 8.42 / 4.86 ns |
+| right maps / tail calls by delay | 9.54 / 2.17 ns | 7.03 / 2.41 ns | 7.24 / 2.33 ns |
+| answered in place | 5.08 ns, 78 B | 6.51 ns, 86 B | 5.37 ns, 86 B |
+| general clause | 9.17 ns, 102 B | 8.96 ns, 150 B | 7.73 ns, 118 B |
+| answered across 1 / 4 / 16 handlers | 5.09 / 5.13 / 5.26 ns | 11.67 / 22.60 / 91.84 ns | 5.73 / 6.74 / 17.09 ns |
+| general clause across 1 / 16 handlers | 13.28 / 42.03 ns | — | — |
+| state (a cell) | 14.05 ns, 166 B | 15.53 ns, 214 B | 14.16 ns, 214 B |
+| state, functional | 37.98 ns, 470 B | — | — |
+| writer, throwing, choose | 18.82, 14.15, 28.49 ns | 20.49, 13.95, 29.15 ns | 18.30, 14.90, 33.94 ns |
+| collect / generate | 7.81 / 17.68 ns | 13.13 / 14.55 ns | 10.45 / 14.09 ns |
+| a shift under a reset: 16 maps / 1, `k` 8 times | 347 / 82 ns | 433 / 136 ns | 323 / 126 ns |
+| the same under a handler | 348 / 81 ns | 410 / 122 ns | 363 / 139 ns |
+| 256 maps, `k` 8 times / 1 map, `k` once | 4923 / 34 ns | 5862 / 38 ns | 4676 / 38 ns |
+| 16 maps / 256 maps over a record (`captureRecord`, `captureDeepRecord`) | 329 / 4656 ns | — | — |
 
-The first machine (a Java frame per delimiter, below) ran captures over a record even with `zero`: 339 ns against
-323 with 16 maps. This one's are slower (569): a chain of allocating maps, inlined into the one big loop, has its
-values on the stack (`docs/architecture.md`).
+`MixedBenchmark`, one program of five effects with a throw and a choice handled per order: 131 ns an order, 1352 B
+(the first machine, measured one JVM a benchmark beside it: 129 ns, 1292 B). With no type profiles
+(`Megamorphic`, `-XX:-UseTypeProfile`, the CSV's same file): 158 ns.
+
+What a step a node costs: a virtual call each node. Programs of binds and maps with no effect pay it most (right
+maps 7.1 to 9.5 ns against the one big loop); programs of effects gain more than it (the mixed program 195 to 131).
 
 An answered operation costs the same in Java whatever the number of handlers it crosses. The capability is the
 handler, so nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Queens is left
