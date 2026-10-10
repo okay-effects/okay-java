@@ -187,7 +187,7 @@ class OnJavaTest {
   void directOkayJavasProgramsBuiltDirectlyUnderAHandlerWrittenOnce() {
     Program<Integer> body = e -> {
       Direct d = assertInstanceOf(Direct.class, e);
-      return d.prog(d.flatMap(d.pure(20), x -> d.map(d.perform(new Reader.Ask<Integer>(RD)), y -> (Integer) x + (Integer) y)));
+      return d.prog(d.directFlatMap(d.directPure(20), x -> d.directMap(d.directPerform(new Reader.Ask<Integer>(RD)), y -> (Integer) x + (Integer) y)));
     };
     assertEquals(42, OnJavaTest.<Integer>run(Handlers.reader(RD, 22, body)));
   }

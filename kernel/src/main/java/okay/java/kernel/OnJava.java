@@ -98,10 +98,9 @@ import okay.kernel.Type;
  * <p>TRUSTED STEPS, the only casts: {@link #level} (okay-java's levels are phantom types), {@link #erase} (a program
  * is covariant in its value at run time), {@link #answer} and {@link #value} (a delimiter's answer is erased in its
  * prompt, as {@code Steps}' {@code trust}: a value given where the program, built typed, expects it — the handler
- * found by its effect's exact identity). And the four methods {@code Effects} and {@code Direct} share, raw (see
- * {@link Shared}).
+ * found by its effect's exact identity).
  */
-public final class OnJava implements Shared {
+public final class OnJava implements Effects, Direct {
 
   // -- the context
 
@@ -165,7 +164,7 @@ public final class OnJava implements Shared {
     throw new IllegalArgumentException("not a program of okay-java's bridge: " + p);
   }
 
-  /** a Direct program: okay-java's own, or the bridge's {@code Prog} (what the methods shared with Effects give) */
+  /** a Direct program: okay-java's own; the bridge's {@code Prog} taken too, unwrapped */
   private static Eff<Top, Object> eff(Object p) {
     if (p instanceof W<?> w) return erase(w.eff);
     if (p instanceof Eff<?, ?> e) return erase(level(e));
@@ -297,21 +296,20 @@ public final class OnJava implements Shared {
     return wrap(raw(p).flatMap(a -> guarded(() -> Eff.pure(f.apply(a)))));
   }
 
-  static Prog<Object> pureOf(Object a) {
+  public <A> Prog<A> pure(A a) {
     return wrap(Eff.pure(a));
   }
 
-  Prog<Object> delayOf(Thunk<?> p) {
-    return wrap(Eff.<Top, Object>delay(() -> guarded(() -> eff(p.get()))));
+  public <A> Prog<A> delay(Thunk<Prog<A>> p) {
+    return wrap(Eff.<Top, A>delay(() -> guarded(() -> raw(p.get()))));
   }
 
-  <X> Prog<X> performOf(Op<X> op) {
+  public <X> Prog<X> perform(Op<X> op) {
     return wrap(performed(op));
   }
 
-  /** Direct's, untyped: the body's value of the handler's type, trusted */
-  Prog<Object> handleOf(Handler<?, ?> h, Program<?> body) {
-    return wrap(this.<Object, Object>handled(value(h), value(body)));
+  public <A, R> Prog<R> handle(Handler<A, R> h, Program<A> body) {
+    return wrap(handled(h, body));
   }
 
   /** an operation: to the nearest handler of its effect here; none, to the host in place, else handed out */
@@ -556,14 +554,31 @@ public final class OnJava implements Shared {
     };
   }
 
-  // -- Direct: okay-java's programs, untyped; a bind's function passed as it is
+  // -- Direct: okay-java's programs themselves, untyped, no wrapper; a bind's function passed as it is
 
-  public Object flatMap(Object p, Fn<Object, Object> f) {
+  public Object directPure(Object a) {
+    return Eff.<Top, Object>pure(a);
+  }
+
+  public Object directFlatMap(Object p, Fn<Object, Object> f) {
     return eff(p).flatMap(a -> guarded(() -> eff(f.apply(a))));
   }
 
-  public Object map(Object p, Fn<Object, Object> f) {
+  public Object directMap(Object p, Fn<Object, Object> f) {
     return eff(p).flatMap(a -> guarded(() -> Eff.pure(f.apply(a))));
+  }
+
+  public Object directDelay(Thunk<Object> p) {
+    return Eff.<Top, Object>delay(() -> guarded(() -> eff(p.get())));
+  }
+
+  public Object directPerform(Op<?> op) {
+    return performed(op);
+  }
+
+  /** untyped: the body's value of the handler's type, trusted */
+  public Object directHandle(Handler<?, ?> h, Program<?> body) {
+    return this.<Object, Object>handled(value(h), value(body));
   }
 
   public <A> Prog<A> prog(Object p) {
