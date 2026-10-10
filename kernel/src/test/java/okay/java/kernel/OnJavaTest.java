@@ -13,9 +13,11 @@ import okay.kernel.Computation;
 import okay.kernel.Direct;
 import okay.kernel.Effects;
 import okay.kernel.Fn;
+import okay.kernel.General;
 import okay.kernel.Op;
 import okay.kernel.Prog;
 import okay.kernel.Program;
+import okay.kernel.Returning;
 import okay.kernel.Step;
 import okay.kernel.Type;
 import okay.kernel.std.Choose;
@@ -190,5 +192,69 @@ class OnJavaTest {
       return d.prog(d.directFlatMap(d.directPure(20), x -> d.directMap(d.directPerform(new Reader.Ask<Integer>(RD)), y -> (Integer) x + (Integer) y)));
     };
     assertEquals(42, OnJavaTest.<Integer>run(Handlers.reader(RD, 22, body)));
+  }
+
+  // -- where implementations went wrong: okay-kernel's TCK, each a check of its own
+
+  @Test
+  void kResumedUnderOtherHandlersAnOperationGoesToTheHandlerInForceWhereItRuns() {
+    Type tick = Type.of("okay.java.kernel.tick");
+    record Tick(Type effect) implements Op<Void> {}
+    Program<Integer> body = e -> e.flatMap(e.perform(new Tick(tick)), _ -> ASK.in(e));
+    // the clause resumes k under a reader of its own: the ask, in k, finds that one
+    General<Integer, Integer> h = new General<>() {
+      public Type effect() {
+        return tick;
+      }
+
+      public Prog<Integer> ret(Integer a, Effects e) {
+        return e.pure(a);
+      }
+
+      public <X> Prog<Integer> apply(Op<X> op, Fn<X, Prog<Integer>> k, Effects e) {
+        return Handlers.reader(RD, 2, _ -> k.apply(null)).in(e);
+      }
+    };
+    assertEquals(2, OnJavaTest.<Integer>run(Handlers.reader(RD, 1, e -> e.handle(h, body))));
+  }
+
+  @Test
+  void aShift0sBodyRunsOutsideItsDelimiterAHandlerBetweenIsNotInForceThere() {
+    Program<Integer> p = Handlers.reader(RD, 1, e -> e.<Integer, Integer, Integer>dollar(
+        Handlers.reader(RD, 2, y -> y.<Integer, Integer, Integer>shift0(_ -> ASK.in(y))), e::pure));
+    assertEquals(1, OnJavaTest.<Integer>run(p));
+  }
+
+  @Test
+  void aFailureOfAHandlersAnswerIsTheProgramsCaughtByRecover() {
+    Type none = Type.of("okay.java.kernel.none");
+    Returning<Integer, Integer> h = new Returning<>() {
+      public Type effect() {
+        return none;
+      }
+
+      public Integer answer(Integer a) {
+        throw new IllegalStateException("answer");
+      }
+    };
+    assertEquals(7, OnJavaTest.<Integer>run(e -> e.recover(e2 -> e2.handle(h, e3 -> e3.pure(1)), _ -> e.pure(7))));
+  }
+
+  @Test
+  void aCancellationWaitingInARegionThatFailsTheRegionsEndCancelsStill() {
+    Computation<Integer> c = E.computation(e -> e.recover(e2 -> e2.uncancelable(e3 -> e3.flatMap(ASK.in(e3),
+        _ -> e3.<Integer>failed(new RuntimeException("region")))), _ -> e.pure(0)), Set.of(RD));
+    Step<Integer> waiting = yieldOf(c.start(Answers.NONE)).k().cancel();
+    assertInstanceOf(Step.Cancelled.class, yieldOf(waiting).k().resume(5), "cancelled, not recovered");
+  }
+
+  @Test
+  void aForeignProgramEndedByAnAbortCrossingItItsFinalizersRunTheirOperationsAnsweredHere() {
+    Type err = Throws.of(Type.of("okay.java.kernel.t2"));
+    Computation<Integer> inner = E.computation(e -> e.ensuring(Handlers.raise(err, "stop"), Handlers.tell(LOG, "fin")), Set.of(err, LOG));
+    Results.Logged<String, Results.Result<String, Integer>> r =
+        run(Handlers.writer(LOG, Handlers.<String, Integer>throwsOf(err, e -> e.foreign(inner))));
+    assertEquals(List.of("fin"), r.log());
+    assertInstanceOf(Results.Err.class, r.value());
   }
 }

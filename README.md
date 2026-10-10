@@ -38,10 +38,12 @@ reference can.
 
 A Gradle subproject of its own, `dev.okay:okay-java-kernel`, over `dev.okay:okay-kernel-api` (from `~/.m2`); the
 library above stays of no dependency. `OnJava` implements the kernel's `Effects` and `Direct` on `Eff`: a kernel
-handler an `Eff.handle`, an operation a `shift0` to its handler's prompt, a program handed out (`computation`) a run
-whose unhandled operation is a `Yield` with okay-java's multi-shot `k`. Failures, finalizers and cancellation are the
-bridge's own, okay-java having no primitive for them; what is exact and what approximated is in its documentation.
-`OnJavaTest` is okay-kernel's `TestSteps` on it.
+program is the bridge's nodes, translated into `Eff` where it runs, so an operation finds the handler in force there,
+a resumed `k` included; a kernel handler is an `Eff.handle`, an operation a `shift0` to its handler's prompt, a
+program handed out (`computation`) a run whose unhandled operation is a `Yield` with okay-java's multi-shot `k`.
+Failures, finalizers and cancellation are the bridge's own, okay-java having no primitive for them (its
+documentation says how). `OnJavaTest` is okay-kernel's `TestSteps` and the TCK's checks of where implementations
+went wrong; the TCK itself runs on it in okay-kernel's `integration`.
 
 ## Effects on `shift0`
 
