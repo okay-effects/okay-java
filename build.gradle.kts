@@ -47,8 +47,8 @@ tasks.test {
 
 // JMH without a plugin: a source set of benchmarks, the annotation processor generating the harness
 val jmh: SourceSet by sourceSets.creating {
-    compileClasspath += sourceSets.main.get().output
-    runtimeClasspath += sourceSets.main.get().output
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+    runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
 }
 
 dependencies {

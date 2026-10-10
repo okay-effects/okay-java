@@ -253,18 +253,16 @@ public final class Kernel implements Effects {
   }
 
   public <A> Prog<A> delay(Thunk<Prog<A>> p) {
-    return Eff.<Object, A>delay(() -> built(p::get));
+    return Eff.<Object, A>delay(() -> {
+      try {
+        return eff(p.get());
+      } catch (Throwable t) {
+        return new Fail<>(nonFatal(t));
+      }
+    });
   }
 
   /** a program the program's code gives: its exception a failure where it is placed */
-  private static <A> Eff<Object, A> built(Supplier<? extends Prog<A>> p) {
-    try {
-      return eff(p.get());
-    } catch (Throwable t) {
-      return new Fail<>(nonFatal(t));
-    }
-  }
-
   private static Eff<?, ?> builtAny(Supplier<? extends Prog<?>> p) {
     try {
       return eff(p.get());
@@ -285,7 +283,11 @@ public final class Kernel implements Effects {
   private static <A, R> Eff.Body<Object, A, R> body(Program<A> program) {
     return new Eff.Body<>() {
       public <M> Eff<M, A> in(Prompt<Object, M, R> p) {
-        return Kernel.<A>built(() -> program.in(EFFECTS)).at();
+        try {
+          return eff(program.in(EFFECTS)).at();
+        } catch (Throwable t) {
+          return new Fail<>(nonFatal(t));
+        }
       }
     };
   }
@@ -308,7 +310,13 @@ public final class Kernel implements Effects {
         return new Fail<>(nonFatal(t));
       }
     };
-    if (h instanceof General<A, R> g) return (A a) -> built(() -> g.ret(a, EFFECTS));
+    if (h instanceof General<A, R> g) return (A a) -> {
+      try {
+        return eff(g.ret(a, EFFECTS));
+      } catch (Throwable t) {
+        return new Fail<>(nonFatal(t));
+      }
+    };
     return Machine.SAME; // no return: the body's value the answer, as Steps
   }
 
@@ -317,7 +325,13 @@ public final class Kernel implements Effects {
   }
 
   public <A, I, O> Prog<O> dollar(Program<A> body, Fn<A, Prog<I>> k) {
-    Function<A, Eff<?, ?>> ret = a -> built(() -> k.apply(a));
+    Function<A, Eff<?, ?>> ret = a -> {
+      try {
+        return eff(k.apply(a));
+      } catch (Throwable t) {
+        return new Fail<>(nonFatal(t));
+      }
+    };
     return new Handle<Object, A, O>(body(body), ret, Mark.DOLLAR);
   }
 
@@ -335,7 +349,11 @@ public final class Kernel implements Effects {
   }
 
   private static Eff<Object, Void> finalized(Program<Void> fin) {
-    return built(() -> fin.in(EFFECTS));
+    try {
+      return eff(fin.in(EFFECTS));
+    } catch (Throwable t) {
+      return new Fail<>(nonFatal(t));
+    }
   }
 
   public <A> Prog<A> uncancelable(Program<A> body) {
@@ -394,7 +412,11 @@ public final class Kernel implements Effects {
 
   /** a general handler's clause, in its place; {@code k} okay-java's continuation, a kernel {@code Fn} itself */
   private static <A, R, X> Eff<?, ?> clause(General<A, R> g, Op<X> op, Machine.Kont k) {
-    return built(() -> g.apply(op, Kernel.<Fn<X, Prog<R>>>trust(k), EFFECTS));
+    try {
+      return eff(g.apply(op, Kernel.<Fn<X, Prog<R>>>trust(k), EFFECTS));
+    } catch (Throwable t) {
+      return new Fail<>(nonFatal(t));
+    }
   }
 
   private static Eff<?, ?> shifted(Run m, Fn<Machine.Kont, ? extends Prog<?>> body) {

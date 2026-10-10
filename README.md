@@ -34,16 +34,16 @@ reference can.
 | `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise`; on virtual threads `blocking(call)` and `fork(body)` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
 | `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `generate(body, next, done)` (lazy, of the consumer's type, under any effects; okay-core's), `iterator(body)` → `Iterator`, `stream(body)` → a lazy `java.util.stream.Stream` |
 
-### `kernel/` (optional): okay-java as an implementation of okay-kernel
+### okay-kernel: okay-java implements its API
 
-A Gradle subproject of its own, `dev.okay:okay-java-kernel`, over `dev.okay:okay-kernel-api` (from `~/.m2`); the
-library above stays of no dependency. `OnJava` implements the kernel's `Effects` and `Direct` on `Eff`: a kernel
-program is the bridge's nodes, translated into `Eff` where it runs, so an operation finds the handler in force there,
-a resumed `k` included; a kernel handler is an `Eff.handle`, an operation a `shift0` to its handler's prompt, a
-program handed out (`computation`) a run whose unhandled operation is a `Yield` with okay-java's multi-shot `k`.
-Failures, finalizers and cancellation are the bridge's own, okay-java having no primitive for them (its
-documentation says how). `OnJavaTest` is okay-kernel's `TestSteps` and the TCK's checks of where implementations
-went wrong; the TCK itself runs on it in okay-kernel's `integration`.
+okay-java depends on `dev.okay:okay-kernel-api` (0.2, from `~/.m2`: interfaces and a few records, no dependency of
+their own) and implements it itself, with no wrapper: `Eff` is a kernel `Prog`, and `okay.core.Kernel.EFFECTS` is the
+kernel's `Effects` in `Eff`'s own nodes. The machine runs the kernel's operations: it finds an operation's handler on
+its own stack of delimiters, where the operation runs, and unwinds failures, aborts and cancellations to the
+delimiters they concern. `computation` and `foreign` are the protocol's export and import. The design, and what it
+costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.md). `KernelTest` is okay-kernel's
+`TestSteps` and the TCK's checks of where implementations went wrong; the TCK itself runs on it in okay-kernel's
+`integration`.
 
 ## Effects on `shift0`
 
@@ -223,7 +223,6 @@ that trace escape analysis are a debug build's.
 ## Build
 
 ```sh
-./gradlew test                                       # the kernel bridge's too
-./gradlew :kernel:test
+./gradlew test
 ./gradlew bench --args='MonadsBenchmark -prof gc'   # JMH
 ```
