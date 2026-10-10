@@ -1,0 +1,11 @@
+"Benchmark","Mode","Threads","Samples","Score","Score Error (99.9%)","Unit","Param: n"
+"okay.core.MixedBenchmark.orders","avgt",1,10,185.371293,1.349604,"us/op",1000
+"okay.core.MixedBenchmark.orders:gc.alloc.rate","avgt",1,10,6954.874315,50.371002,"MB/sec",1000
+"okay.core.MixedBenchmark.orders:gc.alloc.rate.norm","avgt",1,10,1352001.298032,0.011858,"B/op",1000
+"okay.core.MixedBenchmark.orders:gc.count","avgt",1,10,141.000000,NaN,"counts",1000
+"okay.core.MixedBenchmark.orders:gc.time","avgt",1,10,56.000000,NaN,"ms",1000
+"okay.core.MixedBenchmark.ordersCell","avgt",1,10,103.950109,0.908460,"us/op",1000
+"okay.core.MixedBenchmark.ordersCell:gc.alloc.rate","avgt",1,10,9405.762880,82.353128,"MB/sec",1000
+"okay.core.MixedBenchmark.ordersCell:gc.alloc.rate.norm","avgt",1,10,1025312.728187,0.007257,"B/op",1000
+"okay.core.MixedBenchmark.ordersCell:gc.count","avgt",1,10,175.000000,NaN,"counts",1000
+"okay.core.MixedBenchmark.ordersCell:gc.time","avgt",1,10,67.000000,NaN,"ms",1000

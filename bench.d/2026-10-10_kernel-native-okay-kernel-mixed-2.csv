@@ -1,0 +1,11 @@
+"Benchmark","Mode","Threads","Samples","Score","Score Error (99.9%)","Unit","Param: impl","Param: n"
+"okay.kernel.bench.MixedBenchmark.orders","avgt",1,10,246.385424,40.238997,"us/op",okay-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.alloc.rate","avgt",1,10,6912.150807,1128.338849,"MB/sec",okay-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.alloc.rate.norm","avgt",1,10,1767289.720834,0.289064,"B/op",okay-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.count","avgt",1,10,175.000000,NaN,"counts",okay-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.time","avgt",1,10,72.000000,NaN,"ms",okay-java,1000
+"okay.kernel.bench.MixedBenchmark.orders","avgt",1,10,399.244143,3.173216,"us/op",steps-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.alloc.rate","avgt",1,10,6019.120104,47.866021,"MB/sec",steps-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.alloc.rate.norm","avgt",1,10,2520090.788468,0.025865,"B/op",steps-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.count","avgt",1,10,167.000000,NaN,"counts",steps-java,1000
+"okay.kernel.bench.MixedBenchmark.orders:gc.time","avgt",1,10,67.000000,NaN,"ms",steps-java,1000

@@ -1,0 +1,10 @@
+"Benchmark","Mode","Threads","Samples","Score","Score Error (99.9%)","Unit","Param: n"
+"okay.core.MonadsBenchmark.capture","avgt",1,15,0.353809,0.000690,"us/op",1000
+"okay.core.MonadsBenchmark.captureDeep","avgt",1,15,5.047591,0.009570,"us/op",1000
+"okay.core.MonadsBenchmark.captureDeepNew","avgt",1,15,4.847557,0.013697,"us/op",1000
+"okay.core.MonadsBenchmark.captureDeepRecord","avgt",1,15,4.999003,0.552329,"us/op",1000
+"okay.core.MonadsBenchmark.captureHandled","avgt",1,15,0.356334,0.004329,"us/op",1000
+"okay.core.MonadsBenchmark.captureHandledShallow","avgt",1,15,0.082600,0.000531,"us/op",1000
+"okay.core.MonadsBenchmark.captureOnce","avgt",1,15,0.034715,0.000346,"us/op",1000
+"okay.core.MonadsBenchmark.captureRecord","avgt",1,15,0.336097,0.001009,"us/op",1000
+"okay.core.MonadsBenchmark.captureShallow","avgt",1,15,0.082294,0.000264,"us/op",1000

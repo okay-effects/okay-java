@@ -50,7 +50,33 @@ Nothing on the paths okay-java's own API takes:
 - A resumption's first frame, and a clause, are applied inside a `try` that puts the stack back in order if they
   throw, so a kernel delimiter inside `k` sees the failure. This is the same code with no exception.
 
-`MonadsBenchmark` and `MixedBenchmark` measure that it holds (see the README's table).
+Measured (2026-10-10, JDK 25, JMH, 2 forks unless said; another agent's JMH and sbt runs on the same machine, so
+each A/B run back to back, waiting for the JMH lock; CSVs in `bench.d/2026-10-10_kernel-native-*`), against the
+library before it (`b20ca8f`):
+
+| | before | with the kernel |
+|---|---|---|
+| `MixedBenchmark.orders`, an order | 179 ± 8 ns, 1352 B | 184 ± 1 ns, 185 ± 1 ns (a second run), 1352 B |
+| `MixedBenchmark.ordersCell`, an order | 102 ± 0.4 ns, 1025 B | 103 ± 0.5 ns, 104 ± 0.9 ns, 1025 B |
+| `MonadsBenchmark`, 31 benchmarks | | within ±2% each, allocation the same |
+| its captures, 3 forks, two rounds interleaved | | within ±1.5% (one fork of `captureDeepRecord` +5%) |
+
+A first `MonadsBenchmark` run had the captures 20–45% slower, while another agent's build ran; interleaved, with three
+forks, they are the same.
+
+## The kernel's own program, on okay-java
+
+okay-kernel's `bench/` `MixedBenchmark` is okay-java's mixed program written once over the kernel's `Effects` (the
+standard handlers, a throw and a choice handled per order). On `Kernel.EFFECTS` (2026-10-10, the same machine):
+
+| an order | okay-java, the kernel's program | okay-java's own program (`orders`) | steps-java | steps |
+|---|---|---|---|---|
+| time | 221 ns or 271 ns, by fork (246 ± 40) | 185 ns | 399 ns | 522 ns |
+| allocation | 1767 B | 1352 B | 2520 B | 2414 B |
+
+The code written once costs about 1.2–1.5× okay-java's own: a closure a bind (a kernel `Fn` adapted to a `Function`),
+a map a bind (so its failure is the program's), a handler's objects of the API's making (its `Program`, its handler,
+its frame), and a lookup a walk. The two forks differ by JIT decisions, as `MixedBenchmark` has before (the README).
 
 ## Not yet
 
