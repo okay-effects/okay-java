@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#fcfcfb;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#0b0b0b}
+.wrap{width:1200px;height:627px;box-sizing:border-box;padding:56px 72px}
+h1{font-size:40px;margin:0 0 10px;font-weight:700;letter-spacing:-0.5px}
+.sub{font-size:22px;color:#52514e;margin:0 0 44px}
+.row{display:flex;align-items:center;height:78px}
+.lab{width:360px;font-size:22px;line-height:1.25}
+.lab small{display:block;font-size:17px;color:#52514e}
+.track{flex:1;position:relative;height:40px}
+.bar{height:40px;border-radius:0 4px 4px 0;background:#2a78d6}
+.bar.hl{background:#eb6834}
+.val{position:absolute;top:6px;font-size:22px;font-weight:600}
+.foot{position:absolute;top:560px;left:72px;font-size:16px;color:#52514e}
+</style></head><body><div class="wrap">
+<h1>Microbenchmarks: faster. The program: 1.5× slower.</h1>
+<p class="sub">An effect machine in Java, one program of five effects · ns per order, lower is better · JDK 26, JMH</p>
+<div class="row"><div class="lab">Java frames<small>a delimiter a Java call · the old machine</small></div><div class="track"><div class="bar" style="width:calc(129/220*100%)"></div><div class="val" style="left:calc(129/220*100% + 12px)">129</div></div></div>
+<div class="row"><div class="lab">one big loop<small>delimiters on the heap, one loop</small></div><div class="track"><div class="bar hl" style="width:calc(195/220*100%)"></div><div class="val" style="left:calc(195/220*100% + 12px)">195</div></div></div>
+<div class="row"><div class="lab">a step per node<small>the same heap stack, small methods</small></div><div class="track"><div class="bar" style="width:calc(131/220*100%)"></div><div class="val" style="left:calc(131/220*100% + 12px)">131</div></div></div>
+<div class="foot">With inlining off, the big loop beats the old machine by 30%: less work. With it, C2 makes far less of one huge loop than of small methods.</div>
+</div></body></html>
