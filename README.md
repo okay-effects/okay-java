@@ -34,6 +34,15 @@ reference can.
 | `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise`; on virtual threads `blocking(call)` and `fork(body)` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
 | `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `generate(body, next, done)` (lazy, of the consumer's type, under any effects; okay-core's), `iterator(body)` → `Iterator`, `stream(body)` → a lazy `java.util.stream.Stream` |
 
+### `kernel/` (optional): okay-java as an implementation of okay-kernel
+
+A Gradle subproject of its own, `dev.okay:okay-java-kernel`, over `dev.okay:okay-kernel-api` (from `~/.m2`); the
+library above stays of no dependency. `OnJava` implements the kernel's `Effects` and `Direct` on `Eff`: a kernel
+handler an `Eff.handle`, an operation a `shift0` to its handler's prompt, a program handed out (`computation`) a run
+whose unhandled operation is a `Yield` with okay-java's multi-shot `k`. Failures, finalizers and cancellation are the
+bridge's own, okay-java having no primitive for them; what is exact and what approximated is in its documentation.
+`OnJavaTest` is okay-kernel's `TestSteps` on it.
+
 ## Effects on `shift0`
 
 A program is `Eff<L, A>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
@@ -212,6 +221,7 @@ that trace escape analysis are a debug build's.
 ## Build
 
 ```sh
-./gradlew test
+./gradlew test                                       # the kernel bridge's too
+./gradlew :kernel:test
 ./gradlew bench --args='MonadsBenchmark -prof gc'   # JMH
 ```
