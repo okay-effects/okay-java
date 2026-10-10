@@ -35,6 +35,8 @@ public final class Ref {
       }
       case Nodes.Reset r -> delimit(r.prompt(), Eff::pure, eval(r.body()));
       case Nodes.Push _, Machine.Resumption _ -> throw new IllegalStateException("the machine's own node: " + c);
+      case Kernel.Perform _, Kernel.Shift0K _, Kernel.Fail _, Kernel.Signalled _, Kernel.Foreign _ ->
+          throw new IllegalStateException("a kernel node, the machine's: " + c);
     };
   }
 

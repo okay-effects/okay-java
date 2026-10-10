@@ -1,4 +1,4 @@
-package okay.java.kernel;
+package okay.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -10,7 +10,6 @@ import java.util.Optional;
 import java.util.Set;
 import okay.kernel.Answers;
 import okay.kernel.Computation;
-import okay.kernel.Direct;
 import okay.kernel.Effects;
 import okay.kernel.Fn;
 import okay.kernel.General;
@@ -30,17 +29,17 @@ import okay.kernel.std.Throws;
 import okay.kernel.std.Writer;
 import org.junit.jupiter.api.Test;
 
-/** okay-kernel's TestSteps on okay-java's bridge: the standard handlers written once, control, failures, finalizers,
+/** okay-kernel's TestSteps on okay-java, its Kernel: the standard handlers written once, control, failures, finalizers,
  * cancellation, the protocol — export, import, multi-shot k */
-class OnJavaTest {
-  static final Effects E = OnJava.EFFECTS;
+class KernelTest {
+  static final Effects E = Kernel.EFFECTS;
   static final Type ST = State.of(Type.of(Integer.class));
   static final Type LOG = Writer.of(Type.of(String.class));
   static final Type ERR = Throws.of(Type.of(String.class));
   static final Type RD = Reader.of(Type.of(Integer.class));
 
   static <A> A run(Program<A> p) {
-    return OnJava.run(p);
+    return Kernel.run(p);
   }
 
   static Program<Integer> count(int n) {
@@ -89,9 +88,9 @@ class OnJavaTest {
   @Test
   void shift0AndDollarTheLaws() {
     Fn<Integer, Prog<Integer>> k = x -> E.pure(x * 2);
-    assertEquals(42, OnJavaTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(e2 -> e2.pure(21), k)));
+    assertEquals(42, KernelTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(e2 -> e2.pure(21), k)));
     Program<Integer> shifted = e -> e.<Integer, Integer, Integer>shift0(kk -> e.flatMap(kk.apply(1), kk));
-    assertEquals(21, OnJavaTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(shifted, x -> e.pure(x + 10))));
+    assertEquals(21, KernelTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(shifted, x -> e.pure(x + 10))));
   }
 
   @Test
@@ -115,7 +114,7 @@ class OnJavaTest {
       throw new IllegalStateException("x");
     }), Set.of());
     assertInstanceOf(Step.Failed.class, c.start(Answers.NONE));
-    assertEquals(2, OnJavaTest.<Integer>run(e -> e.recover(e2 -> e2.failed(new RuntimeException("no")), t -> e.pure(t.getMessage().length()))));
+    assertEquals(2, KernelTest.<Integer>run(e -> e.recover(e2 -> e2.failed(new RuntimeException("no")), t -> e.pure(t.getMessage().length()))));
   }
 
   /** an operation nothing here handles: handed out */
@@ -185,20 +184,11 @@ class OnJavaTest {
     assertEquals(List.of(40, 50), run(outer));
   }
 
-  @Test
-  void directOkayJavasProgramsBuiltDirectlyUnderAHandlerWrittenOnce() {
-    Program<Integer> body = e -> {
-      Direct d = assertInstanceOf(Direct.class, e);
-      return d.prog(d.directFlatMap(d.directPure(20), x -> d.directMap(d.directPerform(new Reader.Ask<Integer>(RD)), y -> (Integer) x + (Integer) y)));
-    };
-    assertEquals(42, OnJavaTest.<Integer>run(Handlers.reader(RD, 22, body)));
-  }
-
   // -- where implementations went wrong: okay-kernel's TCK, each a check of its own
 
   @Test
   void kResumedUnderOtherHandlersAnOperationGoesToTheHandlerInForceWhereItRuns() {
-    Type tick = Type.of("okay.java.kernel.tick");
+    Type tick = Type.of("okay.core.kernel.tick");
     record Tick(Type effect) implements Op<Void> {}
     Program<Integer> body = e -> e.flatMap(e.perform(new Tick(tick)), _ -> ASK.in(e));
     // the clause resumes k under a reader of its own: the ask, in k, finds that one
@@ -215,19 +205,19 @@ class OnJavaTest {
         return Handlers.reader(RD, 2, _ -> k.apply(null)).in(e);
       }
     };
-    assertEquals(2, OnJavaTest.<Integer>run(Handlers.reader(RD, 1, e -> e.handle(h, body))));
+    assertEquals(2, KernelTest.<Integer>run(Handlers.reader(RD, 1, e -> e.handle(h, body))));
   }
 
   @Test
   void aShift0sBodyRunsOutsideItsDelimiterAHandlerBetweenIsNotInForceThere() {
     Program<Integer> p = Handlers.reader(RD, 1, e -> e.<Integer, Integer, Integer>dollar(
         Handlers.reader(RD, 2, y -> y.<Integer, Integer, Integer>shift0(_ -> ASK.in(y))), e::pure));
-    assertEquals(1, OnJavaTest.<Integer>run(p));
+    assertEquals(1, KernelTest.<Integer>run(p));
   }
 
   @Test
   void aFailureOfAHandlersAnswerIsTheProgramsCaughtByRecover() {
-    Type none = Type.of("okay.java.kernel.none");
+    Type none = Type.of("okay.core.kernel.none");
     Returning<Integer, Integer> h = new Returning<>() {
       public Type effect() {
         return none;
@@ -237,7 +227,7 @@ class OnJavaTest {
         throw new IllegalStateException("answer");
       }
     };
-    assertEquals(7, OnJavaTest.<Integer>run(e -> e.recover(e2 -> e2.handle(h, e3 -> e3.pure(1)), _ -> e.pure(7))));
+    assertEquals(7, KernelTest.<Integer>run(e -> e.recover(e2 -> e2.handle(h, e3 -> e3.pure(1)), _ -> e.pure(7))));
   }
 
   @Test
@@ -250,7 +240,7 @@ class OnJavaTest {
 
   @Test
   void aForeignProgramEndedByAnAbortCrossingItItsFinalizersRunTheirOperationsAnsweredHere() {
-    Type err = Throws.of(Type.of("okay.java.kernel.t2"));
+    Type err = Throws.of(Type.of("okay.core.kernel.t2"));
     Computation<Integer> inner = E.computation(e -> e.ensuring(Handlers.raise(err, "stop"), Handlers.tell(LOG, "fin")), Set.of(err, LOG));
     Results.Logged<String, Results.Result<String, Integer>> r =
         run(Handlers.writer(LOG, Handlers.<String, Integer>throwsOf(err, e -> e.foreign(inner))));

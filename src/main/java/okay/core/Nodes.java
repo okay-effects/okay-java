@@ -11,7 +11,8 @@ final class Nodes {
   /** a node: its step the machine's, each kind's its own method (see {@link Machine#run}) — an abstract class, not an
    * interface, so the loop's call to it is a virtual call, one load, not an interface's search */
   abstract static sealed class Node<L, A> implements Eff<L, A>
-      permits Return, Bind, Map, Delay, Sync, Shift0, Suspend, Handle, Reset, Push, Machine.Resumption {
+      permits Return, Bind, Map, Delay, Sync, Shift0, Suspend, Handle, Reset, Push, Machine.Resumption,
+      Kernel.Perform, Kernel.Shift0K, Kernel.Fail, Kernel.Signalled, Kernel.Foreign {
     abstract Eff<?, ?> step(Machine.Run m);
   }
 
@@ -163,10 +164,21 @@ final class Nodes {
   static final class Handle<L, A, R> extends Node<L, R> {
     private final Eff.Body<L, A, R> body;
     private final Function ret;
+    /** a kernel delimiter's frame, given to its prompt; null for okay-java's own */
+    private final Object frame;
 
     Handle(Eff.Body<L, A, R> body, Function ret) {
+      this(body, ret, null);
+    }
+
+    Handle(Eff.Body<L, A, R> body, Function ret, Object frame) {
       this.body = body;
       this.ret = ret;
+      this.frame = frame;
+    }
+
+    Object frame() {
+      return frame;
     }
 
     Eff.Body<L, A, R> body() {

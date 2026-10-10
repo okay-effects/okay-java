@@ -102,9 +102,33 @@ final class Machine {
     return -1 - seen;
   }
 
+  /** the index of the first delimiter among the first {@code limit} of {@code m} that {@code p} holds of: {@code -1}
+   * if none — {@link #indexOf} by a predicate, for {@link Kernel}'s frames */
+  static int indexWhere(Meta m, int limit, java.util.function.Predicate<Seg> p) {
+    int seen = 0;
+    while (seen < limit) {
+      switch (m) {
+        case Seg s -> {
+          if (p.test(s)) return seen;
+          seen++;
+          m = s.next();
+        }
+        case Take t -> {
+          int n = Math.min(t.n(), limit - seen);
+          int i = indexWhere(t.m(), n, p);
+          if (i >= 0) return seen + i;
+          seen += n;
+          m = t.tail();
+        }
+        case Top _ -> { return -1; }
+      }
+    }
+    return -1;
+  }
+
   /** a captured continuation: the rest of the innermost segment ({@code k}, frames or a function), and the delimiters
    * crossed and the one captured up to — the first {@code n + 1} of {@code ms}. Applied, a resumption node */
-  record Kont(Function k, Meta ms, int n) implements Function<Object, Eff<?, ?>> {
+  record Kont(Function k, Meta ms, int n) implements Function<Object, Eff<?, ?>>, okay.kernel.Fn<Object, Eff<?, ?>> {
     @Override
     public Eff<?, ?> apply(Object x) {
       // not itself kept: its delimiter, when none crossed — the usual — so a clause that only applies k once, most,
@@ -196,7 +220,7 @@ final class Machine {
     }
 
     Eff<?, ?> handle(Handle h, Function then) {
-      Prompt<?, ?, ?> p = new Prompt<>();
+      Prompt<?, ?, ?> p = new Prompt<>(h.frame());
       ms = new Seg(p, h.ret(), then, k, ms);
       k = Frames.END;
       return h.body().in(p);
@@ -212,7 +236,7 @@ final class Machine {
 
     /** a capture of {@code kk} to {@code prompt}'s delimiter: the clause in its place — the nearest the usual one, no
      * walk, no drop */
-    private Eff<?, ?> capture(Prompt<?, ?, ?> prompt, Function f, Function kk) {
+    Eff<?, ?> capture(Prompt<?, ?, ?> prompt, Function f, Function kk) {
       Eff c;
       Seg d;
       if (ms instanceof Seg near && near.prompt() == prompt) {

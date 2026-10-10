@@ -6,7 +6,16 @@ import java.util.function.Function;
  * {@code R}. Made by the loop when it enters the handler, one per run of it, and given to the body only: its type
  * names the body's fresh level, so it does not leave it */
 public final class Prompt<L, M, R> {
-  Prompt() {}
+  /** what the delimiter is for, to the kernel ({@link Kernel}'s frames): null for okay-java's own handlers */
+  final Object frame;
+
+  Prompt() {
+    this(null);
+  }
+
+  Prompt(Object frame) {
+    this.frame = frame;
+  }
 
   /** {@code shift0} to this prompt: an operation at the body's level; k the rest up to the delimiter, the delimiter
    * included — applied, a program OUTSIDE, the handler in force again (deep); the clause runs outside, in the

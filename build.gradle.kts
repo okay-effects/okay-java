@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.okay"
-version = "0.1.0-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 
 java {
     toolchain {
@@ -13,11 +13,13 @@ java {
 }
 
 repositories {
+    // okay-kernel-api: published by okay-kernel to ~/.m2
+    mavenLocal()
     mavenCentral()
 }
 
-// a library of no dependency; published (`./gradlew publishToMavenLocal`, to ~/.m2) for okay-kernel, the layer over
-// it, to adapt (its OnJava)
+// a library of one dependency, okay-kernel's API (interfaces and a few records, of no dependency of its own): okay-java
+// implements it (docs/kernel.md). Published (`./gradlew publishToMavenLocal`, to ~/.m2) for okay-kernel's TCK
 publishing {
     publications {
         create<MavenPublication>("okayJava") {
@@ -27,6 +29,7 @@ publishing {
 }
 
 dependencies {
+    api("dev.okay:okay-kernel-api:0.2.0-SNAPSHOT")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

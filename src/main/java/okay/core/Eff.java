@@ -19,8 +19,12 @@ import java.util.function.Supplier;
  * <p>A program of a level outside runs inside as it is — a level in is a subtype, {@code M extends L} — so a bind's
  * function may give one ({@code Eff<? super L, B>}); at the head of a chain, {@link #at} moves it in. The other way
  * does not compile.
+ *
+ * <p>A program of okay-java is a program of okay-kernel ({@link okay.kernel.Prog}) as it is: {@link Kernel#EFFECTS}
+ * builds the kernel's programs in these nodes, and the machine runs the kernel's operations itself
+ * ({@code docs/kernel.md}).
  */
-public sealed interface Eff<L, A>
+public sealed interface Eff<L, A> extends okay.kernel.Prog<A>
     permits Nodes.Node {
 
   /** the level outside every handler: {@link #run}'s */
