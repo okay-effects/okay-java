@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import okay.kernel.Key;
 import okay.kernel.Answers;
 import okay.kernel.Computation;
 import okay.kernel.Effects;
@@ -33,10 +34,10 @@ import org.junit.jupiter.api.Test;
  * cancellation, the protocol — export, import, multi-shot k */
 class KernelTest {
   static final Effects E = Kernel.EFFECTS;
-  static final Type ST = State.of(Type.of(Integer.class));
-  static final Type LOG = Writer.of(Type.of(String.class));
-  static final Type ERR = Throws.of(Type.of(String.class));
-  static final Type RD = Reader.of(Type.of(Integer.class));
+  static final Key<State<Integer>> ST = State.key(Type.of(Integer.class));
+  static final Key<Writer<String>> LOG = Writer.key(Type.of(String.class));
+  static final Key<Throws<String>> ERR = Throws.key(Type.of(String.class));
+  static final Key<Reader<Integer>> RD = Reader.key(Type.of(Integer.class));
 
   static <A> A run(Program<A> p) {
     return Kernel.run(p);
@@ -95,7 +96,7 @@ class KernelTest {
 
   @Test
   void aGeneratorValuesPulledOneByOne() {
-    Type em = Emit.of(Type.of(Integer.class));
+    Key<Emit<Integer>> em = Emit.key(Type.of(Integer.class));
     Program<String> three = e -> e.flatMap(Handlers.send(em, 1).in(e), _ ->
         e.flatMap(Handlers.send(em, 2).in(e), _ -> e.pure("done")));
     List<Integer> pulled = new ArrayList<>();
@@ -122,29 +123,29 @@ class KernelTest {
 
   @Test
   void exportAnOperationHandedOutKResumedTwiceMultiShot() {
-    Computation<Integer> c = E.computation(e -> e.map(ASK.in(e), n -> n + 1), Set.of(RD));
+    Computation<Integer> c = E.computation(e -> e.map(ASK.in(e), n -> n + 1), Set.of(RD.type()));
     Step.Yield<Integer, Integer> ask = yieldOf(c.start(Answers.NONE));
     assertEquals(new Step.Done<>(42), ask.k().resume(41));
     assertEquals(new Step.Done<>(2), ask.k().resume(1));
-    assertEquals(Set.of(RD), c.effects());
+    assertEquals(Set.of(RD.type()), c.effects());
   }
 
   @Test
   void exportAnsweredInPlaceByTheHostNoYield() {
     Answers host = new Answers() {
       public boolean answers(Type t) {
-        return t == RD;
+        return t == RD.type();
       }
 
       public <X> X value(Op<X> op) {
-        return Reader.<Integer, X>narrow(op).fold(new Reader.Cases<Integer, X, X>() {
+        return Reader.narrow(RD, op).fold(new Reader.Cases<Integer, X, X>() {
           public X ask(okay.kernel.Same<Integer, X> v) {
             return v.apply(41);
           }
         });
       }
     };
-    Computation<Integer> c = E.computation(e -> e.map(ASK.in(e), n -> n + 1), Set.of(RD));
+    Computation<Integer> c = E.computation(e -> e.map(ASK.in(e), n -> n + 1), Set.of(RD.type()));
     assertEquals(new Step.Done<>(42), c.start(host));
   }
 
@@ -155,7 +156,7 @@ class KernelTest {
 
   @Test
   void kFailTheComputationCatchesItWhereTheOperationWas() {
-    Computation<Integer> c = E.computation(e -> e.recover(ASK, _ -> e.pure(-1)), Set.of(RD));
+    Computation<Integer> c = E.computation(e -> e.recover(ASK, _ -> e.pure(-1)), Set.of(RD.type()));
     assertEquals(new Step.Done<>(-1), yieldOf(c.start(Answers.NONE)).k().fail(new RuntimeException("x")));
   }
 
@@ -166,11 +167,11 @@ class KernelTest {
       finalized[0]++;
       return e.pure(null);
     };
-    Computation<Integer> c = E.computation(e -> e.recover(e2 -> e2.ensuring(ASK, fin), _ -> e.pure(0)), Set.of(RD));
+    Computation<Integer> c = E.computation(e -> e.recover(e2 -> e2.ensuring(ASK, fin), _ -> e.pure(0)), Set.of(RD.type()));
     Step<Integer> cancelled = yieldOf(c.start(Answers.NONE)).k().cancel();
     assertInstanceOf(Step.Cancelled.class, cancelled, "cancelled, recover not taken");
     assertEquals(1, finalized[0], "the finalizer once");
-    Computation<Integer> u = E.computation(e -> e.uncancelable(ASK), Set.of(RD));
+    Computation<Integer> u = E.computation(e -> e.uncancelable(ASK), Set.of(RD.type()));
     Step<Integer> waiting = yieldOf(u.start(Answers.NONE)).k().cancel();
     assertInstanceOf(Step.Yield.class, waiting, "the region waits");
     assertInstanceOf(Step.Cancelled.class, yieldOf(waiting).k().resume(5), "its end cancels");
@@ -179,7 +180,7 @@ class KernelTest {
   @Test
   void importAnothersProgramUnderThisOnesHandlersInPlaceAndByK() {
     Computation<Integer> inner = E.computation(e -> e.flatMap(ASK.in(e), n ->
-        e.map(Handlers.among(List.of(n, n + 1)).in(e), x -> x * 10)), Set.of(RD, Choose.TYPE));
+        e.map(Handlers.among(List.of(n, n + 1)).in(e), x -> x * 10)), Set.of(RD.type(), Choose.TYPE));
     Program<List<Integer>> outer = Handlers.reader(RD, 4, Handlers.all(e -> e.foreign(inner)));
     assertEquals(List.of(40, 50), run(outer));
   }
@@ -188,12 +189,12 @@ class KernelTest {
 
   @Test
   void kResumedUnderOtherHandlersAnOperationGoesToTheHandlerInForceWhereItRuns() {
-    Type tick = Type.of("okay.core.kernel.tick");
-    record Tick(Type effect) implements Op<Void> {}
+    Key<Void> tick = Key.fresh();
+    record Tick(Key<Void> key) implements Op<Void> {}
     Program<Integer> body = e -> e.flatMap(e.perform(new Tick(tick)), _ -> ASK.in(e));
     // the clause resumes k under a reader of its own: the ask, in k, finds that one
     General<Integer, Integer> h = new General<>() {
-      public Type effect() {
+      public Key<?> key() {
         return tick;
       }
 
@@ -217,9 +218,9 @@ class KernelTest {
 
   @Test
   void aFailureOfAHandlersAnswerIsTheProgramsCaughtByRecover() {
-    Type none = Type.of("okay.core.kernel.none");
+    Key<Void> none = Key.fresh();
     Returning<Integer, Integer> h = new Returning<>() {
-      public Type effect() {
+      public Key<?> key() {
         return none;
       }
 
@@ -233,15 +234,15 @@ class KernelTest {
   @Test
   void aCancellationWaitingInARegionThatFailsTheRegionsEndCancelsStill() {
     Computation<Integer> c = E.computation(e -> e.recover(e2 -> e2.uncancelable(e3 -> e3.flatMap(ASK.in(e3),
-        _ -> e3.<Integer>failed(new RuntimeException("region")))), _ -> e.pure(0)), Set.of(RD));
+        _ -> e3.<Integer>failed(new RuntimeException("region")))), _ -> e.pure(0)), Set.of(RD.type()));
     Step<Integer> waiting = yieldOf(c.start(Answers.NONE)).k().cancel();
     assertInstanceOf(Step.Cancelled.class, yieldOf(waiting).k().resume(5), "cancelled, not recovered");
   }
 
   @Test
   void aForeignProgramEndedByAnAbortCrossingItItsFinalizersRunTheirOperationsAnsweredHere() {
-    Type err = Throws.of(Type.of("okay.core.kernel.t2"));
-    Computation<Integer> inner = E.computation(e -> e.ensuring(Handlers.raise(err, "stop"), Handlers.tell(LOG, "fin")), Set.of(err, LOG));
+    Key<Throws<String>> err = Throws.key(Type.of("okay.core.kernel.t2"));
+    Computation<Integer> inner = E.computation(e -> e.ensuring(Handlers.raise(err, "stop"), Handlers.tell(LOG, "fin")), Set.of(err.type(), LOG.type()));
     Results.Logged<String, Results.Result<String, Integer>> r =
         run(Handlers.writer(LOG, Handlers.<String, Integer>throwsOf(err, e -> e.foreign(inner))));
     assertEquals(List.of("fin"), r.log());
@@ -250,8 +251,8 @@ class KernelTest {
 
   // -- effects from effects: one's own effect translated to another, hidden inside, intercepted
 
-  static final Type AUDIT = Type.of("okay.core.audit");
-  static final Type TICKET = Type.of("okay.core.ticket");
+  static final Key<AuditOps<?>> AUDIT = Key.of(Type.of("okay.core.audit"));
+  static final Key<Next> TICKET = Key.of(Type.of("okay.core.ticket"));
 
   /** one's own effect, its cases as a visitor */
   interface AuditOps<X> extends Op<X> {
@@ -263,7 +264,7 @@ class KernelTest {
   }
 
   record Note(String s) implements AuditOps<Void> {
-    public Type effect() {
+    public Key<?> key() {
       return AUDIT;
     }
 
@@ -272,10 +273,18 @@ class KernelTest {
     }
   }
 
+  /** a ticket's operation, of an Integer */
   record Next() implements Op<Integer> {
-    public Type effect() {
+    public Key<?> key() {
       return TICKET;
     }
+  }
+
+  /** the ticket's operation, its value's proof — the test's trusted step, as the vocabulary's narrow */
+  @SuppressWarnings("unchecked")
+  static <X> okay.kernel.Same<Integer, X> nextValue(Op<X> op) {
+    if (!(op instanceof Next)) throw new IllegalArgumentException("not a ticket: " + op);
+    return (okay.kernel.Same<Integer, X>) (okay.kernel.Same<Integer, ?>) new okay.kernel.Same.Refl<Integer>();
   }
 
   /** an operation of the effect found by its identity, as one of its family: the test's trusted step */
@@ -311,17 +320,18 @@ class KernelTest {
     assertEquals(2, all.log().size());
   }
 
-  static <A> Program<Results.Final<Integer, A>> tickets(Type hidden, Program<A> body) {
+  static <A> Program<Results.Final<Integer, A>> tickets(Key<State<Integer>> hidden, Program<A> body) {
     return Handlers.state(hidden, 0, Handlers.translate(TICKET, new Handlers.Translation() {
       public <X> Program<X> apply(Op<X> op) {
-        return e -> e.flatMap(Handlers.<Integer>modify(hidden, i -> i + 1).in(e), _ -> Handlers.<X>get(hidden).in(e));
+        okay.kernel.Same<Integer, X> v = nextValue(op);
+        return e -> e.flatMap(Handlers.<Integer>modify(hidden, i -> i + 1).in(e), _ -> e.map(Handlers.<Integer>get(hidden).in(e), v::apply));
       }
     }, body));
   }
 
   @Test
   void onesEffectOnAnotherInstalledInsideHiddenAFreshIdentityTheCallersOwnUntouched() {
-    Type hidden = Type.fresh();
+    Key<State<Integer>> hidden = Key.fresh();
     Program<Integer> two = e -> e.flatMap(e.perform(new Next()), a -> e.flatMap(e.perform(new Next()), b ->
         e.map(Handlers.<Integer>get(ST).in(e), s -> a * 10 + b + s * 100)));
     Results.Final<Integer, Results.Final<Integer, Integer>> r = run(Handlers.state(ST, 5, tickets(hidden, two)));
@@ -333,7 +343,7 @@ class KernelTest {
   static Handlers.Translation asked(java.util.function.IntUnaryOperator f) {
     return new Handlers.Translation() {
       public <X> Program<X> apply(Op<X> op) {
-        return Reader.<Integer, X>narrow(op).fold(new Reader.Cases<Integer, X, Program<X>>() {
+        return Reader.narrow(RD, op).fold(new Reader.Cases<Integer, X, Program<X>>() {
           public Program<X> ask(okay.kernel.Same<Integer, X> v) {
             return e -> e.map(Handlers.<Integer>ask(RD).in(e), r -> v.apply(f.applyAsInt(r)));
           }
