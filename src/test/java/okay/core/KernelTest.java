@@ -247,4 +247,106 @@ class KernelTest {
     assertEquals(List.of("fin"), r.log());
     assertInstanceOf(Results.Err.class, r.value());
   }
+
+  // -- effects from effects: one's own effect translated to another, hidden inside, intercepted
+
+  static final Type AUDIT = Type.of("okay.core.audit");
+  static final Type TICKET = Type.of("okay.core.ticket");
+
+  /** one's own effect, its cases as a visitor */
+  interface AuditOps<X> extends Op<X> {
+    <R> R fold(AuditCases<X, R> c);
+  }
+
+  interface AuditCases<X, R> {
+    R note(String s, okay.kernel.Same<Void, X> v);
+  }
+
+  record Note(String s) implements AuditOps<Void> {
+    public Type effect() {
+      return AUDIT;
+    }
+
+    public <R> R fold(AuditCases<Void, R> c) {
+      return c.note(s, new okay.kernel.Same.Refl<>());
+    }
+  }
+
+  record Next() implements Op<Integer> {
+    public Type effect() {
+      return TICKET;
+    }
+  }
+
+  /** an operation of the effect found by its identity, as one of its family: the test's trusted step */
+  @SuppressWarnings("unchecked")
+  static <X> AuditOps<X> audit(Op<X> op) {
+    return (AuditOps<X>) op;
+  }
+
+  static Program<Void> note(String s) {
+    return e -> e.perform(new Note(s));
+  }
+
+  static final Handlers.Translation TO_WRITER = new Handlers.Translation() {
+    public <X> Program<X> apply(Op<X> op) {
+      return audit(op).fold(new AuditCases<X, Program<X>>() {
+        public Program<X> note(String s, okay.kernel.Same<Void, X> v) {
+          return e -> e.map(Handlers.tell(LOG, "[audit] " + s).in(e), v::apply);
+        }
+      });
+    }
+  };
+
+  @Test
+  void onesEffectTranslatedToAnotherOutsideItNoKWritten() {
+    Program<Integer> audited = e -> e.flatMap(note("a").in(e), _ -> e.map(note("b").in(e), _ -> 7));
+    Results.Logged<String, Integer> r = run(Handlers.writer(LOG, Handlers.translate(AUDIT, TO_WRITER, audited)));
+    assertEquals(List.of("[audit] a", "[audit] b"), r.log());
+    assertEquals(7, r.value());
+    // multi-shot through it: every path of a choice, each its own audit
+    Program<Integer> paths = e -> e.flatMap(Handlers.among(List.of(1, 2)).in(e), n -> e.map(note("" + n).in(e), _ -> n));
+    Results.Logged<String, List<Integer>> all = run(Handlers.writer(LOG, Handlers.all(Handlers.translate(AUDIT, TO_WRITER, paths))));
+    assertEquals(List.of(1, 2), all.value());
+    assertEquals(2, all.log().size());
+  }
+
+  static <A> Program<Results.Final<Integer, A>> tickets(Type hidden, Program<A> body) {
+    return Handlers.state(hidden, 0, Handlers.translate(TICKET, new Handlers.Translation() {
+      public <X> Program<X> apply(Op<X> op) {
+        return e -> e.flatMap(Handlers.<Integer>modify(hidden, i -> i + 1).in(e), _ -> Handlers.<X>get(hidden).in(e));
+      }
+    }, body));
+  }
+
+  @Test
+  void onesEffectOnAnotherInstalledInsideHiddenAFreshIdentityTheCallersOwnUntouched() {
+    Type hidden = Type.fresh();
+    Program<Integer> two = e -> e.flatMap(e.perform(new Next()), a -> e.flatMap(e.perform(new Next()), b ->
+        e.map(Handlers.<Integer>get(ST).in(e), s -> a * 10 + b + s * 100)));
+    Results.Final<Integer, Results.Final<Integer, Integer>> r = run(Handlers.state(ST, 5, tickets(hidden, two)));
+    assertEquals(5, r.state());
+    assertEquals(2, r.value().state());
+    assertEquals(512, r.value().value());
+  }
+
+  static Handlers.Translation asked(java.util.function.IntUnaryOperator f) {
+    return new Handlers.Translation() {
+      public <X> Program<X> apply(Op<X> op) {
+        return Reader.<Integer, X>narrow(op).fold(new Reader.Cases<Integer, X, Program<X>>() {
+          public Program<X> ask(okay.kernel.Same<Integer, X> v) {
+            return e -> e.map(Handlers.<Integer>ask(RD).in(e), r -> v.apply(f.applyAsInt(r)));
+          }
+        });
+      }
+    };
+  }
+
+  @Test
+  void interceptorsWhatAnEffectDoesInABodyChangedNestedTheClausesOwnOperationsOutward() {
+    assertEquals(10, KernelTest.<Integer>run(Handlers.reader(RD, 5, Handlers.intercept(RD, asked(r -> r * 2), ASK))));
+    // the inner interceptor's ask goes to the outer one, its ask to the reader: (5 * 2) + 1
+    assertEquals(11, KernelTest.<Integer>run(Handlers.reader(RD, 5, Handlers.intercept(RD, asked(r -> r * 2),
+        Handlers.intercept(RD, asked(r -> r + 1), ASK)))));
+  }
 }

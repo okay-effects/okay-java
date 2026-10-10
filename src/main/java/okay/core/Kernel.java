@@ -24,6 +24,7 @@ import okay.kernel.Prog;
 import okay.kernel.Program;
 import okay.kernel.Resume;
 import okay.kernel.Returning;
+import okay.kernel.Translating;
 import okay.kernel.Step;
 import okay.kernel.Thunk;
 import okay.kernel.Type;
@@ -43,8 +44,10 @@ import okay.kernel.Type;
  *       of delimiters to the first handler frame of the operation's {@code Type}. A resumed {@code k} puts its
  *       delimiters in front of those where it is resumed, so the lookup is dynamic by construction. By shape:
  *       {@link Answering} answered in place, no capture; {@link General} a capture to the handler's prompt, {@code k}
- *       okay-java's continuation (a kernel {@link Fn} itself), the clause in the handler's place; {@link Aborting} an
- *       abort unwinding to the handler. {@link Returning}: the return a value.
+ *       okay-java's continuation (a kernel {@link Fn} itself), the clause in the handler's place; {@link Translating}
+ *       its program in the handler's place, the rest then resumed with its value by a bind (okay-java's capture, which
+ *       allocates nothing a delimiter crossed; no {@code k} handed to code); {@link Aborting} an abort unwinding to
+ *       the handler. {@link Returning}: the return a value.
  *   <li>{@code shift0}: a capture to the nearest delimiter whose frame is a handler's or a dollar's.
  *   <li>FAILURES: every function of the program's that the kernel calls runs in a {@code try} (a bind's, a map's, a
  *       delay's, a return — {@code Returning.answer} too — a clause, a body's {@code Program.in}, an answering
@@ -406,8 +409,23 @@ public final class Kernel implements Effects {
       }
       return unwind(m, new Abort(s.prompt(), answer));
     }
+    if (h instanceof Translating<?, ?> tr)
+      // its program outside the handler, the rest of the body then resumed with its value: okay-java's capture (no
+      // allocation a delimiter crossed), the rest resumed by a bind — no k given to anyone
+      return m.capture(s.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> translated(tr, op, k), m.k);
     if (h instanceof General<?, ?> g) return m.capture(s.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> clause(g, op, k), m.k);
     return unwind(m, new IllegalStateException("a handler of no shape: " + h));
+  }
+
+  /** a translating handler's program for {@code op}, in its place, then the rest with its value */
+  private static <X> Eff<?, ?> translated(Translating<?, ?> tr, Op<X> op, Machine.Kont k) {
+    Eff<Object, X> p;
+    try {
+      p = eff(tr.translate(op).in(EFFECTS));
+    } catch (Throwable t) {
+      return new Fail<>(nonFatal(t));
+    }
+    return new Nodes.Bind<Object, X, Object>(p, k);
   }
 
   /** a general handler's clause, in its place; {@code k} okay-java's continuation, a kernel {@code Fn} itself */
