@@ -175,12 +175,13 @@ final class Machine {
       if (m instanceof Resumption r) return resume(r, b.f());
       if (m instanceof Handle h) return handle(h, b.f());
       k = new Frames.Then(b.f(), k);
-      return m;
+      return m instanceof Delay d ? (Eff) d.c().get() : m;
     }
 
     Eff<?, ?> map(Map m) {
       k = new Frames.Mapped(m.f(), k);
-      return m.m();
+      // a delay under it, a recursion's tail: built here, no step of its own
+      return m.m() instanceof Delay d ? (Eff) d.c().get() : m.m();
     }
 
     Eff<?, ?> push(Push p) {
