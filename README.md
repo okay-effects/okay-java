@@ -166,6 +166,14 @@ operation, `n = 1000`, except captures, which are per run.
 (the first machine, measured one JVM a benchmark beside it: 129 ns, 1292 B). With no type profiles
 (`Megamorphic`, `-XX:-UseTypeProfile`, the CSV's same file): 158 ns.
 
+The same program with the total a cell (`ordersCell`), as okay-core's `state` is, against okay-core's own
+`MixedBenchmark` on master's std (its branch `mixed-bench`), all on JDK 26, JMH (`bench.d/mixed-jdk26.csv`):
+
+| an order | Java `Eff` | okay-core `cont` | okay-core `zero` |
+|---|---|---|---|
+| time, allocation | 102 ns, 1025 B | 137 ns, 1472 B | 136 ns, 1370 B |
+| with no type profiles | 153 ns | 149 ns | 141 ns |
+
 What a step a node costs: a virtual call each node. Programs of binds and maps with no effect pay it most (right
 maps 7.1 to 9.5 ns against the one big loop); programs of effects gain more than it (the mixed program 195 to 131).
 

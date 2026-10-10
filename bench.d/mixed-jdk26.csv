@@ -1,0 +1,21 @@
+"Benchmark","Mode","Threads","Samples","Score","Score Error (99.9%)","Unit","Param: n"
+"okay.core.Megamorphic.Mixed.orders","avgt",1,10,158.123768,1.328295,"us/op",1000
+"okay.core.Megamorphic.Mixed.orders:gc.alloc.rate","avgt",1,10,8153.357485,68.617226,"MB/sec",1000
+"okay.core.Megamorphic.Mixed.orders:gc.alloc.rate.norm","avgt",1,10,1352001.103210,0.011538,"B/op",1000
+"okay.core.Megamorphic.Mixed.orders:gc.count","avgt",1,10,126.000000,NaN,"counts",1000
+"okay.core.Megamorphic.Mixed.orders:gc.time","avgt",1,10,52.000000,NaN,"ms",1000
+"okay.core.Megamorphic.Mixed.ordersCell","avgt",1,10,152.949676,1.119173,"us/op",1000
+"okay.core.Megamorphic.Mixed.ordersCell:gc.alloc.rate","avgt",1,10,6484.480269,47.236735,"MB/sec",1000
+"okay.core.Megamorphic.Mixed.ordersCell:gc.alloc.rate.norm","avgt",1,10,1040081.066644,0.008313,"B/op",1000
+"okay.core.Megamorphic.Mixed.ordersCell:gc.count","avgt",1,10,151.000000,NaN,"counts",1000
+"okay.core.Megamorphic.Mixed.ordersCell:gc.time","avgt",1,10,62.000000,NaN,"ms",1000
+"okay.core.MixedBenchmark.orders","avgt",1,10,131.257319,1.071344,"us/op",1000
+"okay.core.MixedBenchmark.orders:gc.alloc.rate","avgt",1,10,9822.279972,79.899219,"MB/sec",1000
+"okay.core.MixedBenchmark.orders:gc.alloc.rate.norm","avgt",1,10,1352000.916234,0.010664,"B/op",1000
+"okay.core.MixedBenchmark.orders:gc.count","avgt",1,10,145.000000,NaN,"counts",1000
+"okay.core.MixedBenchmark.orders:gc.time","avgt",1,10,60.000000,NaN,"ms",1000
+"okay.core.MixedBenchmark.ordersCell","avgt",1,10,102.280999,1.409195,"us/op",1000
+"okay.core.MixedBenchmark.ordersCell:gc.alloc.rate","avgt",1,10,9559.267727,132.785749,"MB/sec",1000
+"okay.core.MixedBenchmark.ordersCell:gc.alloc.rate.norm","avgt",1,10,1025312.712595,0.009034,"B/op",1000
+"okay.core.MixedBenchmark.ordersCell:gc.count","avgt",1,10,143.000000,NaN,"counts",1000
+"okay.core.MixedBenchmark.ordersCell:gc.time","avgt",1,10,58.000000,NaN,"ms",1000

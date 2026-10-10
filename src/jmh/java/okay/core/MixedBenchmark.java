@@ -57,16 +57,27 @@ public class MixedBenchmark {
 
   @Benchmark
   public int orders() {
+    return orders(false);
+  }
+
+  /** the same, the total a cell — okay-core's {@code state}, answered in place — to compare with its MixedBenchmark */
+  @Benchmark
+  public int ordersCell() {
+    return orders(true);
+  }
+
+  int orders(boolean cell) {
     Writer.Log<String, State.Final<Integer, Void>> out = Eff.run(Reader.reader(100, new Reader.Body<Top, Integer,
         Writer.Log<String, State.Final<Integer, Void>>>() {
       public <M extends Top> Eff<M, Writer.Log<String, State.Final<Integer, Void>>> in(Reader<M, Integer> r) {
         return Writer.writer(new Writer.Body<M, String, State.Final<Integer, Void>>() {
           public <N extends M> Eff<N, State.Final<Integer, Void>> in(Writer<N, String> w) {
-            return State.state(0, new State.Body<N, Integer, Void>() {
+            State.Body<N, Integer, Void> total = new State.Body<>() {
               public <O extends N> Eff<O, Void> in(State<O, Integer> st) {
                 return orders(r.at(), st, w.at(), 0, n);
               }
-            });
+            };
+            return cell ? State.cell(0, total) : State.state(0, total);
           }
         });
       }
