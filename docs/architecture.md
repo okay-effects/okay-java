@@ -31,66 +31,53 @@ in the type as a phantom.
   - `Handle` and `Reset` are delimiters.
   - `Push` and `Machine.Resumption` exist only inside the machine: a program with its rest as a stack, and a
     resumption.
-- **The machine** (`Machine`). One loop over a program, the frames of the innermost segment, and an explicit stack
-  of delimiters on the heap: each delimiter with its prompt, its return and the frames outside it.
-  - **A step a node.** The loop is `c = c.step(run)`: each kind of node steps in a method of its own, the frames
-    and the delimiters in the fields of a `Run`. C2 compiles each step apart, small, where one big loop got its
-    registers spilled and its inlining spread over every node. The nodes are final classes under an abstract
-    `Node`, so the call is a virtual one (a load and a jump), not an interface's. On `MixedBenchmark` this took
-    the machine from about 195 to 134 ns an order (the first machine 129); a `Run` is 24 B more a run.
+- **The machine** (`Machine`). A program, the frames of the innermost segment, and an explicit stack of delimiters
+  on the heap (`Seg`): each delimiter with its prompt, its return, the function its answer is bound to if any, and
+  the frames outside it.
+  - **A step a node.** The loop is `c = c.step(run)`. Each kind of node steps in a method of its own, and the
+    frames and delimiters are the fields of a `Run`, one a run. C2 compiles each step apart, small. The nodes are
+    final classes under an abstract `Node`, so the call is a virtual one, not an interface's.
   - **No Java frame per delimiter.** Handlers nest as deep as the heap allows: 100 000 nested, an operation across
     them all, at `-Xss512k`.
   - **Entering a handler** pushes a delimiter. A value that reaches the end of a segment goes to the delimiter's
     return, outside it. A reset's return is the value itself, which goes on at once.
   - **A capture** walks the delimiters to its prompt, with no allocation per delimiter crossed. Its clause runs in
-    the delimiter's place. The continuation `Kont` keeps the frames, the delimiters crossed (the first `n` of the
-    stack) and the delimiter itself.
+    the delimiter's place. The continuation `Kont` keeps the frames and the delimiters up to its own.
   - **A resumption** puts the crossed delimiters back in front of the current ones by one shared `Take` ("the first
-    `n` of that stack, then this"), which is never copied. It puts the delimiter back with the frames of the place
-    it was resumed from. A clause's `k(v)` resumed where it was captured keeps the very delimiter.
-- **Fast for the JIT.** One loop runs every program, so what C2 makes of that loop is most of the speed. What
-  counted, each measured one JVM a benchmark against the code before:
-  - **Dispatch by `instanceof`, not a pattern `switch`.** The nodes are final records, so each test is one compare,
-    the most run first. A `switch` on the sealed type goes through a `typeSwitch` bootstrap and an index. State,
-    functional: 57 to 34 ns.
-  - **A resumption's frames at call sites of their own.** Its first frame (the operation's own `map`) is applied
-    in place, the deeper ones in `feed`. Each call site's profile then holds one or two functions, which C2
-    inlines. Through the loop's one call site they were all mixed, and none was inlined. A capture with 16 maps:
-    720 to 450 ns.
+    `n` of that stack, then this"), never copied, and its delimiter with the frames of the place it was resumed
+    from. Resumed where it was captured, the usual `k(v)`, it keeps the stack as it was: no delimiter made, no take.
+  - **A bind in the delimiter.** A clause's usual `k(x).flatMap(f)`, and `handle(..).flatMap(f)`, put `f` in the
+    delimiter they make (`Seg.then`), not in a frame of its own. Its answer, a value the usual, goes to `f` at once.
+  - **The usual clauses in the capture's step.** A clause's `k(x)`, bound or mapped, is resumed in the step that
+    ran the clause, with no turn of the loop between.
+  - **A resumption's frames at call sites of their own.** Its first frame (the operation's own `map`) is applied in
+    place, the deeper ones in `feed`. Each call site's type profile then holds one or two functions, which C2
+    inlines.
   - **No delimiter made till a bind needs it.** A resumed rest that is only maps ends in the delimiter's return,
-    applied right there, with the frames and delimiters of the place it was resumed from. Choose: 292 to 260 B.
-  - **A resumption does not keep the continuation.** When it crossed no delimiter (the usual), the node holds that
-    delimiter, not the `Kont`. A clause that applies `k` once then leaves the `Kont` to escape analysis, and it is
-    never made. Writer: 285 to 261 B, 22 to 19.5 ns.
-  - **No loop on the hot path that does not run.** Putting the delimiters back is straight code when none was
-    crossed. The `take` for the others is a call on a cold branch. A loop compiled into the big one, even one that
-    never runs, costs the hot path registers. Queens: 162 to 137 µs.
-  - **Resumed in place, the stack as it was.** A `k(a)` where its delimiter was captured, across handlers it
-    crossed, finds those delimiters still in front of it: the stack is the captured one, with no `Take` made. The
-    next capture walks plain delimiters, not a take. A general clause across one handler: 33 to 12 ns, across 16:
-    66 to 49.
-  - **A bind in the delimiter.** A clause's usual `k.apply(x).flatMap(f)`, and `handle(..).flatMap(f)`, put `f` in
-    the delimiter they make (`Seg.then`, a field a `Seg` has room for free), not in a frame of its own: one object,
-    not two. The answer, a value the usual, goes to `f` at once. Capture with 16 maps: 550 to 300 ns (the first
-    machine 510), with one map 170 to 70, functional state 37 to 28, throwing 15.5 to 10.7.
-  - **Where C2 still loses.** `MixedBenchmark` is a program of five effects, with a throw and a choice handled per
-    order, so many functions at each call site. On it the first machine is faster: 129 against about 200 ns an
-    order. With no inlining (`-XX:-Inline`) this machine is faster, 434 against 640: its own work is less, but C2
-    makes more of the first machine's small methods and Java frames than of one big loop. A deep chain of maps that allocate (`captureRecord`, 16 maps over a record) runs
-    slower than in a loop of its own. Inlined into the big loop, the loop's values live on the stack, six loads
-    and stores a map. And the same benchmark can come out 30–80% apart from a change to an unrelated branch, by
-    what C2 inlines. With type profiles off (`-XX:-UseTypeProfile`), as in a program whose call sites see many
-    functions, this machine and the first one are even, or this one is faster.
+    applied right there.
+  - **A resumption does not keep the continuation.** Having crossed no delimiter, the usual, the node holds that
+    delimiter, not the `Kont`, so a clause that applies `k` once leaves the `Kont` to escape analysis.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
   `Eff<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
-- **The first machine.** Before this one, each delimiter's body ran in a Java frame of its own (`EffLoop`, up to
-  commit `fcd3868`). It overflowed the stack at about 1 000 nested handlers, and each handler crossed cost about
-  6 ns. Measured on JDK 26 against this machine after its tuning (JMH, `bench.d/monads-machine-jdk26.csv`, the
-  first machine's numbers from the README before): this one is faster on a general clause across 1 and 16 handlers
-  (11.7 against 14.1 ns, 48.6 against 110), generate (11.4 against 14.3), a general clause (6.9 against 7.8) and left binds (6.2 against
-  6.6); even on choose, state, functional state and a capture with 16 maps; slower on writer (20.2 against 17.3), a capture with one map (169 against 130 ns) and captures
-  over a record (569 against 339). Queens, measured one JVM a benchmark side by side: 137–155 against 110–145 µs.
+- **How the machine got here** (2026-10-09 and 10, JDK 26, each against the code before). Before it, each
+  delimiter's body ran in a Java frame of its own (`EffLoop`, up to commit `fcd3868`). That one overflowed the stack
+  at about 1 000 nested handlers, and each handler crossed cost about 6 ns. The explicit stack was first one big
+  loop, which C2 compiled badly:
+  - A pattern `switch` on the sealed node type went through a `typeSwitch` bootstrap and an index: by `instanceof`,
+    functional state 57 to 34 ns.
+  - All frames through one call site: none inlined. Through sites of their own, a capture with 16 maps 720 to 450
+    ns.
+  - A loop compiled into the big one, even one that never ran, cost the hot path registers (queens 162 to 137 µs).
+    A deep chain of allocating maps inlined into it had its values on the stack, six loads and stores a map.
+  - A program of several effects (`MixedBenchmark`) ran 195 ns an order against `EffLoop`'s 129, though each
+    microbenchmark said otherwise. With no inlining at all (`-XX:-Inline`) the big loop was faster, 434 against
+    640: its own work was less, but C2 made more of `EffLoop`'s small methods. A step a node took it to 131.
+  - A change to an unrelated branch moved one benchmark 30–80%, by what C2 inlined. Decisions were taken on the
+    mixed program, on allocation, and with type profiles off (`-XX:-UseTypeProfile`), not on one microbenchmark.
+  - Not everything moved over. In okay-core's `zero`, a hybrid (a Java frame a delimiter up to 32 deep, then the
+    heap), the bind of `k(x)` resumed at once made its mixed program 25–40% slower: one more case in its one big
+    `deliver` (branch `bind-in-delim`, reverted).
 
 ## `okay.std`
 

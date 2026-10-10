@@ -12,7 +12,7 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 | File | What is in it |
 |---|---|
 | `Cont0.java`, `Loop0.java` | `Cont0<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont0` |
-| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; one loop over an explicit stack of delimiters, so handlers nest as deep as the heap allows |
+| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows |
 
 ### `okay.std`: effects written on `Eff`
 
@@ -175,26 +175,18 @@ The same program with the total a cell (`ordersCell`), as okay-core's `state` is
 | with no type profiles | 153 ns | 149 ns | 141 ns |
 
 What a step a node costs: a virtual call each node. Programs of binds and maps with no effect pay it most (right
-maps 7.1 to 9.5 ns against the one big loop); programs of effects gain more than it (the mixed program 195 to 131).
+maps 7.1 to 9.5 ns against the one big loop it replaced, a delay under a map since built in the map's step: 7.1
+again); programs of effects gain more than it (the mixed program 195 to 131).
 
 An answered operation costs the same in Java whatever the number of handlers it crosses. The capability is the
 handler, so nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Queens is left
 out because the two programs differ: okay-core has since rewritten its `safe` as a loop (`638246f`).
 
-How the rows got here, measured against the code before on the same machine:
-- A delay is a node of its own, and so is a value computed in place (`Sync`). A bind takes either with no frame,
-  and a `Sync` goes through the frames with no `Return` made.
-- A reset or a resumption under a delimiter of its own prompt runs nested up to 64 deep, as in `zero`.
-- A value goes through the maps on top of the stack in a small method of its own, `feed`, as in okay-core, instead
-  of inside the loop's 800 bytes. The JIT compiles it apart and better: a capture with 16 maps went from 949 to
-  486–519 ns.
-- A handler that is bound is entered at once (okay-core's `248fd36`), and `Throws.attempt` is a handler of its own.
-  `throwing` went from 17.2 to 13.3 ns.
-- Writer's `tell` puts a `Rope.Cons` in front of the log, one object where `Cat` and `Leaf` were two: 20.4 to
-  17.3 ns. The writer, collect and generate rows are from a run of their own after it (3 forks, the same JDK).
+How the machine got here, step by step and measured: `docs/architecture.md`.
 
-Why the deep capture (256 maps) is 1.7× `zero`'s: not the machine, and not the allocation, but `Integer.valueOf`.
-Same JDK (26), the same harness (`java` straight), 3 forks:
+Measured on the first machine (`EffLoop`, 2026-10-09): why its deep capture (256 maps) was 1.7× `zero`'s — not the
+machine, and not the allocation, but `Integer.valueOf`. On the machine now the gap is gone, 4.9 µs autoboxed against
+4.7 over a record (the table above). Same JDK (26), the same harness (`java` straight), 3 forks:
 
 | deep capture, 256 maps, `k` 8 times | Java | `zero` |
 |---|---|---|

@@ -372,9 +372,11 @@ check(Async.runAsync(new Async.Body<Integer>() {
 
 ## Performance notes
 
-- Answering in place costs a call: about 4.7 ns an operation, the same across 1 or 16 handlers.
-- A general clause costs a capture, about 8 ns, and about 1 ns more for each handler crossed on the way to its own
-  (22 ns across 16). Handlers nest as deep as the heap allows: the machine keeps its delimiters on the heap.
+- Answering in place costs a call: about 5 ns an operation, the same across 1 or 16 handlers.
+- A general clause costs a capture, about 9 ns, and about 2 ns more for each handler crossed on the way to its own
+  (42 ns across 16). Handlers nest as deep as the heap allows: the machine keeps its delimiters on the heap.
+- Measure a program of several effects, not one effect in a loop: `MixedBenchmark`. A microbenchmark shows each of
+  the machine's call sites one function, which the JIT inlines, and a program does not.
 - A value boxed by `Integer.valueOf` (autoboxing) in a hot chain of maps can keep the JIT's box elimination from
   working. A box of your own (`record Int(int value)`) is not cached and is never slower. `MonadsBenchmark`'s
   `captureDeep`, `captureDeepNew` and `captureDeepRecord` measure it.

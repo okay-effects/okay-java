@@ -18,19 +18,23 @@ okay-core is Scala 3 and okay-java is Java 25. Both are built on `shift0` and `$
 
 ## Speed
 
-Measured on the same JDK (26), the same machine and the same harness (`MonadsBenchmark`, the `bench.d` CSVs), in ns
-an operation unless noted:
+Measured on the same JDK (26) and the same machine, JMH: okay-java's machine a step a node
+(`bench.d/monads-steps-jdk26.csv`, `bench.d/mixed-jdk26.csv`, 2026-10-09 and 10, a load about 4) and okay-core's
+`zero` (`bb01100`, 2026-10-09; the mixed program on its branch `mixed-bench`). In ns an operation unless noted:
 
 | | okay-java | okay-core `zero` |
 |---|---|---|
-| answered across 1 / 16 handlers | 4.4 / 4.5 | 5.7 / 17.1 |
-| a general clause | 7.8 | 7.7 |
-| state (a cell) / writer | 15.7 / 17.3 | 14.2 / 18.3 |
-| throws / choose | 13.3 / 25.8 | 14.9 / 33.9 |
-| tail calls by delay | 2.0 | 2.3 |
-| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 130 / 519 ns; 339 ns over a record | 126 / 323 ns |
-| a deep shift, 256 maps boxed by a record or a constructor (a run) | 4.95 µs | 5.15 µs |
-| a deep shift, 256 maps autoboxed (a run) | 6.7–8.7 µs | 4.7 µs |
+| **a program of five effects, a throw and a choice handled per order (an order)** | **102** | **136** |
+| the same with no type profiles (`-XX:-UseTypeProfile`) | 153 | 141 |
+| answered across 1 / 16 handlers | 5.1 / 5.3 | 5.7 / 17.1 |
+| a general clause | 9.2 | 7.7 |
+| state (a cell) / writer | 14.0 / 18.8 | 14.2 / 18.3 |
+| throws / choose | 14.2 / 28.5 | 14.9 / 33.9 |
+| tail calls by delay | 2.2 | 2.3 |
+| a shift under a reset, 1 map / 16 maps, `k` 8 times (a run) | 82 / 347 ns; 329 ns over a record | 126 / 323 ns |
+| a deep shift, 256 maps boxed by a record or a constructor (a run) | 4.7 µs | 5.15 µs |
+| a deep shift, 256 maps autoboxed (a run) | 4.9 µs | 4.7 µs |
 
-The last row is `Integer.valueOf`: escape analysis's box elimination works in `zero`'s loop and not in ours (see
-the README).
+The mixed program is the one to go by: each microbenchmark shows one function at each call site, which C2 inlines,
+and a program does not. With no type profiles, where nothing is inlined by luck, `zero` is ahead: its hybrid runs a
+delimiter's body in a Java frame up to 32 deep, where this machine makes a virtual call a node.
