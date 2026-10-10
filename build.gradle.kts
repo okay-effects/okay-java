@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    `maven-publish`
 }
 
 group = "dev.okay"
@@ -13,6 +14,16 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// a library of no dependency; published (`./gradlew publishToMavenLocal`, to ~/.m2) for okay-kernel, the layer over
+// it, to adapt (its OnJava)
+publishing {
+    publications {
+        create<MavenPublication>("okayJava") {
+            from(components["java"])
+        }
+    }
 }
 
 dependencies {
