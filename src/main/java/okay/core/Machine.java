@@ -297,31 +297,41 @@ final class Machine {
           v = m.f().apply(v);
           k = m.next();
         }
+        Eff c;
         if (k instanceof Frames.Then t) {
           k = t.next();
-          return (Eff) t.f().apply(v);
-        }
-        Seg seg;
-        if (ms instanceof Seg plain) {
-          seg = plain;
-          ms = plain.next();
-        } else if (ms instanceof Top) {
-          result = v;
-          return DONE;
+          c = (Eff) t.f().apply(v);
         } else {
-          seg = head(ms);
-          ms = drop(ms, 1);
+          Seg seg;
+          if (ms instanceof Seg plain) {
+            seg = plain;
+            ms = plain.next();
+          } else if (ms instanceof Top) {
+            result = v;
+            return DONE;
+          } else {
+            seg = head(ms);
+            ms = drop(ms, 1);
+          }
+          k = seg.outer();
+          if (seg.then() != null) {
+            // a bound delimiter's answer: its return, then the function bound — at once if the return a value
+            if (seg.ret() == SAME) {
+              c = (Eff) seg.then().apply(v);
+            } else {
+              c = (Eff) seg.ret().apply(v);
+              if (c instanceof Return a) c = (Eff) seg.then().apply(a.value());
+              else k = new Frames.Then(seg.then(), k);
+            }
+          } else if (seg.ret() != SAME) {
+            c = (Eff) seg.ret().apply(v);
+          } else {
+            continue;
+          }
         }
-        k = seg.outer();
-        if (seg.then() != null) {
-          // a bound delimiter's answer: its return, then the function bound — at once if the return a value
-          if (seg.ret() == SAME) return (Eff) seg.then().apply(v);
-          Eff c = (Eff) seg.ret().apply(v);
-          if (c instanceof Return a) return (Eff) seg.then().apply(a.value());
-          k = new Frames.Then(seg.then(), k);
-          return c;
-        }
-        if (seg.ret() != SAME) return (Eff) seg.ret().apply(v);
+        // a value again — a handler's return, a bind's pure — on here, no step of the loop for it
+        if (!(c instanceof Return r)) return c;
+        v = r.value();
       }
     }
   }
