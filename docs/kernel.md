@@ -22,7 +22,7 @@ protocol and semantics are okay-kernel's (`docs/design.md` there; its reference 
 - **The four shapes.** `Answering`: the value in place, no capture. `General`: a capture to the handler's prompt,
   `k` okay-java's continuation (it is a kernel `Fn` itself: no allocation), the clause in the handler's place.
   `Aborting`: an abort unwinding to the handler. `Returning`: the return a value.
-- **`shift0` and `dollar`.** `shift0` captures to the nearest delimiter whose frame is a handler's or a dollar's; the
+- **`shift0` and `dollar`** — the API's `Control`, apart from `Effects`; `Kernel` implements both. `shift0` captures to the nearest delimiter whose frame is a handler's or a dollar's; the
   delimiters of failures and finalizers it crosses, and `k` keeps them. `dollar(body, k)` is `Handle(body, k)`.
 - **Failures in the machine.** The run loop catches an exception of any step and unwinds: it walks the delimiters
   to the nearest one the exception concerns, drops the rest, and goes on in that delimiter's place. `recover` answers

@@ -11,6 +11,8 @@ import java.util.Set;
 import okay.kernel.Key;
 import okay.kernel.Answers;
 import okay.kernel.Computation;
+import okay.kernel.Control;
+import okay.kernel.Control;
 import okay.kernel.Effects;
 import okay.kernel.Fn;
 import okay.kernel.General;
@@ -89,9 +91,9 @@ class KernelTest {
   @Test
   void shift0AndDollarTheLaws() {
     Fn<Integer, Prog<Integer>> k = x -> E.pure(x * 2);
-    assertEquals(42, KernelTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(e2 -> e2.pure(21), k)));
-    Program<Integer> shifted = e -> e.<Integer, Integer, Integer>shift0(kk -> e.flatMap(kk.apply(1), kk));
-    assertEquals(21, KernelTest.<Integer>run(e -> e.<Integer, Integer, Integer>dollar(shifted, x -> e.pure(x + 10))));
+    assertEquals(42, KernelTest.<Integer>run(e -> Control.of(e).<Integer, Integer, Integer>dollar(e2 -> e2.pure(21), k)));
+    Program<Integer> shifted = e -> Control.of(e).<Integer, Integer, Integer>shift0(kk -> e.flatMap(kk.apply(1), kk));
+    assertEquals(21, KernelTest.<Integer>run(e -> Control.of(e).<Integer, Integer, Integer>dollar(shifted, x -> e.pure(x + 10))));
   }
 
   @Test
@@ -211,8 +213,8 @@ class KernelTest {
 
   @Test
   void aShift0sBodyRunsOutsideItsDelimiterAHandlerBetweenIsNotInForceThere() {
-    Program<Integer> p = Handlers.reader(RD, 1, e -> e.<Integer, Integer, Integer>dollar(
-        Handlers.reader(RD, 2, y -> y.<Integer, Integer, Integer>shift0(_ -> ASK.in(y))), e::pure));
+    Program<Integer> p = Handlers.reader(RD, 1, e -> Control.of(e).<Integer, Integer, Integer>dollar(
+        Handlers.reader(RD, 2, y -> Control.of(y).<Integer, Integer, Integer>shift0(_ -> ASK.in(y))), e::pure));
     assertEquals(1, KernelTest.<Integer>run(p));
   }
 

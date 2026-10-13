@@ -76,7 +76,7 @@ import okay.kernel.Type;
  * own — levels are phantom types) and {@link #trust} (a value given where the program, built typed, expects it:
  * {@code Steps}' {@code trust}, the handler found by its effect's exact identity).
  */
-public final class Kernel implements Effects {
+public final class Kernel implements Effects, okay.kernel.Control {
   private Kernel() {}
 
   /** okay-java's {@code Effects}: the kernel's programs, built in okay-java's nodes */
