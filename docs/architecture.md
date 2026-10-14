@@ -1,21 +1,22 @@
 # Architecture
 
-okay-java has three layers:
-- the monad of delimited continuations, `Cont0`, with `shift0`/`$` (the first port's `Cont`, `shift`/`reset`, is
-  gone; `Eff`'s `p.shift` is Danvy–Filinski's `shift`, and `Cont0Test` compares the two with it);
+okay-java has three layers, and a door:
+- the monad of delimited continuations, `Cont`, with `shift0`/`$` (the first port's monad of `shift`/`reset` is
+  gone; `Eff`'s `p.shift` is Danvy–Filinski's `shift`, and `ContTest` compares the two with it);
 - `Eff`, effects at a level, run by a machine with prompts;
-- `okay.std`, the effects written on `Eff`.
+- `okay.std`, the effects written on `Eff`;
+- `Kernel`, okay-kernel's protocol on the same nodes and the same machine (`kernel.md`).
 
-## `Cont0` (`Cont0.java`, `Loop0.java`)
+## `Cont` (`Cont.java`, `Loop.java`)
 
-`Cont0<I, O, A>` is Materzok–Biernacki's `shift0` and `$`, the levels typed in the answers. A `shift0`'s body runs
-outside the delimiter, so its answers are programs of the level outside, `Cont0` again. `reset0`, `lift` and
-`value` are built on the two. Each delimiter runs its body in a loop of its own, to where it leaves (`Loop0`). It is
-open: usable as a monad with raw `shift0` and `$`, as in `Cont0Test`, the printf, and `PState0`.
+`Cont<I, O, A>` is Materzok–Biernacki's `shift0` and `$`, the levels typed in the answers. A `shift0`'s body runs
+outside the delimiter, so its answers are programs of the level outside, `Cont` again. `reset0`, `lift` and
+`value` are built on the two. Each delimiter runs its body in a loop of its own, to where it leaves (`Loop`). It is
+open: usable as a monad with raw `shift0` and `$`, as in `ContTest`, the printf, and `ContPState`.
 
 ## `Eff` (`Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java`)
 
-`Eff<L, A>` keeps `Cont0`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
+`Eff<L, A>` keeps `Cont`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
 in the type as a phantom.
 
 - **Two primitives.**
@@ -57,6 +58,13 @@ in the type as a phantom.
     applied right there.
   - **A resumption does not keep the continuation.** Having crossed no delimiter, the usual, the node holds that
     delimiter, not the `Kont`, so a clause that applies `k` once leaves the `Kont` to escape analysis.
+- **Failures.** The loop runs in a `try`. A function of the program's that throws in a step is a failure
+    (`Kernel.Fail`, stepped next), unwound from the stack as it is there to the nearest delimiter that takes it: a
+    guard of `Eff.recover`/`Eff.ensuring`, or the kernel's. Each step leaves the stack as the function it calls sees
+    it — a clause outside its delimiter (the stack dropped to there before the clause is applied), a resumed rest
+    under its delimiters again (put back in a `catch` of the first frame's call, the only place the machine applies a
+    function before its delimiters are there). HotSpot compiles the handler as a table entry: the loop is the same,
+    and nothing is allocated for a program that does not fail.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
   `Eff<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
@@ -89,11 +97,16 @@ callback's thread, and the handlers inside go on with it, since `k` holds their 
 
 ## Tests
 
-- **Written once, run on two backends** (`Backend`, `Backend0`): the machine and a reference.
+- **Written once, run on two backends** (`Backend`, `ContBackend`): the machine and a reference.
   - `Ref` reads `Eff`'s nodes by the textbook. A body goes to its value or to a capture, and a delimiter takes its
     own and passes another's on.
-  - `Ref0` is the same for `Cont0`.
-  - `EffectsTest`, `ControlTest` and `Cont0Test` run on both.
+  - `ContRef` is the same for `Cont`.
+  - `EffectsTest`, `ControlTest` and `ContTest` run on both.
+- **`GuardTest`.** Failures on the machine (the reference runs none): a map's throw recovered, `ensuring` on a value
+  and on a failure, a clause's failure outside its handler, a resumed rest's under its guard again, 100 000 guards in
+  force.
+- **`KernelTest`.** okay-kernel's API on okay-java: the shapes, `shift0` and `$`, failures and finalizers, export
+  and import, the TCK's checks in Java; okay-kernel's own TCK and integration suite run it from there.
 - **`AgreeTest`.** It makes 1 000 programs at random, with handlers nested in any order, resets and shifts, and
   checks that the machine and the reference agree.
 - **`LeakTest`.** It compiles each way out of a handler beside the right program. The right one compiles and the
@@ -109,10 +122,12 @@ callback's thread, and the handlers inside go on with it, since `k` holds their 
 - `Megamorphic.Monads`, `Megamorphic.Mixed`: the same with `-XX:-UseTypeProfile`, so no call site inlines the one
   function a benchmark happened to show it — the machine's own cost.
 
-- `MonadsBenchmark` has okay-core master's programs, under its names, plus:
+- `MonadsBenchmark` has okay-core's programs of 2026-10 under its names of then, plus:
   - the general clause across 1 and 16 handlers;
   - the functional state;
   - the deep capture with its boxes made by `new Integer` and by a record.
 - `EffBenchmark` and `EffectsBenchmark` are okay-core's earlier ones.
 - `./gradlew bench --args='… -prof gc' [-PbenchJdk=26]` runs them. `-PbenchJdk` picks the JDK, for example the one
   okay-core runs on. The runs are kept in `bench.d/`.
+- The comparison across implementations — okay-core's lanes, the reference machines, the protocol's program on
+  each — is okay-bench's (`../okay-bench`, `results/table.md`), not this repository's.

@@ -108,9 +108,13 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   record KHandler(Handler<?, ?> h, Type effect) {}
 
-  record KRecover(Fn<Throwable, ? extends Prog<?>> h) {}
+  /** a guard: the failure given to {@code h}, its program in the guard's place — {@link Eff#recover}'s, or the
+   * kernel's with its program built guarded */
+  record KRecover(Function<? super Throwable, ? extends Eff<?, ?>> h) {}
 
-  record KEnsuring(Program<Void> fin) {}
+  /** a guard: {@code fin}'s program run when the guard is left failing, then the failure on — {@link Eff#ensuring}'s,
+   * or the kernel's */
+  record KEnsuring(Supplier<? extends Eff<?, ?>> fin) {}
 
   record KForeign(Resume<?, ?> k) {}
 
@@ -151,9 +155,16 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   private static final Cancel CANCEL = new Cancel();
 
-  private static Throwable nonFatal(Throwable t) {
+  static Throwable nonFatal(Throwable t) {
     if (t instanceof VirtualMachineError || t instanceof LinkageError) throw (Error) t;
     return t;
+  }
+
+  /** a failure out of a run: as it is if unchecked, else wrapped */
+  static RuntimeException unchecked(Throwable t) {
+    if (t instanceof RuntimeException r) return r;
+    if (t instanceof Error e) throw e;
+    return new IllegalStateException(t);
   }
 
   // -- the kernel's nodes: each stepped by okay-java's machine
@@ -343,12 +354,12 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   public <A> Prog<A> recover(Program<A> body, Fn<Throwable, Prog<A>> h) {
-    return new Handle<Object, A, A>(body(body), Machine.SAME, new KRecover(h));
+    return new Handle<Object, A, A>(body(body), Machine.SAME, new KRecover(t -> builtAny(() -> h.apply(t))));
   }
 
   public <A> Prog<A> ensuring(Program<A> body, Program<Void> finalizer) {
     Function<A, Eff<?, ?>> ret = a -> finalized(finalizer).then(Eff.pure(a));
-    return new Handle<Object, A, A>(body(body), ret, new KEnsuring(finalizer));
+    return new Handle<Object, A, A>(body(body), ret, new KEnsuring(() -> finalized(finalizer)));
   }
 
   private static Eff<Object, Void> finalized(Program<Void> fin) {
@@ -456,11 +467,9 @@ public final class Kernel implements Effects, okay.kernel.Control {
   static Eff<?, ?> unwind(Run m, Throwable t) {
     int i = Machine.indexWhere(m.ms, Integer.MAX_VALUE, s -> concerns(s, t));
     if (i < 0) {
-      // no kernel delimiter around: the program's run, not the kernel's — the failure leaves it as okay-java's do
-      if (t instanceof Control) throw new IllegalStateException("an abort or a cancellation with no delimiter of it", t);
-      if (t instanceof RuntimeException r) throw r;
-      if (t instanceof Error e) throw e;
-      throw new IllegalStateException(t);
+      // no delimiter around that takes it: the run's failure, thrown out of it by Machine.run — the run ended here
+      m.failure = t instanceof Control ? new IllegalStateException("an abort or a cancellation with no delimiter of it", t) : t;
+      return Machine.DONE;
     }
     Seg s = Machine.head(Machine.drop(m.ms, i));
     // the rest up to it dropped: on in its place
@@ -468,8 +477,8 @@ public final class Kernel implements Effects, okay.kernel.Control {
     m.k = s.outer();
     if (s.then() != null) m.k = new Frames.Then(s.then(), m.k);
     return switch (s.prompt().frame) {
-      case KRecover(var h) -> builtAny(() -> h.apply(t));
-      case KEnsuring(var fin) -> finalized(fin).then(new Fail<>(t));
+      case KRecover(var h) -> h.apply(t);
+      case KEnsuring(var fin) -> fin.get().then(new Fail<>(t));
       case KHandler _ -> Eff.pure(((Abort) t).answer);
       case KForeign(var fk) when t instanceof Control ->
           // an abort or a cancellation crossing it: it is cancelled, its finalizers' operations performed here, then

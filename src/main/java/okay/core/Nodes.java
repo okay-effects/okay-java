@@ -193,6 +193,15 @@ final class Nodes {
     }
   }
 
+  /** a body that is a program already, at the level outside — a guard's: no fresh level, nothing to give the prompt */
+  static <L, A, R> Eff.Body<L, A, R> plain(Eff<L, A> body) {
+    return new Eff.Body<>() {
+      public <M extends L> Eff<M, A> in(Prompt<L, M, R> p) {
+        return body.at();
+      }
+    };
+  }
+
   /** a delimiter under a prompt there already: {@code p.reset(body)}, its answer the body's value */
   static final class Reset<L, R> extends Node<L, R> {
     private final Prompt<?, ?, ?> prompt;

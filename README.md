@@ -1,9 +1,11 @@
 # okay-java
 
-okay-core's delimited continuations in Java 25, and effects on `shift0`.
+Delimited continuations in Java 25, and effects on `shift0` — okay-core's design in Java, and an implementation of
+okay-kernel's protocol, so its programs run under okay-core's handlers and okay-core's under its.
 
 The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
-`GuideTest`, the [architecture](docs/architecture.md), and [how it differs from okay-core](docs/vs-okay-core.md).
+`GuideTest`, the [architecture](docs/architecture.md), [how it differs from okay-core](docs/vs-okay-core.md), and
+[okay-java as an implementation of okay-kernel](docs/kernel.md).
 
 ## Layout
 
@@ -11,8 +13,9 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 
 | File | What is in it |
 |---|---|
-| `Cont0.java`, `Loop0.java` | `Cont0<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont0` |
-| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows |
+| `Cont.java`, `Loop.java` | `Cont<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont`, without the rows |
+| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows; failures unwound to a guard (`recover`, `ensuring`) |
+| `Kernel.java` | okay-kernel's `Effects` and `Control` on `Eff`'s nodes: a kernel program is an `Eff`, the machine runs the kernel's operations itself ([docs/kernel.md](docs/kernel.md)) |
 
 ### `okay.std`: effects written on `Eff`
 
@@ -30,7 +33,7 @@ reference can.
 | `Throws<L, E>` | `raise` | `catching(body, e -> recovery)`, `attempt(body)` → `Result` (`Ok` / `Failed`) |
 | `Choose<L>` | `among`, `fail` (multi-shot) | `all(body)` → `List`, `first(body)` → `Optional` |
 | `PState<L, S>` | `get`, `put` (a new type), `done` | `pstate(s0, body)`: the type in the capability, a typestate |
-| `PState0` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont0`: okay-core's, the type in the answer type |
+| `ContPState` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont`: okay-core's kernel's `PState`, the type in the answer type |
 | `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise`; on virtual threads `blocking(call)` and `fork(body)` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
 | `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `generate(body, next, done)` (lazy, of the consumer's type, under any effects; okay-core's), `iterator(body)` → `Iterator`, `stream(body)` → a lazy `java.util.stream.Stream` |
 
@@ -80,7 +83,7 @@ Eff.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
 ```
 
 An operation goes to its own handler by prompt, and any nearer handlers are crossed. Each crossing is a lift, one
-`shift0` more: okay-core's `Perform`, matched by identity instead of a path in a row.
+`shift0` more: okay-core's `Perform`, found by identity instead of by a path in a row.
 
 `shift0` gives these properties:
 
@@ -92,7 +95,7 @@ An operation goes to its own handler by prompt, and any nearer handlers are cros
 - **A tail-resumptive handler is a plain function.** `shift0 k. m >>= k` is `m` performed in place. So a handler
   whose clauses have the form `m.flatMap(k)` is the capability itself, with no prompt and no capture. That covers
   `Reader`, `Emit.forEach`, and forwarding to an outer effect. This is okay-core's `Answering`, which here costs
-  nothing to write.
+  nothing to write and nothing a handler crossed.
 - **Handlers are named, so a row is not needed.** Two `State<Integer>` handlers can be in force at once, and each
   operation goes to the one it was taken from. Effect-polymorphic code is plain Java: `traverse(xs, f)` passes
   through whatever effects `f` has.
@@ -100,16 +103,15 @@ An operation goes to its own handler by prompt, and any nearer handlers are cros
 The trade-offs:
 
 - **No answer-type modification in `Eff`.** The handler's answer is erased into its prompt, so there is nothing to
-  modify. A type that changes moves into the capability, see `PState` below. Full ATM is `Cont0`'s, see printf.
+  modify. A type that changes moves into the capability, see `PState` below. Full ATM is `Cont`'s, see printf.
 - **Crossing a handler costs a lift.** An operation allocates 96 B under its handler and 48 B more per handler
-  crossed (okay-core before its Redelimit: 104 B and 96 B). An operation answered in place allocates 64 B however
-  many handlers it crosses.
+  crossed. An operation answered in place allocates 64 B however many handlers it crosses.
 - **Every handler's body is an anonymous class.** A lambda can't implement a generic method, and the fresh level
   is a generic method. That is the price of the static guarantee below.
 
 ## No leaks: a fresh level for each handler
 
-A row in Cont0 is the nesting of its answer types: each handler is a delimiter, one level more. `Eff<L, A>` keeps
+A row in Cont is the nesting of its answer types: each handler is a delimiter, one level more. `Eff<L, A>` keeps
 that nesting and drops the answers. A handler's body is at a level of its own, `M extends L`, a type variable that
 nobody outside the body can name (runST's rank-2 trick). Its capabilities and its prompt are at `M`. So whatever
 leaves the body, a capability, a prompt or a program built there, is at a level no program outside is at. Each of
@@ -137,11 +139,22 @@ Moving anything outward does not compile.
 The types already caught one leak in the old tests: a Reader's capability used inside a separate async run, at the
 top, outside the reader. With an answering capability there was no prompt to notice it.
 
+## Failures
+
+A function of the program's that throws — a bind's, a map's, a clause, a handler's return — is a failure of the
+program, and `Eff.failed(e)` is one as a program. The machine unwinds it from where it was, through the handlers in
+force, to the nearest guard that takes it: `Eff.recover(body, h)`, the failure given to `h` and its program run in
+the body's place; `Eff.ensuring(body, fin)`, `fin` run however the body is left, then on the same way. None taking
+it, `Eff.run` throws it as before. A clause's failure is outside its handler, a resumed rest's under its delimiters
+again, and a `shift0` across a guard keeps the guard in `k`. The guards are the same delimiters okay-kernel's
+`recover`, `ensuring` and `uncancelable` are, so a kernel program and an okay-java one guard each other's parts
+(`docs/kernel.md`). Errors of the JVM are never caught. `GuardTest`.
+
 ## Answer-type modification
 
-- **On `Cont0`, in full.** A `shift0` modifies the answer of its delimiter. `Cont0Test`'s printf: `%d` turns the
+- **On `Cont`, in full.** A `shift0` modifies the answer of its delimiter. `ContTest`'s printf: `%d` turns the
   answer from `T` into `Integer -> T`, so `reset0("a=" + %d + ", b=" + %s)` is a
-  `Function<Integer, Function<String, String>>`. `PState0` is okay-core's `PState`: the state's type is carried in
+  `Function<Integer, Function<String, String>>`. `ContPState` is okay-core's `PState`: the state's type is carried in
   the answer type, and a `get` of the wrong type doesn't compile.
 - **On `Eff`, as a typestate.** What ATM is mostly used for is a state whose type changes (okay-core's `PState`).
   Here the type is in the capability: `put` of a `T` gives a `PState<L, T>`, and the old capability is stale. Java has
@@ -150,7 +163,12 @@ top, outside the reader. With an answering capability there was no prompt to not
 
 ## Measured
 
-`MonadsBenchmark` runs okay-core master's programs under the same names. Both sides ran on JDK 26 on the same
+The comparison with okay-core as it is now — on its one monad, and through okay-kernel — is okay-bench's, one table
+for every implementation on one program: [docs/vs-okay-core.md](docs/vs-okay-core.md). What follows is okay-java
+against okay-core's machines of 2026-10-09 (`zero`, `cont`, since replaced by the one monad), microbenchmark by
+microbenchmark, kept as the record of what each decision of the machine was taken on.
+
+`MonadsBenchmark` runs okay-core's programs of then under the same names. Both sides ran on JDK 26 on the same
 machine: okay-java's machine, a step a node (2026-10-09 20:40, `bench.d/monads-steps-jdk26.csv`, load about 4), and
 okay-core `bb01100` (08:45). JMH, 2 forks, 3+5 iterations, `-prof gc`. The CSVs are in `bench.d/`. Numbers are per
 operation, `n = 1000`, except captures, which are per run.
@@ -190,7 +208,7 @@ maps 7.1 to 9.5 ns against the one big loop it replaced, a delay under a map sin
 again); programs of effects gain more than it (the mixed program 195 to 131).
 
 An answered operation costs the same in Java whatever the number of handlers it crosses. The capability is the
-handler, so nothing is looked up, while okay-core's `zero` walks its evidence one handler a step. Queens is left
+handler, so nothing is looked up, while okay-core walks its evidence one handler a step. Queens is left
 out because the two programs differ: okay-core has since rewritten its `safe` as a loop (`638246f`).
 
 How the machine got here, step by step and measured: `docs/architecture.md`.

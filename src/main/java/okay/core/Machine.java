@@ -180,7 +180,19 @@ final class Machine {
   static <A> A run(Eff<?, A> program) {
     Run m = new Run();
     Eff<?, ?> c = program;
-    while (c != DONE) c = ((Nodes.Node<?, ?>) c).step(m);
+    while (true) {
+      try {
+        while (c != DONE) c = ((Nodes.Node<?, ?>) c).step(m);
+        break;
+      } catch (Throwable t) {
+        // a function of the program's threw, in a step: a FAILURE, unwound from the stack as it is there — to the
+        // nearest guard it concerns (Eff.recover, Eff.ensuring, the kernel's), or out of the run. HotSpot compiles
+        // the handler as a table entry: the loop is the same. Each step leaves the stack as the function it calls
+        // sees it: a clause outside its delimiter, a resumed rest under its delimiters again
+        c = new Kernel.Fail<>(Kernel.nonFatal(t));
+      }
+    }
+    if (m.failure != null) throw Kernel.unchecked(m.failure);
     return (A) m.result;
   }
 
@@ -190,6 +202,8 @@ final class Machine {
     Frames k = Frames.END;
     Meta ms = TOP;
     Object result;
+    /** a failure no delimiter took: the run's, thrown out of it */
+    Throwable failure;
 
     Eff<?, ?> bind(Bind b) {
       Eff m = b.m();
@@ -239,17 +253,19 @@ final class Machine {
     Eff<?, ?> capture(Prompt<?, ?, ?> prompt, Function f, Function kk) {
       Eff c;
       Seg d;
+      Kont kont;
       if (ms instanceof Seg near && near.prompt() == prompt) {
         d = near;
-        c = (Eff) f.apply(new Kont(kk, ms, 0));
+        kont = new Kont(kk, ms, 0);
         ms = near.next();
       } else {
-        Kont kont = far(kk, ms, prompt);
+        kont = far(kk, ms, prompt);
         d = kont.up();
-        c = (Eff) f.apply(kont);
         ms = drop(ms, kont.n() + 1);
       }
+      // the stack outside the delimiter first, then the clause: a failure of it is outside, as the clause is
       k = d.outer();
+      c = (Eff) f.apply(kont);
       if (d.then() != null) {
         // the clause's answer the delimiter's: to the function it is bound to — at once if a value
         if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
@@ -276,18 +292,25 @@ final class Machine {
         return (Eff) r.k().apply(x);
       }
       Eff next = null;
-      if (fr instanceof Frames.Mapped m) {
-        x = m.f().apply(x);
-        fr = m.next();
-        if (!(fr instanceof Frames.End)) {
-          Fed fed = feed(x, fr);
-          next = fed.c();
-          x = fed.v();
-          fr = fed.k();
+      try {
+        if (fr instanceof Frames.Mapped m) {
+          x = m.f().apply(x);
+          fr = m.next();
+          if (!(fr instanceof Frames.End)) {
+            Fed fed = feed(x, fr);
+            next = fed.c();
+            x = fed.v();
+            fr = fed.k();
+          }
+        } else if (fr instanceof Frames.Then t) {
+          next = (Eff) t.f().apply(x);
+          fr = t.next();
         }
-      } else if (fr instanceof Frames.Then t) {
-        next = (Eff) t.f().apply(x);
-        fr = t.next();
+      } catch (Throwable t) {
+        // the rest's frames run under its delimiters, not yet put back: put back for the failure to unwind through
+        ms = again(r, then, k, ms);
+        k = Frames.END;
+        throw t;
       }
       if (next != null) {
         // a bind in its rest: its delimiter again, under it the rest's program

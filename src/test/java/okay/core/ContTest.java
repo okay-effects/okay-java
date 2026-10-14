@@ -1,15 +1,15 @@
 package okay.core;
 
-import static okay.core.Cont0.dollar;
-import static okay.core.Cont0.lift;
-import static okay.core.Cont0.pure;
-import static okay.core.Cont0.reset0;
-import static okay.core.Cont0.shift0;
+import static okay.core.Cont.dollar;
+import static okay.core.Cont.lift;
+import static okay.core.Cont.pure;
+import static okay.core.Cont.reset0;
+import static okay.core.Cont.shift0;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.ArrayList;
-import okay.std.PState0;
+import okay.std.ContPState;
 import okay.std.State.Final;
 import java.util.List;
 import java.util.function.Function;
@@ -18,44 +18,44 @@ import org.junit.jupiter.params.Parameter;
 import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** okay-core's TestCont0: {@code shift0} and {@code $}, where they agree with shift and reset, where they do not.
- * The levels are in the types: a program under one delimiter is {@code Cont0<P, P, A>}, {@code P} the level outside */
+/** okay-core's TestNodes: {@code shift0} and {@code $}, where they agree with shift and reset, where they do not.
+ * The levels are in the types: a program under one delimiter is {@code Cont<P, P, A>}, {@code P} the level outside */
 @ParameterizedClass
-@EnumSource(Backend0.class)
-class Cont0Test {
+@EnumSource(ContBackend.class)
+class ContTest {
 
   /** the loop or the reference: each test on both */
   @Parameter
-  Backend0 backend;
+  ContBackend backend;
 
-  <A> A value(Cont0<A, A, A> c) {
+  <A> A value(Cont<A, A, A> c) {
     return backend.value(c);
   }
 
   @Test
   void oneDelimiterAsWithShift() {
     // reset0(1 + shift0(k => k(k(10)))) is 12
-    Cont0<Integer, Integer, Integer> p = reset0(
-        Cont0.<Integer, Integer, Integer, Cont0<Integer, Integer, Integer>, Integer>shift0(k -> k.apply(10).flatMap(k))
+    Cont<Integer, Integer, Integer> p = reset0(
+        Cont.<Integer, Integer, Integer, Cont<Integer, Integer, Integer>, Integer>shift0(k -> k.apply(10).flatMap(k))
             .map(x -> x + 1));
     assertEquals(12, value(p));
   }
 
   @Test
   void answerTypeModified() {
-    Cont0<String, String, String> p = reset0(
-        Cont0.<String, String, Integer, Cont0<String, String, String>, Integer>shift0(k -> k.apply(5).map(String::valueOf))
+    Cont<String, String, String> p = reset0(
+        Cont.<String, String, Integer, Cont<String, String, String>, Integer>shift0(k -> k.apply(5).map(String::valueOf))
             .map(x -> x * 2));
     assertEquals("10", value(p));
   }
 
   /** {@code %d}: the hole a String, the answer modified from {@code T} to {@code Integer -> T} — Danvy's printf */
-  private <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<Integer, T>>, String> d() {
+  private <S, T> Cont<Cont<T, T, T>, Cont<S, S, Function<Integer, T>>, String> d() {
     return shift0(k -> pure(x -> value(k.apply(x.toString()))));
   }
 
   /** {@code %s}: the answer from {@code T} to {@code String -> T} */
-  private <S, T> Cont0<Cont0<T, T, T>, Cont0<S, S, Function<String, T>>, String> s() {
+  private <S, T> Cont<Cont<T, T, T>, Cont<S, S, Function<String, T>>, String> s() {
     return shift0(k -> pure(x -> value(k.apply(x))));
   }
 
@@ -71,19 +71,19 @@ class Cont0Test {
   @Test
   void pstateTheTypeChangedInTheAnswerType() {
     // okay-core's: an Integer in, a String put, read back as a String
-    Cont0<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = PState0.pstate(7,
-        PState0.<Final<String, Integer>, Final<String, Integer>, Integer>get()
-            .flatMap(n -> PState0.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x".repeat(n)))
-            .flatMap(_ -> PState0.<Final<String, Integer>, Final<String, Integer>, String>get())
+    Cont<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = ContPState.pstate(7,
+        ContPState.<Final<String, Integer>, Final<String, Integer>, Integer>get()
+            .flatMap(n -> ContPState.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x".repeat(n)))
+            .flatMap(_ -> ContPState.<Final<String, Integer>, Final<String, Integer>, String>get())
             .map(String::length));
     assertEquals(new Final<>("xxxxxxx", 7), value(p));
   }
 
   private static String pstateGetting(String type) {
     return """
-        Cont0<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = PState0.pstate(7,
-            PState0.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x")
-                .flatMap(_ -> PState0.<Final<String, Integer>, Final<String, Integer>, %s>get()).map(Object::hashCode));
+        Cont<Final<String, Integer>, Final<String, Integer>, Final<String, Integer>> p = ContPState.pstate(7,
+            ContPState.<Final<String, Integer>, Final<String, Integer>, Integer, String>put("x")
+                .flatMap(_ -> ContPState.<Final<String, Integer>, Final<String, Integer>, %s>get()).map(Object::hashCode));
         """.formatted(type);
   }
 
@@ -96,8 +96,8 @@ class Cont0Test {
   @Test
   void aBodyThatDropsKAbortsTheDelimiter() {
     boolean[] ran = {false};
-    Cont0<Integer, Integer, Integer> p = reset0(
-        Cont0.<Integer, Integer, Integer, Cont0<Integer, Integer, Integer>, Integer>shift0(_ -> pure(-1))
+    Cont<Integer, Integer, Integer> p = reset0(
+        Cont.<Integer, Integer, Integer, Cont<Integer, Integer, Integer>, Integer>shift0(_ -> pure(-1))
             .map(x -> { ran[0] = true; return x + 1; }));
     assertEquals(-1, value(p));
     assertFalse(ran[0]);
@@ -106,9 +106,9 @@ class Cont0Test {
   @Test
   void theBodyRunsOutsideTheDelimiter() {
     // reset0(reset0(shift0 k1. shift0 k2. k2(k2(k1 1))) + 10) * 2): k1 = _ + 10, k2 = _ * 2 — 1 + 10, twice doubled
-    Cont0<Cont0<Integer, Integer, Integer>, Cont0<Integer, Integer, Integer>, Integer> inner = reset0(
-        Cont0.<Integer, Integer, Integer, Cont0<Cont0<Integer, Integer, Integer>, Cont0<Integer, Integer, Integer>, Integer>, Integer>shift0(
-            k1 -> Cont0.<Integer, Integer, Integer, Cont0<Integer, Integer, Integer>, Integer>shift0(
+    Cont<Cont<Integer, Integer, Integer>, Cont<Integer, Integer, Integer>, Integer> inner = reset0(
+        Cont.<Integer, Integer, Integer, Cont<Cont<Integer, Integer, Integer>, Cont<Integer, Integer, Integer>, Integer>, Integer>shift0(
+            k1 -> Cont.<Integer, Integer, Integer, Cont<Integer, Integer, Integer>, Integer>shift0(
                 k2 -> k1.apply(1).flatMap(k2).flatMap(k2)))
             .map(x -> x + 10));
     assertEquals(44, value(reset0(inner.map(x -> x * 2))));
@@ -127,9 +127,9 @@ class Cont0Test {
 
   @Test
   void twoShift0DeepABodyDropsBoth() {
-    Cont0<Cont0<Integer, Integer, Integer>, Cont0<Integer, Integer, Integer>, Integer> inner = reset0(
-        Cont0.<Integer, Integer, Integer, Cont0<Cont0<Integer, Integer, Integer>, Cont0<Integer, Integer, Integer>, Integer>, Integer>shift0(
-            _ -> Cont0.<Integer, Integer, Integer, Cont0<Integer, Integer, Integer>, Integer>shift0(_ -> pure(-1)))
+    Cont<Cont<Integer, Integer, Integer>, Cont<Integer, Integer, Integer>, Integer> inner = reset0(
+        Cont.<Integer, Integer, Integer, Cont<Cont<Integer, Integer, Integer>, Cont<Integer, Integer, Integer>, Integer>, Integer>shift0(
+            _ -> Cont.<Integer, Integer, Integer, Cont<Integer, Integer, Integer>, Integer>shift0(_ -> pure(-1)))
             .map(x -> x + 10));
     assertEquals(-1, value(reset0(inner.map(x -> x * 2))));
     // a shift gets out of one only
@@ -147,9 +147,9 @@ class Cont0Test {
   @Test
   void dollarsReturnClauseIsPutBackByK() {
     // a handler's ret: the body's value through it, each time k resumes
-    Cont0<List<Integer>, List<Integer>, List<Integer>> p = dollar(
-        (Integer a) -> Cont0.<List<Integer>, List<Integer>>pure(List.of(a)),
-        Cont0.<List<Integer>, List<Integer>, List<Integer>, Cont0<List<Integer>, List<Integer>, List<Integer>>, Integer>shift0(
+    Cont<List<Integer>, List<Integer>, List<Integer>> p = dollar(
+        (Integer a) -> Cont.<List<Integer>, List<Integer>>pure(List.of(a)),
+        Cont.<List<Integer>, List<Integer>, List<Integer>, Cont<List<Integer>, List<Integer>, List<Integer>>, Integer>shift0(
                 k -> k.apply(1).flatMap(xs -> k.apply(2).map(ys -> concat(xs, ys))))
             .map(x -> x * 10));
     assertEquals(List.of(10, 20), value(p));
@@ -168,30 +168,30 @@ class Cont0Test {
   void handlersAsDelimitersATellLiftedOverChoose() {
     // writer: ret $ body; tell: a shift0 up to it. choose: ret $ body; among: a shift0 up to it, k for each.
     // A tell under choose is lifted: one shift0 more, over choose's delimiter
-    Function<Integer, Cont0<Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Integer>> body =
-        x -> Cont0.<Cont0<W, W, W>, Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>, Void>lift(tell("x=" + x))
+    Function<Integer, Cont<Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Integer>> body =
+        x -> Cont.<Cont<W, W, W>, Cont<W, W, W>, Cont<W, W, W>, List<Integer>, Void>lift(tell("x=" + x))
             .map(_ -> x * 10);
     var prog = among(List.of(1, 2)).flatMap(body);
     assertEquals(new W(List.of("x=1", "x=2"), List.of(10, 20)), value(writer(choose(prog))));
   }
 
-  private static Cont0<W, W, W> writer(Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>> body) {
-    return dollar((List<Integer> a) -> Cont0.<W, W>pure(new W(List.of(), a)), body);
+  private static Cont<W, W, W> writer(Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>> body) {
+    return dollar((List<Integer> a) -> Cont.<W, W>pure(new W(List.of(), a)), body);
   }
 
-  private static Cont0<Cont0<W, W, W>, Cont0<W, W, W>, Void> tell(String s) {
+  private static Cont<Cont<W, W, W>, Cont<W, W, W>, Void> tell(String s) {
     return shift0(k -> k.apply(null).map(w -> new W(prepend(s, w.log()), w.value())));
   }
 
-  private static Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>> choose(
-      Cont0<Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Integer> body) {
-    return dollar((Integer a) -> Cont0.<Cont0<W, W, W>, List<Integer>>pure(List.of(a)), body);
+  private static Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>> choose(
+      Cont<Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Integer> body) {
+    return dollar((Integer a) -> Cont.<Cont<W, W, W>, List<Integer>>pure(List.of(a)), body);
   }
 
-  private static Cont0<Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>>, Integer> among(
+  private static Cont<Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>>, Integer> among(
       List<Integer> xs) {
     return shift0(k -> {
-      Cont0<Cont0<W, W, W>, Cont0<W, W, W>, List<Integer>> acc = pure(List.of());
+      Cont<Cont<W, W, W>, Cont<W, W, W>, List<Integer>> acc = pure(List.of());
       for (Integer x : xs) acc = acc.flatMap(l -> k.apply(x).map(r -> concat(l, r)));
       return acc;
     });
@@ -206,14 +206,14 @@ class Cont0Test {
 
   @Test
   void bindsNestedLeftAndRightInConstantStack() {
-    Cont0<Integer, Integer, Integer> left = pure(0);
+    Cont<Integer, Integer, Integer> left = pure(0);
     for (int i = 0; i < 100_000; i++) left = left.map(x -> x + 1);
     assertEquals(100_000, value(left));
     assertEquals(100_000, value(right(100_000)));
   }
 
-  private static Cont0<Integer, Integer, Integer> right(int n) {
-    return n == 0 ? pure(0) : Cont0.<Integer, Integer>pure(1).flatMap(x -> right(n - 1).map(r -> r + x));
+  private static Cont<Integer, Integer, Integer> right(int n) {
+    return n == 0 ? pure(0) : Cont.<Integer, Integer>pure(1).flatMap(x -> right(n - 1).map(r -> r + x));
   }
 
   @Test
@@ -222,26 +222,26 @@ class Cont0Test {
     assertEquals(200_000, value(reset0(shifts(100_000, 0))));
   }
 
-  private static Cont0<Cont0<Integer, Integer, Integer>, Cont0<Integer, Integer, Integer>, Integer> shifts(int i, int acc) {
+  private static Cont<Cont<Integer, Integer, Integer>, Cont<Integer, Integer, Integer>, Integer> shifts(int i, int acc) {
     if (i == 0) return pure(acc);
-    return Cont0.<Integer, Integer, Integer, Cont0<Integer, Integer, Integer>, Integer>shift0(k -> k.apply(1))
-        .flatMap(x -> Cont0.<Cont0<Integer, Integer, Integer>, Integer>pure(x + 1))
+    return Cont.<Integer, Integer, Integer, Cont<Integer, Integer, Integer>, Integer>shift0(k -> k.apply(1))
+        .flatMap(x -> Cont.<Cont<Integer, Integer, Integer>, Integer>pure(x + 1))
         .flatMap(x -> shifts(i - 1, acc + x));
   }
 
   @Test
   void kUnderManyFramesAppliedThreeTimesIsNotWorn() {
-    Cont0<Cont0<Long, Long, Long>, Cont0<Long, Long, Long>, Integer> p =
-        Cont0.<Long, Long, Long, Cont0<Long, Long, Long>, Integer>shift0(k -> calls(k, 3, 0));
+    Cont<Cont<Long, Long, Long>, Cont<Long, Long, Long>, Integer> p =
+        Cont.<Long, Long, Long, Cont<Long, Long, Long>, Integer>shift0(k -> calls(k, 3, 0));
     for (int j = 1; j <= 100_000; j++) {
-      p = j % 2 == 0 ? p.map(x -> x + 1) : p.flatMap(x -> Cont0.<Cont0<Long, Long, Long>, Integer>pure(x + 1));
+      p = j % 2 == 0 ? p.map(x -> x + 1) : p.flatMap(x -> Cont.<Cont<Long, Long, Long>, Integer>pure(x + 1));
     }
     assertEquals((100_003L + 100_002L + 100_001L) * 10, value(reset0(p.map(Integer::longValue))));
   }
 
-  private static Cont0<Long, Long, Long> calls(Function<Integer, Cont0<Long, Long, Long>> k, int i, long acc) {
+  private static Cont<Long, Long, Long> calls(Function<Integer, Cont<Long, Long, Long>> k, int i, long acc) {
     if (i == 0) return pure(acc);
-    return k.apply(i).flatMap(r -> Cont0.<Long, Long>pure(r * 10)).flatMap(r -> calls(k, i - 1, acc + r));
+    return k.apply(i).flatMap(r -> Cont.<Long, Long>pure(r * 10)).flatMap(r -> calls(k, i - 1, acc + r));
   }
 
   @Test
@@ -249,11 +249,11 @@ class Cont0Test {
     assertEquals(false, value(isEven(100_001)));
   }
 
-  private static Cont0<Boolean, Boolean, Boolean> isEven(int i) {
-    return i == 0 ? pure(true) : Cont0.delay(() -> isOdd(i - 1));
+  private static Cont<Boolean, Boolean, Boolean> isEven(int i) {
+    return i == 0 ? pure(true) : Cont.delay(() -> isOdd(i - 1));
   }
 
-  private static Cont0<Boolean, Boolean, Boolean> isOdd(int i) {
-    return i == 0 ? pure(false) : Cont0.delay(() -> isEven(i - 1));
+  private static Cont<Boolean, Boolean, Boolean> isOdd(int i) {
+    return i == 0 ? pure(false) : Cont.delay(() -> isEven(i - 1));
   }
 }

@@ -3,14 +3,14 @@ package okay.core;
 import java.util.function.Function;
 
 /**
- * THE REFERENCE of {@link Cont0}: its nodes read by the textbook, no code of {@link Loop0} — a program evaluated to
+ * THE REFERENCE of {@link Cont}: its nodes read by the textbook, no code of {@link Loop} — a program evaluated to
  * what it answers its delimiter, its value or a capture with the rest. {@code ret $ body}: a value, {@code ret}'s,
  * a program outside, evaluated there; a capture, its body in the delimiter's place, k the rest under the delimiter
  * again. Recursive, not stack safe: run on a thread of a large stack.
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public final class Ref0 {
-  private Ref0() {}
+public final class ContRef {
+  private ContRef() {}
 
   sealed interface Res {
     record Done(Object value) implements Res {}
@@ -18,14 +18,14 @@ public final class Ref0 {
     record Cut(Function f, Function<Object, Res> k) implements Res {}
   }
 
-  static Res eval(Cont0<?, ?, ?> c) {
+  static Res eval(Cont<?, ?, ?> c) {
     return switch (c) {
-      case Cont0.Return r -> new Res.Done(r.value());
-      case Cont0.Bind b -> then(eval(b.m()), x -> eval((Cont0) b.f().apply(x)));
-      case Cont0.Map m -> then(eval(m.m()), x -> new Res.Done(m.f().apply(x)));
-      case Cont0.Shift0 s -> new Res.Cut(s.f(), Res.Done::new);
-      case Cont0.Dollar d -> delimit(d.ret(), eval(d.body()));
-      case Loop0.Push _, Loop0.Resume _ -> throw new IllegalStateException("the loop's own node: " + c);
+      case Cont.Return r -> new Res.Done(r.value());
+      case Cont.Bind b -> then(eval(b.m()), x -> eval((Cont) b.f().apply(x)));
+      case Cont.Map m -> then(eval(m.m()), x -> new Res.Done(m.f().apply(x)));
+      case Cont.Shift0 s -> new Res.Cut(s.f(), Res.Done::new);
+      case Cont.Dollar d -> delimit(d.ret(), eval(d.body()));
+      case Loop.Push _, Loop.Resume _ -> throw new IllegalStateException("the loop's own node: " + c);
     };
   }
 
@@ -42,16 +42,16 @@ public final class Ref0 {
   }
 
   /** {@code ret $ body}, the body evaluated to {@code r}, as the program outside it */
-  private static Cont0<?, ?, ?> outside(Function ret, Res r) {
+  private static Cont<?, ?, ?> outside(Function ret, Res r) {
     return switch (r) {
-      case Res.Done d -> (Cont0) ret.apply(d.value());
-      case Res.Cut cut -> (Cont0) cut.f().apply((Function<Object, Cont0<?, ?, ?>>) x ->
-          Cont0.delay(() -> outside(ret, cut.k().apply(x))));
+      case Res.Done d -> (Cont) ret.apply(d.value());
+      case Res.Cut cut -> (Cont) cut.f().apply((Function<Object, Cont<?, ?, ?>>) x ->
+          Cont.delay(() -> outside(ret, cut.k().apply(x))));
     };
   }
 
   /** a program at the top, the top a delimiter, {@code identity $} */
-  public static <A> A value(Cont0<A, A, A> c) {
+  public static <A> A value(Cont<A, A, A> c) {
     return switch (eval(c)) {
       case Res.Done d -> (A) d.value();
       case Res.Cut cut -> (A) cut.f().apply((Function<Object, Object>) x -> atTop(cut.k().apply(x)));

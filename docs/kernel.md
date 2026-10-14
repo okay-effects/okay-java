@@ -28,7 +28,9 @@ protocol and semantics are okay-kernel's (`docs/design.md` there; its reference 
   to the nearest one the exception concerns, drops the rest, and goes on in that delimiter's place. `recover` answers
   a failure; `ensuring` runs its finalizer and throws on; an aborting handler takes its own abort; the export's root
   makes it a `Failed` step. If nothing concerns it, the exception leaves `Eff.run` as before. `failed(e)` is a node
-  that unwinds. Aborts and cancellations are unwound the same way, and no `recover` catches them.
+  that unwinds. Aborts and cancellations are unwound the same way, and no `recover` catches them. The guards are
+  okay-java's own too — `Eff.recover`, `Eff.ensuring`, `Eff.uncancelable`, `Eff.failed` make the same delimiters — so
+  an okay-java program inside a kernel program fails to the kernel's `recover`, and the other way round.
 - **Cancellation.** A handed-out `k` is resumed with a signal: a value, `k.fail`'s failure (thrown where the
   operation was) or `k.cancel`'s cancellation (finalizers only). Inside `uncancelable`, `cancel` answers the same
   `Yield` again, pending. Resumed, the rest of the region is captured and run under a delimiter that cancels when the
@@ -47,8 +49,11 @@ Nothing on the paths okay-java's own API takes:
 - A `Prompt` has a field more (`frame`, null): 16 bytes as before, the object padded to 8 bytes anyway.
 - A `Handle` node has a field more (`frame`, null): 24 bytes as before.
 - The run loop is inside a `try`. HotSpot compiles an exception handler as a table entry; the loop itself is the same.
-- A resumption's first frame, and a clause, are applied inside a `try` that puts the stack back in order if they
-  throw, so a kernel delimiter inside `k` sees the failure. This is the same code with no exception.
+- A resumption's first frame is applied inside a `try` that puts its delimiters back if it throws, so a guard inside
+  `k` sees the failure; a clause is applied with the stack already dropped to outside its delimiter. The same code
+  with no exception.
+- The kernel's own calls of the program's code (a bind's function, a body, a clause) are each in a `try` of their
+  own as well: their failure a `Fail` node where the call was, one allocation on the failing path only.
 
 Measured (2026-10-10, JDK 25 — okay-java's toolchain — JMH, 2 forks unless said; another agent's JMH and sbt runs on the same machine, so
 each A/B run back to back, waiting for the JMH lock; CSVs in `bench.d/2026-10-10_kernel-native-*`), against the

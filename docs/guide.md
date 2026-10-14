@@ -6,11 +6,12 @@ that starts with `// run` is executed, and its `check(actual, expected)` calls m
 `// does not compile` is compiled on its own and must fail.
 
 ```java
-import okay.core.*;           // Eff, Prompt, Cont0
+import okay.core.*;           // Eff, Prompt, Cont
 import okay.core.Eff.Top;     // the level outside every handler
 import okay.std.*;            // the standard effects
 import okay.std.State.Final;
 import okay.std.Writer.Log;
+import java.util.ArrayList;
 import java.util.List;
 ```
 
@@ -262,6 +263,39 @@ check(Eff.run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
 - A shift to a handler's prompt captures the rest with the handler. Each resumption has the handler in force, its
   `ret` included. A raise in `k` is that `k`'s own failure.
 
+## Failures
+
+A function of the program's that throws — a bind's, a map's, a clause — is a failure of the program: it unwinds from
+where it was, through the handlers in force, to the nearest guard that takes it. `Eff.recover(body, h)` gives the
+failure to `h`, whose program runs in the body's place. `Eff.ensuring(body, fin)` runs `fin` after the body whatever
+way it is left, then goes on the same way. `Eff.failed(e)` is a failure as a program. A failure no guard takes leaves
+`Eff.run` thrown, as before:
+
+```java
+// run
+Eff<Top, Integer> failing = Eff.<Top, Integer>pure(1).map(x -> {
+  throw new IllegalStateException("boom");
+});
+check(Eff.run(Eff.recover(failing, t -> Eff.pure(t.getMessage().length()))), 4);
+
+List<String> log = new ArrayList<>();
+Eff<Top, Void> fin = Eff.sync(() -> {
+  log.add("fin");
+  return null;
+});
+check(Eff.run(Eff.recover(Eff.ensuring(failing, fin), t -> Eff.pure(-1))), -1);
+check(log, List.of("fin"));
+```
+
+- A clause runs outside its handler, so a guard inside the handler's body does not take the clause's failure; a
+  guard outside the handler does.
+- A `shift0` across a guard keeps it in `k`: each resumption has the guard in force again, and `fin` runs once a
+  resumption.
+- A failing handler of `recover`, or a failing `fin`, is a failure in the guard's place: the next guard out takes it.
+- Errors of the JVM (`VirtualMachineError`, `LinkageError`) are not failures and are never caught.
+- `Eff.uncancelable(body)` is for programs of the kernel's (`docs/kernel.md`): a cancellation of a handed-out
+  operation waits for the region to end. Nothing of okay-java's own cancels.
+
 ## A state whose type changes
 
 `PState` is a typestate. `put` of a `T` gives the capability of a `PState<L, T>`, and the one it was put by is stale
@@ -277,7 +311,7 @@ Final<String, Integer> r = Eff.run(PState.pstate(7, new PState.Body<Top, Integer
 check(r, new Final<>("xxxxxxx", 7));
 ```
 
-`PState0`, on `Cont0`, carries the state's type in the answer type instead, okay-core's way. There, a `get` of the
+`ContPState`, on `Cont`, carries the state's type in the answer type instead, okay-core's way. There, a `get` of the
 wrong type does not compile.
 
 ## Generators

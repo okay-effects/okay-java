@@ -361,4 +361,14 @@ class KernelTest {
     assertEquals(11, KernelTest.<Integer>run(Handlers.reader(RD, 5, Handlers.intercept(RD, asked(r -> r * 2),
         Handlers.intercept(RD, asked(r -> r + 1), ASK)))));
   }
+
+  /** okay-java's own program inside a kernel program: its map's throw is a failure of the kernel's, the recover
+   * around it taking it — the machine unwinds its own failures too */
+  @Test
+  void okayJavasOwnFailureInsideAKernelProgramIsTheKernels() {
+    Program<Integer> body = _ -> Eff.<Object, Integer>pure(1).map(_ -> {
+      throw new IllegalStateException("own");
+    });
+    assertEquals(3, KernelTest.<Integer>run(e -> e.recover(body, t -> e.pure(t.getMessage().length()))));
+  }
 }

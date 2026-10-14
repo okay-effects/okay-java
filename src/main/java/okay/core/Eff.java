@@ -5,11 +5,11 @@ import java.util.function.Supplier;
 
 /**
  * A PROGRAM WITH EFFECTS AT A LEVEL, {@code Eff<L, A>}: of value {@code A}, run under the handlers of the level
- * {@code L} — {@link Cont0}'s levels, its nested answer types, kept as a phantom: nothing at run time. A handler's
+ * {@code L} — {@link Cont}'s levels, its nested answer types, kept as a phantom: nothing at run time. A handler's
  * body is at a level of its own, FRESH, a type variable {@code M extends L} nobody outside the body can name (runST's
  * rank-2 trick); its capability is at {@code M}. So a capability cannot leave its handler: out of the body its type
  * is at a level no program is at — not a value of the top, not one of another handler's body. Statically, and at no
- * cost: the levels are types only, the run is {@link Cont0}'s machine with the answer types erased into prompts.
+ * cost: the levels are types only, the run is {@link Cont}'s machine with the answer types erased into prompts.
  *
  * <p>Two primitives, all the rest is a library: {@link #handle} — {@code ret $ body} under a fresh {@link Prompt}, the
  * body given it; {@link Prompt#shift0} — the rest up to that prompt's delimiter, the delimiter included, as k, the
@@ -80,7 +80,37 @@ public sealed interface Eff<L, A> extends okay.kernel.Prog<A>
     return new Nodes.Handle<L, R, R>(body, Eff::pure);
   }
 
-  /** a program at the top, its value */
+  // -- failures: a function of the program's throwing, or failed(e) — unwound to the nearest guard that takes it
+
+  /** a FAILURE: unwound from where it is, through the delimiters, to the nearest guard — {@link #recover},
+   * {@link #ensuring}, the kernel's — or out of the run, thrown by {@link #run} */
+  static <L, A> Eff<L, A> failed(Throwable e) {
+    return new Kernel.Fail<>(e);
+  }
+
+  /** a GUARD: a failure in {@code body} given to {@code h}, its program in the body's place. Not a guard against an
+   * abort or a cancellation of the kernel's: those unwind through it. A {@code shift0} across it keeps it in
+   * {@code k}, put back each time {@code k} is resumed. {@link VirtualMachineError}s and {@link LinkageError}s are
+   * not failures: never caught */
+  static <L, A> Eff<L, A> recover(Eff<L, A> body, Function<? super Throwable, ? extends Eff<? super L, A>> h) {
+    return new Nodes.Handle<L, A, A>(Nodes.plain(body), Machine.SAME, new Kernel.KRecover(h));
+  }
+
+  /** a GUARD: {@code fin} after {@code body}, whatever way it is left — its value, a failure, an abort or a
+   * cancellation of the kernel's — then on the same way. A {@code shift0} across it keeps it in {@code k}: {@code fin}
+   * once a resumption. A failure of {@code fin} replaces the failure */
+  static <L, A> Eff<L, A> ensuring(Eff<L, A> body, Eff<? super L, ?> fin) {
+    Function<A, Eff<?, ?>> ret = a -> fin.then(Eff.pure(a));
+    return new Nodes.Handle<L, A, A>(Nodes.plain(body), ret, new Kernel.KEnsuring(() -> fin));
+  }
+
+  /** a REGION a cancellation of the kernel's waits for: a handed-out operation's {@code k.cancel} inside it is
+   * answered when it ends — nothing of okay-java's own cancels */
+  static <L, A> Eff<L, A> uncancelable(Eff<L, A> body) {
+    return new Nodes.Handle<L, A, A>(Nodes.plain(body), Machine.SAME, Kernel.Mark.UNCANCELABLE);
+  }
+
+  /** a program at the top, its value; a failure no guard took, thrown */
   static <A> A run(Eff<Top, A> p) {
     return Machine.run(p);
   }
