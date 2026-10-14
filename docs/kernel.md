@@ -75,7 +75,7 @@ okay-kernel's `bench/` `MixedBenchmark` is okay-java's mixed program written onc
 standard handlers, a throw and a choice handled per order). On `Kernel.EFFECTS` (2026-10-10, the same machine, all on
 JDK 26 — okay-kernel's sbt runs on it; okay-java's own with `-PbenchJdk=26`):
 
-| an order | okay-java, the kernel's program | okay-java's own program (`orders`) | steps-java | steps |
+| an order | okay-java, the kernel's program | okay-java's own program (`orders`) | steps-java (gone since) | steps |
 |---|---|---|---|---|
 | time | 221 ns or 271 ns, by fork (246 ± 40) | 182 ± 26 ns | 399 ns | 522 ns |
 | allocation | 1767 B | 1352 B | 2520 B | 2414 B |

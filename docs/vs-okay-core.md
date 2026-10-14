@@ -38,10 +38,10 @@ orders:
 |---|---|---|
 | its own, the total a cell | 103 | `one` 169, `core` 223 |
 | its own, the total a functional state | 183 (190 ± 33 in that run, 172 ± 1 the day before: the forks differ) | `core` 223 |
-| the protocol's | 237–253 | `core` 440 |
+| the protocol's | 237–253 | `core` 286 (440 before its place by key at run time, the same day) |
 
 (The numbers are okay-bench's `results/table.md` of the run; see the table there for the error bars and allocation,
-and the reference machines beside — `steps-java` 426, `steps` 535. okay-java's own `MixedBenchmark`, 2 forks, gave
+and the reference machine beside — `steps` 535 (its Java copy, `steps-java`, is gone: one reference). okay-java's own `MixedBenchmark`, 2 forks, gave
 183 / 103 at this commit and 185 / 106 at the commit before the machine's guards: the `try` costs nothing.)
 
 What the numbers say:
