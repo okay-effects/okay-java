@@ -1,0 +1,4 @@
+okay.spring.OkayWebMvcAutoConfiguration
+okay.spring.OkayWebFluxAutoConfiguration
+okay.spring.OkayAsyncAutoConfiguration
+okay.spring.OkayTransactionAutoConfiguration

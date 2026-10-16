@@ -4,8 +4,9 @@ Delimited continuations in Java 25, and effects on `shift0` — okay-core's desi
 okay-kernel's protocol, so its programs run under okay-core's handlers and okay-core's under its.
 
 The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
-`GuideTest`, the [architecture](docs/architecture.md), [how it differs from okay-core](docs/vs-okay-core.md), and
-[okay-java as an implementation of okay-kernel](docs/kernel.md).
+`GuideTest`, the [architecture](docs/architecture.md), [how it differs from okay-core](docs/vs-okay-core.md),
+[okay-java as an implementation of okay-kernel](docs/kernel.md), and [the optional Spring Boot
+module](docs/spring-boot.md).
 
 ## Layout
 
@@ -47,6 +48,55 @@ delimiters they concern. `computation` and `foreign` are the protocol's export a
 costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.md). `KernelTest` is okay-kernel's
 `TestSteps` and the TCK's checks of where implementations went wrong; the TCK itself runs on it in okay-kernel's
 `integration`.
+
+### `spring-boot/`: optional Spring Boot support
+
+A module of its own, `dev.okay:okay-java-spring-boot`; okay-java itself depends on nothing of Spring's. On the
+classpath of an application of Spring Boot 4.x, it lets a controller's method return a program at the top,
+`Eff<Eff.Top, A>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
+transaction. A controller's program's value is the method's, as if the method had returned it: a body, a
+`ResponseEntity`, a view's name. A failure no guard took goes to the `@ExceptionHandler`s. A program that waits
+needs nothing of the module: `Async.runAsync`'s `CompletableFuture` is Spring's own in both.
+
+```java
+@GetMapping("/sum/{n}")
+Eff<Eff.Top, Integer> sum(@PathVariable("n") int n) {
+  return State.state(0, new State.Body<Eff.Top, Integer, Void>() {
+    public <M extends Eff.Top> Eff<M, Void> in(State<M, Integer> st) { … }
+  }).map(State.Final::state);
+}
+```
+
+- **Web MVC** (`OkayWebMvcAutoConfiguration`): the program runs on the request's thread, its value an async
+  dispatch's, as a `CompletableFuture`'s is. The handler goes first among the adapter's, before `@ResponseBody`'s,
+  which would otherwise write the program itself as JSON.
+- **WebFlux** (`OkayWebFluxAutoConfiguration`): the program runs when the response is subscribed to, on the event
+  loop's thread, its value handed to the other result handlers as of the type `A`. It is not a `ReactiveAdapter`,
+  because an adapted type's value is its first type argument and an `Eff`'s first is its level. A program that blocks
+  belongs on `Async`'s `blocking`, not on the event loop.
+
+Outside the web, in any application:
+
+- **`@Async`** (`OkayAsyncAutoConfiguration`, where `@EnableAsync` is): a method may return an `Eff<Eff.Top, A>`.
+  The method and its program run on the `@Async` executor, the call returning at once with a program that is their
+  result. Run, that program waits for their value, or fails with their failure, the method's throw included. Spring's
+  own interceptor takes nothing but `void` and a `Future`, and goes before every other advisor, so the module puts
+  its own in its place in each proxy; any other method is still Spring's.
+- **Transactions** (`EffTransactions`, a bean where there is one `PlatformTransactionManager`):
+  `txs.transactional(body)` begins a transaction when the run gets to it, commits after the body's value, and rolls
+  back however else the body is left. The body is a program at the top, so a capability of a handler outside it does
+  not compile there: such a handler could drop the body's rest, and a dropped rest runs no finalizer, not even
+  `Eff.ensuring`'s. Its value goes on at any level. The transaction is the thread's, as Spring's are, and
+  `@Transactional` on a method returning an `Eff` commits before the program runs.
+
+```java
+Eff<M, Order> placed = st.get().flatMap(cart -> txs.transactional(save(cart)));   // save: Eff<Eff.Top, Order>
+```
+
+Spring is `compileOnly`, so the application's own Spring Boot is used. Each configuration is on only where its part
+of Spring is, and off by `spring.autoconfigure.exclude`. `EffControllerTest` runs one controller on Tomcat,
+`WebFluxTest` the same controller on Netty; `AsyncEffTest`, `TransactionsTest` and `TransactionLeakTest` run in an
+application not of the web. The whole of it: [`docs/spring-boot.md`](docs/spring-boot.md).
 
 ## Effects on `shift0`
 
@@ -241,6 +291,7 @@ that trace escape analysis are a debug build's.
 ## Build
 
 ```sh
-./gradlew test
+./gradlew test                                     # okay-java and okay-java-spring-boot
+./gradlew :okay-java-spring-boot:test              # the Spring Boot module alone
 ./gradlew bench --args='MonadsBenchmark -prof gc'   # JMH
 ```

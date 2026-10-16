@@ -6,3 +6,5 @@
 - [okay-java and okay-core](vs-okay-core.md): what is done differently and why, and the speed side by side.
 - [okay-kernel](kernel.md): okay-java as an implementation of okay-kernel's API — `Eff` a kernel program, the
   kernel's operations run by the machine; what it costs okay-java's own API.
+- [Spring Boot](spring-boot.md): the optional module — a controller's method, in web MVC and WebFlux, and an `@Async`
+  method returning an `Eff`; a program in a transaction; how each works and where it stops.
