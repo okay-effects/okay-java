@@ -95,7 +95,7 @@ public final class Rows {
     }
 
     /** the rest UNWOUND: its finalizers run, nothing else of it; then {@code null}. {@code mode}: what stands where
-     * its handler was — {@link #GONE}, {@link #KEPT}, {@link #NONE} */
+     * its handler was — {@link #GONE}, {@link #KEPT}, {@link #NONE}; or the handler itself, {@link #STAYS} */
     public Eff<?, ?> unwind(Rest rest, int mode) {
       Unwinding u = new Unwinding();
       Kont k = rest.kont;
@@ -103,7 +103,8 @@ public final class Rows {
       Frames onFrames = new Frames.Then(on, Frames.END);
       Seg[] crossed = first(k.ms(), k.n());
       // its delimiters again, each with nothing outside it but the unwinding's going on, and its handler gone
-      Meta levels = new Seg(new Prompt<>(new Gone(mode, u)), on, null, Frames.END, Machine.TOP);
+      Prompt<?, ?, ?> at = mode == STAYS ? k.up().prompt() : new Prompt<>(new Gone(mode, u));
+      Meta levels = new Seg(at, on, null, Frames.END, Machine.TOP);
       for (int i = crossed.length - 1; i >= 0; i--)
         levels = new Seg(crossed[i].prompt(), crossed[i].ret(), null, onFrames, levels);
       Eff<?, ?> r = new Kont(on, levels, k.n()).apply(null);
@@ -112,6 +113,13 @@ public final class Rows {
         return r;
       });
       return new Nodes.Handle<>(Nodes.plain(run), Machine.SAME, new End(u));
+    }
+
+    /** {@code c}, then the rest resumed with its value; if {@code c} is left by an unwinding, the rest unwound there
+     * too, its handler staying, and the unwinding goes on: the rest a finalizer of {@code c}'s */
+    public Eff<?, ?> after(Rest rest, Eff<?, ?> c) {
+      Function<Object, Eff<?, ?>> ret = x -> resume(rest, x);
+      return new Nodes.Handle<>(Nodes.plain(c), ret, new Kernel.KEnsuring(() -> unwind(rest, STAYS)));
     }
 
     /** {@code body} run to its value, as {@code done} makes it, or to an operation no handler in it answers, as
@@ -218,6 +226,8 @@ public final class Rows {
   public static final int GONE = 0;
   public static final int KEPT = 1;
   public static final int NONE = 2;
+  /** not a mark: the handler stays, its rest unwound by {@link Door#after} */
+  public static final int STAYS = 3;
 
   /** the end of an unwinding: its value {@code null} */
   record End(Unwinding u) {}

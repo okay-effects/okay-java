@@ -87,6 +87,20 @@ public final class Effects {
     return new Comp<>(DOOR.handle(new Handlers.Local<>(effect, h, false), s0, p.eff));
   }
 
+  /** each operation of {@code F}, the first effect of the program's row, shown to {@code see} — a program run
+   * before the operation goes on as it is, to the handler of that place further out: a trace, a count, a trail.
+   * Nothing of the program changes. At the effect's place, as {@code Reader.local}: {@code F} may have type
+   * arguments, and a sensitive place is refused ({@code under} takes no {@link Sensitive} or {@link Audited}). */
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> observe(Class<? super F> effect,
+      Function<? super F, ? extends Comp<?, ? super Eff<F, ? extends T>>> see, Comp<A, ? super Eff<F, T>> p) {
+    return handle(effect, new Handler<F, A, A, Eff<F, ? extends T>>() {
+      public Comp<A, Eff<F, ? extends T>> ret(A a) { return pure(a); }
+      public Comp<A, Eff<F, ? extends T>> on(F op, K<A, Eff<F, ? extends T>> k) {
+        return new Comp<>(see.apply(op).eff.flatMap(seen -> k.again().eff));
+      }
+    }, under(p));
+  }
+
   /** a computation run to its next question that no handler in it answers */
   public static <A, R> Step<A, R> step(Comp<A, R> p) {
     try {
@@ -97,11 +111,10 @@ public final class Effects {
     }
   }
 
-  /** an operation that came to the top: the step {@code Asked} — unless it is sensitive, which nobody answers but
-   * the handler under its audit */
+  /** an operation that came to the top: the step {@code Asked} — unless it is sensitive: it is answered under its
+   * audit only, not by whoever steps the program */
   private static Object asked(Object op, Rows.Rest rest) {
-    if (!(op instanceof Op<?, ?, ?> asked))
-      throw new IllegalStateException("a sensitive operation with no audit, at the top: " + op);
+    if (!(op instanceof Op<?, ?, ?> asked)) throw new NoHandler(op);
     return new Step.Asked<>(asked, new Handlers.Stepped<>(rest));
   }
 

@@ -21,6 +21,13 @@ public final class Cell<S> {
     return ANSWERED;
   }
 
+  /** a sensitive operation answered in place: by the handler of its audit ({@link Audit#handle}) */
+  public <X> Answered answer(Sensitive.Op<?, X, ?> op, X x) {
+    if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
+    answer = x;
+    return ANSWERED;
+  }
+
   /** the operation is the witness of the answer's type: a {@code Get<S>} is answered by an {@code S} */
   public <X> Answered answer(Op<?, X, ?> op, X x) {
     if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);

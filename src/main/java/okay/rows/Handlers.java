@@ -31,7 +31,7 @@ final class Handlers {
 
     @Override
     protected boolean accepts(Object op) {
-      return effect.isInstance(op) && h.mine(trusted(op));
+      return effect.isInstance(op) && !(op instanceof Sensitive.Op) && h.mine(trusted(op));
     }
 
     @Override
@@ -58,7 +58,7 @@ final class Handlers {
 
     @Override
     protected boolean accepts(Object op) {
-      return effect.isInstance(op) && h.mine(trusted(op));
+      return effect.isInstance(op) && !(op instanceof Sensitive.Op) && h.mine(trusted(op));
     }
 
     @Override

@@ -28,6 +28,31 @@ public final class K<B, R> {
     return new Comp<>(Comp.DOOR.resume(rest, answer));
   }
 
+  /** a sensitive operation answered: by the handler of its audit ({@link Audit#handle}), or by its interceptor */
+  public <X> Comp<B, R> resume(Sensitive.Op<?, X, ?> op, X answer) {
+    if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
+    return new Comp<>(Comp.DOOR.resume(rest, answer));
+  }
+
+  /** {@code c}, then the rest resumed with its value. If {@code c} is left — the handler that answers it unwinds
+   * what waits for it —, the rest is unwound there too, its handler staying, so its finalizers run. What an
+   * interceptor goes on with: {@code k.after(op, proceed)}, where {@code proceed.flatMap(x -> k.resume(op, x))}
+   * would leave the rest neither resumed nor unwound. */
+  public <X> Comp<B, R> after(Op<?, X, ?> op, Comp<X, ? super R> c) {
+    if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
+    return new Comp<>(Comp.DOOR.after(rest, c.eff));
+  }
+
+  /** the same, of a sensitive operation */
+  public <X> Comp<B, R> after(Sensitive.Op<?, X, ?> op, Comp<X, ? super R> c) {
+    if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
+    return new Comp<>(Comp.DOOR.after(rest, c.eff));
+  }
+
+  /** the operation asked again, at the place of the handler's effect in the row outside, the rest resumed with its
+   * answer as by {@link #after}: what an interceptor at a place passes on (Effects.observe) */
+  Comp<B, R> again() { return new Comp<>(Comp.DOOR.after(rest, Comp.DOOR.ask(asked, 0))); }
+
   /** the rest left: its finalizers, the innermost first, then nothing ({@code null}). No bind of it runs, no
    * {@code ret} of the handlers in it; their states are dropped. Each finalizer runs where it was installed: the
    * handlers of the rest answer it. The handler that unwinds has left: an operation of its own that a finalizer
