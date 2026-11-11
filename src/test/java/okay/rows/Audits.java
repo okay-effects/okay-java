@@ -178,6 +178,10 @@ final class Audits {
       same(run(Choose.all(Trail.keep(counted(0, recording("", each))))), List.of(
           new Trail.Kept<>(List.of("get", "get → 0", "put 1", "put 1 → done"), new State.Final<>(1, 1)),
           new Trail.Kept<>(List.of("get", "get → 0", "put 2", "put 2 → done"), new State.Final<>(2, 2))));
+      // an answer is recorded in the rest of whoever answers it: given twice, it is recorded twice
+      Comp<Integer, Eff<Choose, Eff<Trail, ?>>> pick = fit(Choose.among(List.of(0, 1)));
+      same(run(Trail.keep(Choose.all(picking(pick)))),
+          new Trail.Kept<>(List.of("among", "→ 0", "→ 1"), List.of(0, 1)));
     });
 
     test("an auditor that refuses", () -> {
@@ -216,6 +220,18 @@ final class Audits {
             "transfer 100 to a", "transfer 100 to a → ok:a:100", "balance", "balance → 900",
             "transfer 50 to b", "transfer 50 to b → ok:b:50"), new Pair<>(850, 900))));
 
+    test("an audited body asks past its sensitive place", () -> {
+      // the audit and its handler are one place of the row: what the body asks of the next place passes both
+      Comp<Integer, Sensitive<Pay, Eff<Trail, ?>>> body = Audit.perform(new Pay.Balance())
+          .flatMap(b -> Effects.<Void, Sensitive<Pay, Eff<Trail, ?>>>fit(up(Trail.record("after " + b))).map(d -> b));
+      Interceptor<Pay, Integer, Eff<Trail, ?>> passing = (op, pass, k) -> switch (op) {
+        case Pay.Transfer t -> k.after(t, pass.pass(t));
+        case Pay.Balance b -> k.after(b, pass.pass(b));
+      };
+      same(run(Trail.keep(bank(7, Audit.audit(passing, body)))), new Trail.Kept<>(List.of("after 7"),
+          new Pair<>(7, 7)));
+    });
+
     // javac's refusals are the programs of negative/Sensitive*.java; what is left to test here is the one refusal
     // at run time: a program stepped, whose sensitive operation would be given to whoever steps it
     test("sensitive: unaudited, the compiler refuses it", () -> {
@@ -252,6 +268,23 @@ final class Audits {
       };
       same(run(bank(1, Audit.audit(passing, balances(100_000, 0)))), new Pair<>(1, 100_000));
     });
+  }
+
+  /** each choice recorded when it is asked and each time it is answered */
+  static <A, R extends Eff<Choose, ? extends Eff<Trail, ?>>> Comp<A, R> picking(Comp<A, ? super R> p) {
+    return intercept(Choose.class, new Handler<Choose, A, A, R>() {
+      public Comp<A, R> ret(A a) { return pure(a); }
+      public Comp<A, R> on(Choose op, K<A, R> k) {
+        return switch (op) {
+          case Choose.Among<?> among -> picked(among, k);
+        };
+      }
+    }, p);
+  }
+
+  static <X, A, R extends Eff<Choose, ? extends Eff<Trail, ?>>> Comp<A, R> picked(Choose.Among<X> among, K<A, R> k) {
+    return Audits.<R>note("among").flatMap(d -> k.after(among,
+        Effects.<X, R>fit(perform(among)).flatMap(x -> Audits.<R>note("→ " + x).map(e -> x))));
   }
 
   static <A, R extends Eff<Throws<String>, ? extends Eff<Counter, ? extends Eff<Trail, ?>>>> Comp<A, R> refusing(
