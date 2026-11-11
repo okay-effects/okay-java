@@ -1,7 +1,9 @@
 # Guide
 
 This guide covers writing programs with effects and delimited control, running them, and writing effects of your
-own. `GuideTest` takes every `java` block here, compiles the blocks together into one class and runs it. A block
+own. It is about the capability notation; the second notation, the row of effects as a type, is
+[rows.md](rows.md)'s.
+`GuideTest` takes every `java` block here, compiles the blocks together into one class and runs it. A block
 that starts with `// run` is executed, and its `check(actual, expected)` calls must hold. A block that starts with
 `// does not compile` is compiled on its own and must fail.
 

@@ -6,7 +6,8 @@ okay-kernel's protocol, so its programs run under okay-core's handlers and okay-
 The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
 `GuideTest`, the [architecture](docs/architecture.md), [how it differs from okay-core](docs/vs-okay-core.md),
 [okay-java as an implementation of okay-kernel](docs/kernel.md), and [the optional Spring Boot
-module](docs/spring-boot.md).
+module](docs/spring-boot.md). A second way of writing programs, the row of effects as a type, with control and
+audit of effects: [`docs/rows.md`](docs/rows.md).
 
 ## Layout
 
@@ -37,6 +38,18 @@ reference can.
 | `ContPState` | `get`, `put` (a new type) | `pstate(s0, body)` on `Cont`: okay-core's kernel's `PState`, the type in the answer type |
 | `Async<L>` | `async`, `await` (callback or `CompletionStage`), `raise`; on virtual threads `blocking(call)` and `fork(body)` | `runAsync(body)` → `CompletableFuture`; `run(t, body)` waits, its failure raised to `t` |
 | `Emit<L, X>` | `emit` | `forEach(body, x -> eff)` (in place), `collect(body)`, `generate(body, next, done)` (lazy, of the consumer's type, under any effects; okay-core's), `iterator(body)` → `Iterator`, `stream(body)` → a lazy `java.util.stream.Stream` |
+
+### `okay.rows`: a second notation, the row of effects as a type
+
+The interface of okay-effects' Java kernel, on okay-java's machine: a program is `Comp<A, R>`, its effects a nested
+type, `Comp<Integer, Eff<State<Integer>, Eff<Choose, ?>>>`, with no capabilities. An operation is data
+(`record Get<S>() implements State<S>, Op<State<S>, S, Get<S>>`), a handler takes the program and the first effect
+off the row, and `run` takes only `Pure`: `run(Choose.all(State.run(0, chosen())))`. okay-effects' `Properties`,
+its TCK digest and its negative programs pass here with only their package changed. `okay.rows.Bridge` runs a program
+of either notation inside the other, a handler of one answering the other's operations. Control and audit:
+`Sensitive` effects, answered only under `Audit.audit` with an `Interceptor`, every way past it a compile error;
+`Effects.observe`, `Observer.observe`, `std.Trail`. The whole of it, and what differs from the reference:
+[`docs/rows.md`](docs/rows.md).
 
 ### okay-kernel: okay-java implements its API
 

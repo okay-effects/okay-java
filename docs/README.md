@@ -8,3 +8,5 @@
   kernel's operations run by the machine; what it costs okay-java's own API.
 - [Spring Boot](spring-boot.md): the optional module — a controller's method, in web MVC and WebFlux, and an `@Async`
   method returning an `Eff`; a program in a transaction; how each works and where it stops.
+- [The row notation](rows.md): `okay.rows`, programs whose type is the row of their effects, okay-effects' Java
+  interface on this machine; how it meets the capability notation; control and audit; what differs from the reference.
