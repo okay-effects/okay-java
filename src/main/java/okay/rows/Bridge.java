@@ -102,7 +102,8 @@ public final class Bridge {
 
       public Comp<A, Pure> on(F op, K<A, Pure> k) {
         To<L> to = new To<>(op);
-        return new Comp<A, Pure>(h.answer(op, to).flatMap(done -> Handlers.<okay.core.Eff<L, A>>trusted(DOOR.resume(k.rest(), to.value))));
+        return new Comp<A, Pure>(h.answer(op, to)
+            .flatMap(done -> Handlers.<okay.core.Eff<L, A>>trusted(DOOR.resume(k.rest(), to.value))));
       }
     }, p);
     return eff(handled);
