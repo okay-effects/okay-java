@@ -65,3 +65,13 @@ tasks.register<JavaExec>("bench") {
         javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
     }
 }
+
+// okay-effects' four lanes (state, reader3, choose, binds) on the row notation, its Bench with only the package
+// changed: ./gradlew rowsBench [-PbenchJdk=26]
+tasks.register<JavaExec>("rowsBench") {
+    classpath = jmh.runtimeClasspath
+    mainClass = "okay.rows.bench.Bench"
+    (project.findProperty("benchJdk") as String?)?.let { jdk ->
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
+    }
+}

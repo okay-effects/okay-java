@@ -1,0 +1,10 @@
+okay-effects' four lanes (+ audited), best of 7 rounds within a run, three runs interleaved, JDK 25, load ~3.2
+okay.rows (./gradlew rowsBench) against the reference's own Java (java -cp okay-effects/java/out ...Bench), ns/op
+
+run  side       state  reader3  choose  binds  audited
+1    okay.rows  22.0   23.8     141.3   9.1    70.4
+1    reference  12.6   15.6      96.5   7.2    35.9
+2    okay.rows  15.2   19.5     116.1   7.7    63.7
+2    reference  11.2   15.1     100.2   6.9    36.3
+3    okay.rows  15.6   21.7     124.3   8.1    69.0
+3    reference  11.8   15.8      97.2   7.0    39.1
