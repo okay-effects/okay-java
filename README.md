@@ -44,10 +44,11 @@ reference can.
 The interface of okay-effects' Java kernel, on okay-java's machine: a program is `Comp<A, R>`, its effects a nested
 type, `Comp<Integer, Eff<State<Integer>, Eff<Choose, ?>>>`, with no capabilities. An operation is data
 (`record Get<S>() implements State<S>, Op<State<S>, S, Get<S>>`), a handler takes the program and the first effect
-off the row, and `run` takes only `Pure`: `run(Choose.all(State.run(0, chosen())))`. okay-effects' `Properties`,
-its TCK digest and its negative programs pass here with only their package changed. `okay.rows.Bridge` runs a program
-of either notation inside the other, a handler of one answering the other's operations. Control and audit:
-`Sensitive` effects, answered only under `Audit.audit` with an `Interceptor`, every way past it a compile error;
+off the row, and `run` takes only `Pure`: `run(Choose.all(State.run(0, chosen())))`. okay-effects' `Properties`
+(its audits too), its TCK digest and its negative programs pass here with only their package changed.
+`okay.rows.Bridge` runs a program of either notation inside the other, a handler of one answering the other's
+operations. Control and audit: `Sensitive` effects, answered only under `Audit.audit` with an `Interceptor`, every
+way past it a compile error;
 `Effects.observe`, `Observer.observe`, `std.Trail`. The whole of it, and what differs from the reference:
 [`docs/rows.md`](docs/rows.md).
 

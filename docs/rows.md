@@ -16,9 +16,10 @@ okay-java's own machine, not a copy of the reference's: a computation is a progr
 a delimiter on the machine's stack.
 
 The test of this is mechanical. okay-effects' `Properties.java` and `Tck.java`, and its programs that javac must
-refuse (`java/negative/*.java`), are copied into this repository with only their package and imports changed. All 52
-properties pass, the TCK digest included. Every negative program is refused at exactly the lines it marks
-(`PropertiesTest`, `NegativeTest`).
+refuse (`java/negative/*.java`), are copied into this repository with only their package and imports changed. All 63
+properties pass: the 52 of the model, the TCK digest among them, and 11 of control and audit (`Audits.java`) that
+the reference added while this was written. Every negative program, its two of sensitive effects included, is
+refused at exactly the lines it marks (`PropertiesTest`, `NegativeTest`).
 
 ## A program with two effects
 
@@ -133,7 +134,8 @@ A row operation counts only row places, so capability handlers between are not c
 The model is okay-core's (its `docs/intercept.md`). Its names are the ones okay-effects' Java kernel is
 getting: `Sensitive`, `Audited`, `Interceptor`, `Pass`, `Audit`, `K.after`,
 `Effects.observe`, `std.Trail`. At the time of writing these were in that repository's working tree, not yet
-committed. Its `Bench.java` of then, `audited` lane included, compiles and runs here with only its package changed.
+committed. Their tests (`Audits.java`, two negative programs) and their `Bench.java`, `audited` lane included,
+compile and run here with only their package changed.
 
 A SENSITIVE effect is declared by its author: its operations are `Sensitive.Op`s, not `Op`s.
 
@@ -242,7 +244,8 @@ Measured or found beyond them:
 - **The audit is an interceptor at its place.** The types make the sensitive place and the audited place one place.
   At run time they are two handlers, so the body runs under the audit as `under` puts it, and its other operations
   pass both. The reference's `Audit.audit` of the time did not do this: there, an operation of the body for a place
-  further out was answered by the handler of the audited place (found by `anObserverOfEveryEffectButTheSensitiveOnes`).
+  further out was answered by the handler of the audited place (`anAuditedBodyAsksPastItsSensitivePlace`; run on
+  the reference's classes, the same program sends the trail's operation to the bank).
 - **`Observer.observe` is an addition** (okay-core's), beyond the reference's per-effect `Effects.observe`.
 - **`Comp` is a final class** holding an `okay.core` program, where the reference's is a sealed class of nodes. The
   API is the same. A bind costs a `Comp`, a node and an adapter.

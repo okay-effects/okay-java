@@ -779,6 +779,8 @@ final class Properties {
       same(told(() -> resumed(at, amount + 1)), new Pair<>(new Step.Done<>(2), List.of("got 2", "closed")));
     });
 
+    Audits.tests();
+
     test("a thousand random programs: the reference machine's digest", () -> same(Tck.digest(), Tck.DIGEST));
 
     System.out.println(failed == 0 ? "java: all passed" : "java: " + failed + " FAILED");

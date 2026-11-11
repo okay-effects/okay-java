@@ -94,6 +94,16 @@ class AuditTest {
         refused), new Throws.Err<String, Integer>(refused)), got);
   }
 
+  @Test
+  void anAuditedBodyAsksPastItsSensitivePlace() {
+    // the audit and the handler of the audited place are one place of the type: an operation of the body for the
+    // next place passes both, to the trail — not to the bank
+    Comp<Integer, Sensitive<Pay, Eff<Trail, Pure>>> body =
+        balance().flatMap(n -> up(Trail.record("after " + n)).map(done -> n));
+    assertEquals(new Trail.Kept<>(List.of("after 7"), 7),
+        run(Trail.keep(Audit.handle(bank(), 7, Audit.audit(passing(), body)))));
+  }
+
   static List<String> log = new ArrayList<>();
 
   static <R> Comp<Void, R> said(String what) {
