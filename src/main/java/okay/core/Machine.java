@@ -240,6 +240,13 @@ final class Machine {
       return h.body().in(p);
     }
 
+    /** a delimiter of the row notation entered: its prompt made by the caller, its return {@code ret} */
+    Eff<?, ?> enter(Prompt<?, ?, ?> p, Function ret, Eff<?, ?> body) {
+      ms = new Seg(p, ret, null, k, ms);
+      k = Frames.END;
+      return body;
+    }
+
     Eff<?, ?> shift0(Shift0 s) {
       return capture(s.prompt(), s.f(), k);
     }

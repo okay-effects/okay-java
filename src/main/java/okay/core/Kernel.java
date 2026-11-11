@@ -129,7 +129,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   // -- aborts and cancellations: unwound as failures are, no recover takes them
 
-  private abstract static class Control extends RuntimeException {
+  abstract static class Control extends RuntimeException {
     Control(String m) {
       super(m, null, false, false);
     }
@@ -460,6 +460,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   private static boolean concerns(Seg s, Throwable t) {
     Object f = s.prompt().frame;
     return f instanceof KRecover ? !(t instanceof Control)
+        : f instanceof Rows.End e ? e.u() == t
         : f instanceof KHandler ? t instanceof Abort a && a.to == s.prompt()
         : f instanceof KEnsuring || f instanceof KForeign || f instanceof KAfter || f == Mark.PENDING || f instanceof KRoot;
   }
@@ -486,6 +487,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
           new Handle<Object, Object, Object>(body(() -> stepped(fk::cancel)), (Function<Object, Eff<?, ?>>) _ -> new Fail<>(t), new KAfter(t));
       case KForeign(var fk) -> stepped(() -> fk.fail(t));
       case KAfter(var then) -> new Fail<>(then);
+      case Rows.End _ -> Eff.pure(null);
       case KRoot _ -> Eff.pure(t instanceof Cancel ? new Step.Cancelled<>()
           : new Step.Failed<>(t instanceof Abort a ? new IllegalStateException("an abort with its handler gone", a) : t));
       default -> new Fail<>(CANCEL); // Mark.PENDING: the region ended, failed — the cancellation waiting goes on

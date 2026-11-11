@@ -12,7 +12,7 @@ final class Nodes {
    * interface, so the loop's call to it is a virtual call, one load, not an interface's search */
   abstract static sealed class Node<L, A> implements Eff<L, A>
       permits Return, Bind, Map, Delay, Sync, Shift0, Suspend, Handle, Reset, Push, Machine.Resumption,
-      Kernel.Perform, Kernel.Shift0K, Kernel.Fail, Kernel.Signalled, Kernel.Foreign {
+      Kernel.Perform, Kernel.Shift0K, Kernel.Fail, Kernel.Signalled, Kernel.Foreign, Rows.Ask, Rows.Enter {
     abstract Eff<?, ?> step(Machine.Run m);
   }
 

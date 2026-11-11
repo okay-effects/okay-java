@@ -37,6 +37,7 @@ public final class Ref {
       case Nodes.Push _, Machine.Resumption _ -> throw new IllegalStateException("the machine's own node: " + c);
       case Kernel.Perform _, Kernel.Shift0K _, Kernel.Fail _, Kernel.Signalled _, Kernel.Foreign _ ->
           throw new IllegalStateException("a kernel node, the machine's: " + c);
+      case Rows.Ask _, Rows.Enter _ -> throw new IllegalStateException("a node of the row notation, the machine's: " + c);
     };
   }
 
