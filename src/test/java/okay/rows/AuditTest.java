@@ -183,6 +183,26 @@ class AuditTest {
         List.of(true, false)), got);
   }
 
+  /** a program of the capability notation, its state the row's: observed as any row program */
+  static <M> okay.core.Eff<M, Integer> counter(okay.std.State<M, Integer> st) {
+    return st.modify(x -> x + 1).then(st.get());
+  }
+
+  @Test
+  void aCapabilityProgramObservedThroughTheBridge() {
+    Observer<Integer, Integer, Eff<State<Integer>, Eff<Trail, Pure>>> telling = new Observer<>() {
+      public Comp<Integer, Eff<State<Integer>, Eff<Trail, Pure>>> ret(Integer a) { return pure(a); }
+      public <X> Comp<Integer, Eff<State<Integer>, Eff<Trail, Pure>>> on(
+          Observer.Seen<X, Integer, Eff<State<Integer>, Eff<Trail, Pure>>> seen) {
+        return up(Trail.record(seen.describe())).flatMap(told -> seen.proceed()).flatMap(seen::resume);
+      }
+    };
+    Comp<Integer, Eff<State<Integer>, Eff<Trail, Pure>>> counted =
+        fit(Bridge.<Integer, Integer>state(AuditTest::counter));
+    assertEquals(new Trail.Kept<>(List.of("Get[]", "Put[value=8]", "Get[]"), new State.Final<>(8, 8)),
+        run(Trail.keep(State.run(7, Audit.observe(telling, counted)))));
+  }
+
   @Test
   void aSensitiveOperationAtTheTopIsNotHandedOut() {
     // `step` hands out what no handler answers; a sensitive operation it refuses: none answers it but its audit
