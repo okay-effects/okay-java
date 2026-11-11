@@ -131,10 +131,8 @@ A row operation counts only row places, so capability handlers between are not c
 
 ## Control and audit
 
-The model is okay-core's (its `docs/intercept.md`). Its names are the ones okay-effects' Java kernel is
-getting: `Sensitive`, `Audited`, `Interceptor`, `Pass`, `Audit`, `K.after`,
-`Effects.observe`, `std.Trail`. At the time of writing these were in that repository's working tree, not yet
-committed. Their tests (`Audits.java`, two negative programs) and their `Bench.java`, `audited` lane included,
+The model is okay-core's (its `docs/intercept.md`). Its names are okay-effects' Java kernel's:
+`Sensitive`, `Audited`, `Interceptor`, `Pass`, `Audit`, `K.after`, `Effects.observe`, `std.Trail`. Their tests (`Audits.java`, two negative programs) and their `Bench.java`, `audited` lane included,
 compile and run here with only their package changed.
 
 A SENSITIVE effect is declared by its author: its operations are `Sensitive.Op`s, not `Op`s.
