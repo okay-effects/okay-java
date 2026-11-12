@@ -1,5 +1,6 @@
 package okay.resumable;
 
+import java.util.function.Function;
 import java.util.function.Supplier;
 import okay.rows.Comp;
 import okay.rows.Effects;
@@ -22,32 +23,41 @@ final class Driver {
     Object run() throws Suspend;
   }
 
-  /** the saved frames, the innermost first; a tail is shared by every continuation taken under it */
-  record Chain(Frame frame, Chain next, boolean finalizes) {
-    Chain(Frame frame, Chain next) {
-      this(frame, next, frame.finalizes() || next != null && next.finalizes());
-    }
-  }
-
   /** where a body runs, while it runs on this thread: the handlers in force, its row, its continuation if any */
   record Ctx(Here here, Class<?>[] row, LoomRun loom) {}
 
   static final ThreadLocal<Ctx> CTX = new ThreadLocal<>();
 
-  /** {@link Resume#perform}: answered in place, or yielded, or the frames saved */
+  /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
+   * or yielded, or the frames saved */
   static Object perform(Op<?, ?, ?> op) {
     Ctx c = CTX.get();
     if (c != null) {
-      Object a = c.here().ask(op, place(c.row(), op));
+      int place = place(c.row(), op);
+      Object a = c.here().ask(op, place);
       if (a != Here.ELSEWHERE) {
         if (a != Here.ONCE) return a;
-        if (c.loom() != null) {
-          Object y = c.loom().yield(op);
-          if (y != LoomRun.NOT) return y;
-        } else if (!Loom.AVAILABLE) Loom.tell();
+        LoomRun r = c.loom();
+        if (r != null && r.current()) return once(c, r, op, place);
+        if (!Loom.AVAILABLE) Loom.tell();
       }
     }
     throw new Capture(op);
+  }
+
+  /** 2: the handler's clause called from the body's stack. Resumed at once, as most are, its answer is returned and
+   * nothing suspends; else the body yields, and the boundary goes on with the clause's program. If the yield cannot
+   * be made, the frames are saved, and the answer resumes them */
+  private static Object once(Ctx c, LoomRun r, Op<?, ?, ?> op, int place) {
+    Answer later = new Answer(c.row(), r, ++r.asked, op);
+    Object x = c.here().resumeHere(op, place, later);
+    if (!(x instanceof Here.Pending p)) {
+      r.answered = later.n;
+      return x;
+    }
+    Object y = r.yield(p.next());
+    if (y != LoomRun.NOT) return y;
+    throw new Capture(op, p.next(), later);
   }
 
   private static <T> T at(Ctx c, Supplier<T> f) {
@@ -62,11 +72,16 @@ final class Driver {
 
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
   static <A, R> Comp<A, R> program(Class<?>[] row, Run body) {
-    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h));
+    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h));
+    // a continuation for each run of the program, and its one guard around it: if the rest is left unanswered
+    // while the body waits, its frames are unwound
+    return (Comp<A, R>) (Comp<?, ?>) Effects.defer(() -> {
+      LoomRun r = new LoomRun(row, body);
+      return r.next.ensuring(() -> Here.here(h -> unwound(row, r, h)));
+    });
   }
 
   private static Comp<Object, Object> start(Class<?>[] row, Run body, Here h) {
-    if (Loom.AVAILABLE) return step(row, new LoomRun(body), h);
     Object a;
     try {
       a = at(new Ctx(h, row, null), () -> {
@@ -89,54 +104,84 @@ final class Driver {
 
   // ---- 2: on the JVM's continuation
 
-  private static Comp<Object, Object> step(Class<?>[] row, LoomRun r, Here h) {
-    at(new Ctx(h, row, r), () -> {
-      r.run();
-      return null;
-    });
+  /** the body run on to its end or its next yield, then the program it yielded */
+  static Comp<Object, Object> step(Class<?>[] row, LoomRun r, Here h) {
+    at(new Ctx(h, row, r), r);
     if (r.cont.isDone()) {
-      if (r.capture != null) {
-        Resume.outermost(r.capture);
-        return suspended(row, r.capture, null);
+      Capture c = r.capture;
+      if (c != null) {
+        Resume.outermost(c);
+        if (c.next == null) return suspended(row, c, null);
+        // a yield that could not be made: the frames wait for the answer the clause's program will give
+        c.later.frames = r.waiting = c.link(null);
+        return c.next;
       }
       if (r.failure instanceof Suspend s) throw thrown(s);
       if (r.failure != null) throw sneaky(r.failure);
       return Effects.pure(r.value);
     }
-    Object op = r.pending;
+    Comp<Object, Object> next = r.pending;
     r.pending = null;
-    boolean[] used = {false};
-    Comp<Object, Object> ask = finalizing(ask(op, place(row, op)), () -> Here.here(h2 -> {
-      if (used[0]) return Effects.pure(null);
-      used[0] = true;
-      r.thrown = Unwound.INSTANCE;
-      at(new Ctx(h2, row, r), () -> {
-        r.run();
-        return null;
-      });
-      if (!r.cont.isDone() || r.capture != null)
-        throw new IllegalStateException("okay.resumable: a finally block performed an operation while its "
-            + "program was unwound: not supported");
-      return Effects.pure(null);
-    }));
-    return ask.flatMap(x -> Here.here(h2 -> {
-      if (used[0]) throw new IllegalStateException("okay.resumable: the handler of " + op + " declares Once but "
-          + "resumed its rest again; the JVM's continuation goes on once. A handler that resumes more than once "
+    return next;
+  }
+
+  /** the answer to the {@code n}th operation asked: given once — a handler declared {@code Once} that resumes
+   * again is refused */
+  static final class Answer implements Function<Object, Comp<Object, Object>> {
+    final Class<?>[] row;
+    final LoomRun r;
+    final int n;
+    final Object op;
+    /** the frames saved for it, where the body could not yield */
+    Frame frames;
+
+    Answer(Class<?>[] row, LoomRun r, int n, Object op) {
+      this.row = row;
+      this.r = r;
+      this.n = n;
+      this.op = op;
+    }
+
+    @Override
+    public Comp<Object, Object> apply(Object x) {
+      if (r.answered >= n) throw new IllegalStateException("okay.resumable: the handler of " + op + " declares Once "
+          + "but resumed its rest again; the JVM's continuation goes on once. A handler that resumes more than once "
           + "must not implement Once: its programs' frames are then saved as data");
-      used[0] = true;
-      r.answer = x;
-      return step(row, r, h2);
-    }));
+      r.answered = n;
+      Frame k = frames;
+      if (k == null) {
+        r.answer = x;
+        return r.next;
+      }
+      r.waiting = null;
+      return Here.here(h -> resume(row, k, x, h));
+    }
+  }
+
+  /** the program's guard: run when the program is left, by its end or unwound. Unwound while the body waits for an
+   * answer, its frames are left: by {@link Unwound} thrown at the yield, or re-entered if they were saved */
+  private static Comp<Object, Object> unwound(Class<?>[] row, LoomRun r, Here h) {
+    r.answered = r.asked;
+    Frame k = r.waiting;
+    if (k != null) {
+      r.waiting = null;
+      return k.finalizes ? unwind(row, k, h) : Effects.pure(null);
+    }
+    if (r.cont.isDone()) return Effects.pure(null);
+    r.thrown = Unwound.INSTANCE;
+    at(new Ctx(h, row, r), r);
+    if (!r.cont.isDone() || r.capture != null)
+      throw new IllegalStateException("okay.resumable: a finally block performed an operation while its program "
+          + "was unwound: not supported");
+    return Effects.pure(null);
   }
 
   // ---- 3: frames saved as data
 
-  static Comp<Object, Object> suspended(Class<?>[] row, Capture c, Chain tail) {
-    Chain k = tail;
-    for (int i = c.frames.size() - 1; i >= 0; i--) k = new Chain(c.frames.get(i), k);
-    Chain rest = k;
+  static Comp<Object, Object> suspended(Class<?>[] row, Capture c, Frame tail) {
+    Frame rest = c.link(tail);
     Comp<Object, Object> ask = ask(c.op, place(row, c.op));
-    if (rest.finalizes()) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));
+    if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));
     return ask.flatMap(x -> Here.here(h -> resume(row, rest, x, h)));
   }
 
@@ -156,24 +201,26 @@ final class Driver {
   }
 
   /** the frames re-entered one at a time, the innermost first: each is given the value the one inside it returned,
-   * or what it threw */
-  private static Comp<Object, Object> resume(Class<?>[] row, Chain k, Object x, Here h) {
+   * or what it threw. A frame that suspends again returns its capture */
+  private static Comp<Object, Object> resume(Class<?>[] row, Frame k, Object x, Here h) {
     Ctx ctx = new Ctx(h, row, null);
     Ctx outer = CTX.get();
     CTX.set(ctx);
     try {
       Object v = x;
       Throwable t = null;
-      for (Chain c = k; c != null; c = c.next()) {
+      for (Frame f = k; f != null; f = f.next) {
         try {
-          v = enter(c.frame(), v, t);
+          v = enter(f, v, t);
           t = null;
         } catch (Capture cap) {
-          return suspended(row, cap, c.next());
+          return suspended(row, cap, f.next);
         } catch (Throwable e) {
           t = e;
           v = null;
+          continue;
         }
+        if (v instanceof Capture cap) return suspended(row, cap, f.next);
       }
       if (t != null) throw Driver.<RuntimeException>sneaky(t);
       return Effects.pure(v);
@@ -184,18 +231,21 @@ final class Driver {
 
   /** the frames left: each that a handler of its method covers re-entered with {@link Unwound} thrown at its call,
    * so its {@code finally} blocks run; a finalizer that fails does not stop the others */
-  private static Comp<Object, Object> unwind(Class<?>[] row, Chain k, Here h) {
+  private static Comp<Object, Object> unwind(Class<?>[] row, Frame k, Here h) {
     return at(new Ctx(h, row, null), () -> {
-      for (Chain c = k; c != null; c = c.next()) {
-        if (!c.frame().finalizes()) continue;
+      for (Frame f = k; f != null; f = f.next) {
+        if (!f.covered()) continue;
+        Object v;
         try {
-          enter(c.frame(), null, Unwound.INSTANCE);
+          v = enter(f, null, Unwound.INSTANCE);
         } catch (Capture cap) {
-          throw new IllegalStateException("okay.resumable: a finally block performed " + cap.op
-              + " while its program was unwound: not supported");
+          v = cap;
         } catch (Throwable e) {
           // Unwound, as expected; or the finalizer's own failure, which ends this frame only
+          continue;
         }
+        if (v instanceof Capture cap) throw new IllegalStateException("okay.resumable: a finally block performed "
+            + cap.op + " while its program was unwound: not supported");
       }
       return Effects.pure(null);
     });

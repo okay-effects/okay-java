@@ -92,6 +92,8 @@ public final class Transformer {
   static final ClassDesc CD_RESUMER = ClassDesc.of("okay.resumable.Resumer");
   static final ClassDesc CD_TRANSFORMED = ClassDesc.of("okay.resumable.Transformed");
   static final ClassDesc CD_OP = ClassDesc.of("okay.rows.Op");
+  static final ClassDesc CD_OBJECTS = ConstantDescs.CD_Object.arrayType();
+  static final ClassDesc CD_LONGS = ConstantDescs.CD_long.arrayType();
   static final MethodTypeDesc RESUME_TYPE =
       MethodTypeDesc.of(ConstantDescs.CD_Object, CD_FRAME, ConstantDescs.CD_Object, ConstantDescs.CD_Throwable);
 
@@ -482,6 +484,7 @@ public final class Transformer {
       int frame = temps + 1;
       int answer = temps + 2;
       int values = temps + 3;
+      int prims = temps + 4;
       Relabel r = new Relabel(cb);
       int n = p.sites.size();
       Label[] start = new Label[n];
@@ -507,13 +510,22 @@ public final class Transformer {
           Site s = p.sites.get(i);
           Frames f = frames.get(s);
           cb.labelBinding(dispatch[i]);
-          cb.aload(frame).invokevirtual(CD_FRAME, "values", MethodTypeDesc.of(ConstantDescs.CD_Object.arrayType()))
-              .astore(values);
           List<Slot> saved = f.saved();
-          for (int j = 0; j < saved.size(); j++) {
-            Slot sl = saved.get(j);
-            cb.aload(values).loadConstant(j).aaload();
-            unbox(cb, sl.type());
+          int nRefs = 0;
+          int nPrims = 0;
+          for (Slot sl : saved) if (prim(sl.type())) nPrims++; else nRefs++;
+          if (nRefs > 0) cb.aload(frame).invokevirtual(CD_FRAME, "refs", MethodTypeDesc.of(CD_OBJECTS)).astore(values);
+          if (nPrims > 0) cb.aload(frame).invokevirtual(CD_FRAME, "prims", MethodTypeDesc.of(CD_LONGS)).astore(prims);
+          int ri = 0;
+          int qi = 0;
+          for (Slot sl : saved) {
+            if (prim(sl.type())) {
+              cb.aload(prims).loadConstant(qi++).laload();
+              fromBits(cb, sl.type());
+            } else {
+              cb.aload(values).loadConstant(ri++).aaload();
+              unbox(cb, sl.type());
+            }
             store(cb, sl);
           }
           for (Slot sl : f.rest) load(cb, sl);
@@ -577,15 +589,32 @@ public final class Transformer {
         cb.labelBinding(handler[i]);
         cb.ldc(resumer(p));
         cb.loadConstant(i);
-        cb.loadConstant(saved.size()).anewarray(ConstantDescs.CD_Object);
-        for (int j = 0; j < saved.size(); j++) {
-          cb.dup().loadConstant(j);
-          load(cb, saved.get(j));
-          box(cb, saved.get(j).type());
-          cb.aastore();
+        List<Slot> refs = saved.stream().filter(sl -> !prim(sl.type())).toList();
+        List<Slot> bits = saved.stream().filter(sl -> prim(sl.type())).toList();
+        if (refs.isEmpty()) cb.aconst_null();
+        else {
+          cb.loadConstant(refs.size()).anewarray(ConstantDescs.CD_Object);
+          for (int j = 0; j < refs.size(); j++) {
+            cb.dup().loadConstant(j);
+            load(cb, refs.get(j));
+            cb.aastore();
+          }
+        }
+        if (bits.isEmpty()) cb.aconst_null();
+        else {
+          cb.loadConstant(bits.size()).newarray(TypeKind.LONG);
+          for (int j = 0; j < bits.size(); j++) {
+            cb.dup().loadConstant(j);
+            load(cb, bits.get(j));
+            toBits(cb, bits.get(j).type());
+            cb.lastore();
+          }
         }
         cb.invokestatic(CD_RESUME, "push", MethodTypeDesc.of(CD_CAPTURE, CD_CAPTURE, CD_RESUMER,
-            ConstantDescs.CD_int, ConstantDescs.CD_Object.arrayType())).athrow();
+            ConstantDescs.CD_int, CD_OBJECTS, CD_LONGS));
+        // a resumed copy is called by the boundary alone: it returns the capture there, no throw to cross frames
+        if (copy) cb.areturn();
+        else cb.athrow();
       }
     }
 
@@ -707,23 +736,36 @@ public final class Transformer {
     else cb.aconst_null();
   }
 
-  private static void box(CodeBuilder cb, VerificationTypeInfo t) {
-    if (t == INTEGER) valueOf(cb, ConstantDescs.CD_Integer, ConstantDescs.CD_int);
-    else if (t == LONG) valueOf(cb, ConstantDescs.CD_Long, ConstantDescs.CD_long);
-    else if (t == FLOAT) valueOf(cb, ConstantDescs.CD_Float, ConstantDescs.CD_float);
-    else if (t == DOUBLE) valueOf(cb, ConstantDescs.CD_Double, ConstantDescs.CD_double);
+  /** a primitive local, saved as bits in the frame's long[] instead of boxed */
+  private static boolean prim(VerificationTypeInfo t) {
+    return t == INTEGER || t == LONG || t == FLOAT || t == DOUBLE;
+  }
+
+  /** the primitive on the stack as a long of its bits */
+  private static void toBits(CodeBuilder cb, VerificationTypeInfo t) {
+    if (t == INTEGER) cb.i2l();
+    else if (t == FLOAT) cb.invokestatic(ConstantDescs.CD_Float, "floatToRawIntBits",
+        MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float)).i2l();
+    else if (t == DOUBLE) cb.invokestatic(ConstantDescs.CD_Double, "doubleToRawLongBits",
+        MethodTypeDesc.of(ConstantDescs.CD_long, ConstantDescs.CD_double));
+  }
+
+  /** the long of bits on the stack as the primitive it was */
+  private static void fromBits(CodeBuilder cb, VerificationTypeInfo t) {
+    if (t == INTEGER) cb.l2i();
+    else if (t == FLOAT) cb.l2i().invokestatic(ConstantDescs.CD_Float, "intBitsToFloat",
+        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+    else if (t == DOUBLE) cb.invokestatic(ConstantDescs.CD_Double, "longBitsToDouble",
+        MethodTypeDesc.of(ConstantDescs.CD_double, ConstantDescs.CD_long));
   }
 
   private static void valueOf(CodeBuilder cb, ClassDesc box, ClassDesc prim) {
     cb.invokestatic(box, "valueOf", MethodTypeDesc.of(box, prim));
   }
 
+  /** a saved reference made the type of its local again */
   private static void unbox(CodeBuilder cb, VerificationTypeInfo t) {
-    if (t == INTEGER) unboxTo(cb, ConstantDescs.CD_int);
-    else if (t == LONG) unboxTo(cb, ConstantDescs.CD_long);
-    else if (t == FLOAT) unboxTo(cb, ConstantDescs.CD_float);
-    else if (t == DOUBLE) unboxTo(cb, ConstantDescs.CD_double);
-    else if (t == NULL) cb.pop().aconst_null();
+    if (t == NULL) cb.pop().aconst_null();
     else if (t instanceof ObjectVerificationTypeInfo o && !o.classSymbol().equals(ConstantDescs.CD_Object))
       cb.checkcast(o.classSymbol());
   }

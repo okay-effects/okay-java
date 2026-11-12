@@ -24,21 +24,33 @@ public final class Resume {
 
   /** the frame of a transformed method added to an operation on its way out. The call it was suspended at must have
    * called the frame added before it — directly, or through a lambda — else a frame between them was not saved: a
-   * method that was not transformed. Refused then, never resumed without it. */
-  public static Capture push(Capture c, Resumer r, int site, Object[] values) {
-    if (!c.frames.isEmpty()) {
-      Resumer.Site s = r.sites[site];
-      Resumer inner = c.frames.getLast().resumer;
-      if (!calls(s.name(), s.desc(), inner)) throw lost(r.where(site), inner);
+   * method that was not transformed. Refused then, never resumed without it. {@code refs}, {@code prims}: its
+   * values, null where none */
+  public static Capture push(Capture c, Resumer r, int site, Object[] refs, long[] prims) {
+    Frame f = new Frame(r, site, refs, prims);
+    Frame inner = c.last;
+    if (inner == null) c.first = f;
+    else {
+      // checked once for each callee a call is seen to have: the same callee again needs no look at the names
+      if (r.callees[site] != inner.resumer) {
+        Resumer.Site s = r.sites[site];
+        if (!calls(s.name(), s.desc(), inner.resumer)) throw lost(r.where(site), inner.resumer);
+        r.callees[site] = inner.resumer;
+      }
+      inner.next = f;
     }
-    c.frames.add(new Frame(r, site, values));
+    c.last = f;
     return c;
   }
 
   /** the outermost frame was entered by the boundary's {@code run()} */
   static void outermost(Capture c) {
-    Resumer r = c.frames.getLast().resumer;
+    if (c.last == null) throw new IllegalStateException("okay.resumable: " + c.op + " was performed by no "
+        + "transformed method: the rest of the program could not be resumed");
+    Resumer r = c.last.resumer;
+    if (r.entered) return;
     if (!calls("run", "()Ljava/lang/Object;", r)) throw lost("Direct.of (calling run)", r);
+    r.entered = true;
   }
 
   private static boolean calls(String name, String desc, Resumer inner) {

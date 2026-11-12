@@ -17,8 +17,14 @@ public final class Resumer {
   final String method;
   final String desc;
   final Site[] sites;
+  /** for each call, the callee last found to be the method it calls: the names are compared once for it. Written
+   * by any thread: a stale entry only costs a comparison */
+  final Resumer[] callees;
+  /** whether the method was found to be entered by the boundary, as a body is */
+  boolean entered;
 
   Resumer(MethodHandle resume, String owner, String method, String desc, Site[] sites) {
+    this.callees = new Resumer[sites.length];
     this.resume = resume;
     this.owner = owner;
     this.method = method;
