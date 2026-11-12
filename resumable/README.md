@@ -362,23 +362,32 @@ same limit for Espresso. Handler state in place is per path, as in `okay.rows`.
 
 ## Measured
 
-JMH (`./gradlew :okay-java-resumable:bench`). Two forks of 5×1 s, JDK 25, this machine, ns per operation
-(`bench.d/2026-11-12_resumable.txt`):
+JMH (`./gradlew :okay-java-resumable:bench`). Two forks of 5×1 s, JDK 25, this machine, ns per operation; the
+median of three runs, each beside a run of the module before these changes (`bench.d/2026-11-12_resumable-2.txt`;
+the first measurements: `bench.d/2026-11-12_resumable.txt`):
 
-| program | in place (1) | continuation (2) | saved frames (3) | okay.rows | okay-direct (Loom) |
-|---|---|---|---|---|---|
-| state loop | 10.7 | | | 23.9 | 7.3 |
-| general handler resumed once, 1 frame deep | | 281 | 271 | 30.5 | 145 |
-| the same, 10 frames deep | | 321 | 947 | | |
-| choice, every path of 1000 | | | 111 | 54.8 | |
+| program | in place (1) | clause on the stack (2) | yield (2) | saved frames (3) | okay.rows | okay-direct (Loom) |
+|---|---|---|---|---|---|---|
+| state loop | 6.8 | | | | 15.9 | 5.2 |
+| general handler resumed once, 1 frame deep | | 22.8 | 187 | 57.1 | 20.1 | 110 |
+| the same, 10 frames deep | | 25.7 | 212 | 145 | | |
+| choice, every path of 1000 | | | | 78.0 | 38.8 | |
+| a handler in direct style: state in place / general / every path | 7.0 | | | 109 / 133 | | |
 
-- **A call that never suspends** costs nothing measurable: 1.51 ns for a transformed method against 1.53 ns for the
-  same method untransformed.
-- **A suspension with saved frames** costs about 270 ns at one frame, plus about 75 ns for each further frame
-  (capture and resume together).
-- **Path 2 against path 3.** One frame deep, the continuation does not beat saved frames (281 against 271). Ten
-  frames deep it is three times faster (321 against 947). Both cost about twice okay-direct's Loom, because each
-  suspension goes through `okay.rows`' machinery: the ask as a program, the probe, and the resumption's node.
+Before these changes: path 2 cost 226 at one frame and 277 at ten, path 3 249 and 858, the choice 95.9, the state
+loop 8.9.
+
+- **A call that never suspends** costs nothing measurable: 1.25 ns for a transformed method, 1.25 ns for the same
+  method untransformed.
+- **Path 2** costs about okay.rows' own operation when the clause resumes at once: nothing yields, at any depth. When
+  the body yields, most of the cost is the JVM's freezing and thawing, which enter the VM; on this machine (macOS,
+  arm64) the profile finds much of it switching the JIT's write protection (`pthread_jit_write_protect_np`).
+- **Path 3** costs about 57 ns at one frame, plus about 10 ns for each further frame. A capture leaves the twins by
+  returns; one that leaves a method by a throw costs the VM a search for its handler in every frame.
+- **Where the time went before**, by a sampling profile: in path 2, a delimiter made for each operation and crossed by
+  its capture, and the operation asked as a program, came to 737 bytes an operation besides the JVM's continuation;
+  in path 3, a thrown capture's handler search in each frame, and boxing, came to 627 bytes at one frame and 87 more
+  for each further frame.
 
 ## Limits
 

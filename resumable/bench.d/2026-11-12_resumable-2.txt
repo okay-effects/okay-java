@@ -1,0 +1,126 @@
+# okay-java-resumable, cheaper suspensions: the baseline (d317139) and this branch, run in turn, three times each.
+# ./gradlew :okay-java-resumable:bench --args='-f 2 -rf text': two forks of 5x1 s, JDK 25, this machine (14 cores),
+# other work running on it (load below). ns per operation.
+# base 1: 22:51  up 2 days,  6:12, 2 users, load averages: 5.17 4.72 4.36
+# new 1: 22:56  up 2 days,  6:16, 2 users, load averages: 4.58 4.73 4.48
+# end 1: 23:02  up 2 days,  6:23, 2 users, load averages: 3.37 4.00 4.23
+# base 2: 23:02  up 2 days,  6:23, 2 users, load averages: 3.37 4.00 4.23
+# new 2: 23:07  up 2 days,  6:27, 2 users, load averages: 3.17 3.55 3.95
+# end 2: 23:13  up 2 days,  6:34, 2 users, load averages: 4.79 4.37 4.18
+# base 3: 23:13  up 2 days,  6:34, 2 users, load averages: 4.79 4.37 4.18
+# new 3: 23:18  up 2 days,  6:38, 2 users, load averages: 2.73 3.63 3.91
+# end 3: 23:24  up 2 days,  6:45, 2 users, load averages: 2.68 3.04 3.50
+
+## baseline, run 1
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10  105.472 ±  2.572  ns/op
+ResumableBench.chooseRows                 avgt   10   48.970 ±  2.224  ns/op
+ResumableBench.noSuspensionPlain          avgt   10    1.297 ±  0.029  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10    1.295 ±  0.044  ns/op
+ResumableBench.onceDirectLoom             avgt   10  260.529 ± 16.133  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10  276.893 ±  6.611  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10  248.664 ± 16.507  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  857.784 ± 22.821  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  128.491 ±  8.394  ns/op
+ResumableBench.onceRows                   avgt   10   25.740 ±  2.021  ns/op
+ResumableBench.stateDirectInPlace         avgt   10    9.557 ±  0.382  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    6.325 ±  0.343  ns/op
+ResumableBench.stateRows                  avgt   10   18.915 ±  2.133  ns/op
+
+## this branch, run 1
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10   78.045 ±  7.271  ns/op
+ResumableBench.chooseDirectHandler        avgt   10  134.763 ±  5.814  ns/op
+ResumableBench.chooseRows                 avgt   10   41.215 ±  2.154  ns/op
+ResumableBench.noSuspensionPlain          avgt   10    1.258 ±  0.011  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10    1.252 ±  0.005  ns/op
+ResumableBench.onceDirectLoom             avgt   10   24.098 ±  0.362  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10   25.886 ±  0.117  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10   57.184 ±  1.587  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  145.653 ±  0.934  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  109.630 ±  0.659  ns/op
+ResumableBench.onceRows                   avgt   10   20.101 ±  0.050  ns/op
+ResumableBench.stateDirectHandlerGeneral  avgt   10  108.698 ±  0.182  ns/op
+ResumableBench.stateDirectHandlerInPlace  avgt   10    7.019 ±  0.018  ns/op
+ResumableBench.stateDirectInPlace         avgt   10    6.788 ±  0.026  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    5.122 ±  0.039  ns/op
+ResumableBench.stateRows                  avgt   10   15.761 ±  0.345  ns/op
+ResumableBench.yieldDirectLoom            avgt   10  186.542 ±  3.457  ns/op
+ResumableBench.yieldDirectLoomDeep        avgt   10  212.293 ± 10.888  ns/op
+ResumableBench.yieldRows                  avgt   10   33.395 ±  0.274  ns/op
+
+## baseline, run 2
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10   86.068 ±  1.367  ns/op
+ResumableBench.chooseRows                 avgt   10   39.362 ±  0.220  ns/op
+ResumableBench.noSuspensionPlain          avgt   10    1.258 ±  0.011  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10    1.250 ±  0.002  ns/op
+ResumableBench.onceDirectLoom             avgt   10  219.976 ±  2.877  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10  247.814 ±  3.436  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10  215.927 ± 13.698  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  776.795 ± 12.365  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  123.808 ±  9.162  ns/op
+ResumableBench.onceRows                   avgt   10   24.257 ±  1.565  ns/op
+ResumableBench.stateDirectInPlace         avgt   10    8.906 ±  0.840  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    9.508 ±  1.876  ns/op
+ResumableBench.stateRows                  avgt   10   33.912 ±  4.859  ns/op
+
+## this branch, run 2
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10  126.991 ± 76.648  ns/op
+ResumableBench.chooseDirectHandler        avgt   10  133.206 ±  0.685  ns/op
+ResumableBench.chooseRows                 avgt   10   38.775 ±  0.091  ns/op
+ResumableBench.noSuspensionPlain          avgt   10    1.249 ±  0.003  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10    1.245 ±  0.005  ns/op
+ResumableBench.onceDirectLoom             avgt   10   22.731 ±  0.080  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10   25.700 ±  0.111  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10   57.076 ±  1.554  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  145.306 ±  1.140  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  109.344 ±  0.836  ns/op
+ResumableBench.onceRows                   avgt   10   20.064 ±  0.093  ns/op
+ResumableBench.stateDirectHandlerGeneral  avgt   10  108.807 ±  0.716  ns/op
+ResumableBench.stateDirectHandlerInPlace  avgt   10    6.995 ±  0.010  ns/op
+ResumableBench.stateDirectInPlace         avgt   10    6.840 ±  0.071  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    5.155 ±  0.023  ns/op
+ResumableBench.stateRows                  avgt   10   15.856 ±  0.186  ns/op
+ResumableBench.yieldDirectLoom            avgt   10  182.666 ±  0.736  ns/op
+ResumableBench.yieldDirectLoomDeep        avgt   10  207.409 ±  5.143  ns/op
+ResumableBench.yieldRows                  avgt   10   37.214 ±  0.921  ns/op
+
+## baseline, run 3
+Benchmark                                 Mode  Cnt     Score    Error  Units
+ResumableBench.chooseDirect               avgt   10    95.920 ±  1.319  ns/op
+ResumableBench.chooseRows                 avgt   10    44.445 ±  0.384  ns/op
+ResumableBench.noSuspensionPlain          avgt   10     1.319 ±  0.051  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10     1.317 ±  0.047  ns/op
+ResumableBench.onceDirectLoom             avgt   10   226.366 ± 16.191  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10   314.130 ± 84.832  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10   422.906 ± 44.571  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  1575.365 ± 72.910  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10   110.138 ±  1.217  ns/op
+ResumableBench.onceRows                   avgt   10    19.948 ±  0.214  ns/op
+ResumableBench.stateDirectInPlace         avgt   10     7.561 ±  0.021  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10     5.157 ±  0.018  ns/op
+ResumableBench.stateRows                  avgt   10    15.725 ±  0.044  ns/op
+
+## this branch, run 3
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10   75.363 ±  4.249  ns/op
+ResumableBench.chooseDirectHandler        avgt   10  128.017 ±  3.470  ns/op
+ResumableBench.chooseRows                 avgt   10   38.847 ±  0.235  ns/op
+ResumableBench.noSuspensionPlain          avgt   10    1.210 ±  0.007  ns/op
+ResumableBench.noSuspensionTransformed    avgt   10    1.200 ±  0.007  ns/op
+ResumableBench.onceDirectLoom             avgt   10   22.768 ±  0.134  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10   25.709 ±  0.068  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10   56.807 ±  1.285  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  145.362 ±  0.782  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  110.711 ±  1.524  ns/op
+ResumableBench.onceRows                   avgt   10   20.340 ±  0.516  ns/op
+ResumableBench.stateDirectHandlerGeneral  avgt   10  111.995 ±  1.659  ns/op
+ResumableBench.stateDirectHandlerInPlace  avgt   10    7.874 ±  0.241  ns/op
+ResumableBench.stateDirectInPlace         avgt   10    7.994 ±  0.117  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    5.968 ±  0.115  ns/op
+ResumableBench.stateRows                  avgt   10   19.016 ±  0.295  ns/op
+ResumableBench.yieldDirectLoom            avgt   10  190.568 ± 12.525  ns/op
+ResumableBench.yieldDirectLoomDeep        avgt   10  220.309 ± 34.630  ns/op
+ResumableBench.yieldRows                  avgt   10   35.158 ±  0.600  ns/op
