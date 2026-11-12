@@ -199,8 +199,11 @@ public final class Transformer {
 
   /** the boundary itself runs bodies and catches their suspensions: it is never rewritten */
   private static boolean runtime(String name) {
-    return name.equals("okay/resumable/Direct") || name.startsWith("okay/resumable/Direct$")
-        || name.equals("okay/resumable/Driver") || name.startsWith("okay/resumable/Driver$");
+    for (String c : new String[] {"Direct", "Driver", "LoomRun"}) {
+      String n = "okay/resumable/" + c;
+      if (name.equals(n) || name.startsWith(n + "$")) return true;
+    }
+    return false;
   }
 
   // ---- what to rewrite
