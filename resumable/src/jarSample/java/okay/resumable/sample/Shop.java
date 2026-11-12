@@ -46,6 +46,7 @@ public final class Shop {
 
   public static void main(String[] args) {
     List<String> made = new ArrayList<>();
+    System.out.println(Direct.continuations());
     System.out.println(run(everySize(Direct.row(Size.class).of(() -> order(made)))) + " " + made);
   }
 }

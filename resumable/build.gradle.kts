@@ -84,7 +84,9 @@ val jarSampleJar by tasks.registering(Jar::class) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes("Main-Class" to "okay.resumable.sample.Shop",
-            "Launcher-Agent-Class" to "okay.resumable.transform.Agent")
+            "Launcher-Agent-Class" to "okay.resumable.transform.Agent",
+            "Add-Exports" to "java.base/jdk.internal.vm java.base/jdk.internal.access",
+            "Add-Opens" to "java.base/java.lang")
     }
 }
 tasks.test {

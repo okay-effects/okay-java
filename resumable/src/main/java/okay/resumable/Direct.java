@@ -46,6 +46,12 @@ public final class Direct {
         + " — the rest of the program could not be resumed.");
   }
 
+  /** how operations whose handler is general and declared {@code Once} are run here: on the JVM's continuations, or
+   * — and why — on saved frames */
+  public static String continuations() {
+    return Loom.AVAILABLE ? "the JVM's continuations" : "saved frames: " + Loom.WHY_NOT;
+  }
+
   @FunctionalInterface
   public interface Body1<A, E1 extends Suspend> {
     A run() throws E1;

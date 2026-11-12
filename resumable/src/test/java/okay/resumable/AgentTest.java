@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  * transforms the classes as they load */
 class AgentTest {
   @Test
-  void aJarBuiltWithoutThePluginRunsWithJavaJar() throws IOException, InterruptedException {
+  void aJarBuiltWithoutThePluginRunsWithJavaJarItsContinuationsExportedByItsManifest() throws IOException, InterruptedException {
     String java = ProcessHandle.current().info().command().orElseThrow();
     Process p = new ProcessBuilder(java, "-jar", System.getProperty("okay.resumable.jarSample"))
         .redirectErrorStream(true).start();
@@ -19,6 +19,6 @@ class AgentTest {
     assertEquals(0, p.waitFor(), out);
     System.out.println(out);
     // every size, and the order taken once: its frames were resumed twice, not replayed
-    assertEquals(List.of("[coffee small, coffee large] [order]"), out.lines().toList());
+    assertEquals(List.of("the JVM's continuations", "[coffee small, coffee large] [order]"), out.lines().toList());
   }
 }

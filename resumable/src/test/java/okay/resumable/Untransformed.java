@@ -10,6 +10,11 @@ public final class Untransformed {
     return Direct.perform(new Counter.Get());
   }
 
+  /** reads an input, not transformed itself */
+  public static int input() throws Input {
+    return Input.next();
+  }
+
   /** calls a transformed method, not transformed itself: its frame would be lost */
   public static int middle() throws Counter {
     return Counter.get() + 1;
