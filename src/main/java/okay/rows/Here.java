@@ -29,4 +29,31 @@ public final class Here {
   public Object ask(Op<?, ?, ?> op, int place) {
     return probe.ask(op, place);
   }
+
+  /** {@link #ONCE} or {@link #ELSEWHERE} for a sensitive operation: never answered here, even by a handler in place,
+   * so that it passes its audit */
+  public Object kind(Sensitive.Op<?, ?, ?> op, int place) {
+    return probe.kind(op, place);
+  }
+
+  /** an operation whose handler is general and declared {@link Once} — {@link #ONCE} — asked from here, the
+   * handler's clause called on this stack: the answer, if the clause resumed the rest at once; else a
+   * {@link Pending}, whose program the function given {@link #here} must return at once — and {@code later} is
+   * given the answer when the rest is resumed */
+  public Object resumeHere(Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later) {
+    return pending(probe.resumeHere(op, place, x -> later.apply(x).eff));
+  }
+
+  /** the same, of a sensitive operation: its audit's clause, which passes it on as a program, and so never answers
+   * it at once */
+  public Object resumeHere(Sensitive.Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later) {
+    return pending(probe.resumeHere(op, place, x -> later.apply(x).eff));
+  }
+
+  private static Object pending(Object r) {
+    return r instanceof Rows.Probe.Pending p ? new Pending(new Comp<>(p.next())) : r;
+  }
+
+  /** what {@link #resumeHere} gives when the clause did not resume at once: the program to go on with */
+  public record Pending(Comp<Object, Object> next) {}
 }

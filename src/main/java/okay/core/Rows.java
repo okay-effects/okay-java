@@ -317,6 +317,10 @@ public final class Rows {
     public static final Object ONCE = new Object();
 
     private Run m;
+    /** where the operations of each place go, found once while the probe lives — the stack does not change under
+     * it: a handler in place's {@link Place}, {@link #ONCE} or {@link #ELSEWHERE}. Not kept where an interceptor
+     * stands on the way: whether it takes an operation is asked of each */
+    private Object[] routes;
 
     Probe(Run m) {
       this.m = m;
@@ -325,7 +329,83 @@ public final class Rows {
     /** the answer of the handler in place that {@code op} goes to, {@code skip} row places past the nearest; or
      * {@link #ONCE} or {@link #ELSEWHERE} */
     public Object ask(Object op, int skip) {
+      Object r = route(op, skip);
+      return r instanceof Place p ? p.spec.answer(p.entry, op) : r;
+    }
+
+    /** where {@code op} goes, never answered here: {@link #ONCE} or {@link #ELSEWHERE} — for an operation that must
+     * be asked as a program even where its handler is in place (a sensitive one: its audit must see it) */
+    public Object kind(Object op, int skip) {
+      Object r = route(op, skip);
+      return r instanceof Place ? ELSEWHERE : r;
+    }
+
+    /** {@code op} asked from here, while the program that probes runs — for a general handler that declares it
+     * resumes once: the handler takes the rest at once, the rest topped by {@code later}, and its clause runs. If the
+     * clause resumes the rest at once ({@code k.resume(op, x)}, bound or mapped or not), the rest is put back as it
+     * was and {@code x} is returned: the operation was answered here, nothing to suspend. Otherwise a
+     * {@link Pending}: the stack is now the clause's, and its program must be what the probing program goes on
+     * with — {@code later} is given the answer when the rest is resumed */
+    public Object resumeHere(Object op, int skip, Function<Object, ? extends Eff<?, ?>> later) {
+      Mark mk = new Mark(later);
+      Frames k0 = m.k;
+      m.k = new Frames.Then(mk, k0);
+      Eff<?, ?> next;
+      try {
+        next = asked(m, op, skip);
+      } catch (Throwable t) {
+        // the clause failed: a failure outside the handler, as the machine's loop would make it
+        next = new Kernel.Fail<>(Kernel.nonFatal(t));
+      } finally {
+        mk.here = false;
+      }
+      return next == HIT ? mk.x : new Pending(next);
+    }
+
+    /** the operation asked by {@link #resumeHere} and not answered at once: the program to go on with */
+    public record Pending(Eff<?, ?> next) {}
+
+    /** the top of the rest {@link #resumeHere} gives the handler: resumed while the clause is called, it notes the
+     * answer and leaves the rest as it was put back; resumed later, {@code later} goes on */
+    private static final class Mark implements Function<Object, Eff<?, ?>> {
+      final Function<Object, ? extends Eff<?, ?>> later;
+      boolean here = true;
+      Object x;
+
+      Mark(Function<Object, ? extends Eff<?, ?>> later) {
+        this.later = later;
+      }
+
+      @Override
+      public Eff<?, ?> apply(Object x) {
+        if (!here) return later.apply(x);
+        here = false;
+        this.x = x;
+        return HIT;
+      }
+    }
+
+    /** answered at once: never stepped, only compared */
+    private static final Eff<?, ?> HIT = new Nodes.Return<>(null);
+
+    private Object route(Object op, int skip) {
       if (m == null) return ELSEWHERE;
+      Object[] known = routes;
+      if (known != null && skip < known.length && known[skip] != null) return known[skip];
+      crossed = false;
+      Object r = walk(op, skip);
+      if (!crossed && skip < 8) {
+        if (known == null) routes = known = new Object[8];
+        known[skip] = r;
+      }
+      return r;
+    }
+
+    /** whether the last walk met an interceptor: its route is not kept */
+    private boolean crossed;
+
+    /** the walk, as {@code asked} finds a handler: a handler in place's {@link Place}, ONCE or ELSEWHERE */
+    private Object walk(Object op, int skip) {
       Meta rest = m.ms;
       Walk w = null;
       while (true) {
@@ -342,9 +422,10 @@ public final class Rows {
         if (s == null) return ELSEWHERE;
         Object f = s.prompt().frame;
         if (f instanceof Place p) {
+          if (!p.spec.row) crossed = true;
           boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
           if (p.spec.row && !found) skip--;
-          if (found) return p.spec.inPlace ? p.spec.answer(p.entry, op) : p.spec.once() ? ONCE : ELSEWHERE;
+          if (found) return p.spec.inPlace ? p : p.spec.once() ? ONCE : ELSEWHERE;
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {
@@ -406,9 +487,13 @@ public final class Rows {
   /** the states of the handlers in place among the first {@code n} delimiters: theirs and them, in pairs; none,
    * {@code null} */
   private static Object[] saved(Meta ms, int n) {
+    // the nearest handler, the usual: nothing crossed, nothing to walk or make
+    if (n == 0) return null;
     Object[] saved = null;
     int i = 0;
-    for (Seg s : first(ms, n)) {
+    Walk w = new Walk(ms);
+    for (int j = 0; j < n; j++) {
+      Seg s = w.next();
       if (s.prompt().frame instanceof Place p && p.spec.inPlace) {
         if (saved == null) saved = new Object[2 * n];
         saved[i++] = p;
