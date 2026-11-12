@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- a consumer of okay-java-resumable, built against this repository with nothing in ~/.m2: the library and the
+       plugin come from a repository directory under the module's build/ (../../build.gradle.kts: mavenSample) -->
+  <groupId>sample</groupId>
+  <artifactId>resumable-sample-maven</artifactId>
+  <version>1.0</version>
+
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <okay.repo>file://${project.basedir}/../../build/maven-repo</okay.repo>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>okay-java-resumable-build</id>
+      <url>${okay.repo}</url>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>okay-java-resumable-build</id>
+      <url>${okay.repo}</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <dependencies>
+    <!-- 1. the library -->
+    <dependency>
+      <groupId>dev.okay</groupId>
+      <artifactId>okay-java-resumable</artifactId>
+      <version>0.2.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.13.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- 2. the plugin: target/classes and target/test-classes made resumable; surefire's argLine given the
+           JVM's continuations -->
+      <plugin>
+        <groupId>dev.okay</groupId>
+        <artifactId>okay-java-resumable-maven-plugin</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>transform</goal>
+              <goal>transform-test</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.4</version>
+      </plugin>
+      <!-- 3. for java -jar: the continuations, and the agent that transforms what was not built so -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Add-Exports>java.base/jdk.internal.vm java.base/jdk.internal.access</Add-Exports>
+              <Add-Opens>java.base/java.lang</Add-Opens>
+              <Launcher-Agent-Class>okay.resumable.transform.Agent</Launcher-Agent-Class>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

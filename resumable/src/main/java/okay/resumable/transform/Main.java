@@ -22,11 +22,16 @@ public final class Main {
 
   public static void main(String[] args) throws IOException {
     Path in = Path.of(args[0]);
-    Path out = Path.of(args[1]);
+    int changed = transform(in, Path.of(args[1]), args.length > 2 ? args[2] : "");
+    System.out.println("okay.resumable: " + changed + " class(es) made resumable in " + in);
+  }
+
+  /** the classes of {@code in} written to {@code out}, rewritten where they may suspend; how many were. Refused:
+   * an {@code IllegalStateException} after the reasons are printed on stderr */
+  public static int transform(Path in, Path out, String classpath) throws IOException {
     List<URL> urls = new ArrayList<>();
     urls.add(in.toUri().toURL());
-    if (args.length > 2)
-      for (String p : args[2].split(File.pathSeparator)) if (!p.isBlank()) urls.add(Path.of(p).toUri().toURL());
+    for (String p : classpath.split(File.pathSeparator)) if (!p.isBlank()) urls.add(Path.of(p).toUri().toURL());
     int changed = 0;
     List<String> refused = new ArrayList<>();
     try (URLClassLoader loader = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
@@ -52,7 +57,7 @@ public final class Main {
       refused.forEach(System.err::println);
       throw new IllegalStateException("okay.resumable: " + refused.size() + " method(s) cannot be made resumable");
     }
-    System.out.println("okay.resumable: " + changed + " class(es) made resumable in " + in);
+    return changed;
   }
 
   static byte[] read(ClassLoader loader, String name) {

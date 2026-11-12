@@ -145,3 +145,39 @@ tasks.register<JavaExec>("bench") {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
     jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
 }
+
+// THE MAVEN PLUGIN AND THE MAVEN SAMPLE (./gradlew :okay-java-resumable:mavenSample): okay-java and this module
+// published to a repository directory under build/ — not ~/.m2 —, with okay-kernel-api beside them; the plugin built
+// by the Maven wrapper (Maven fetched under build/), deployed to that directory; the sample built against it, each
+// Maven build with a local repository of its own under build/
+apply(plugin = "maven-publish")
+val samplesRepo = layout.buildDirectory.dir("maven-repo")
+configure<PublishingExtension> {
+    publications { create<MavenPublication>("okayJavaResumable") { from(components["java"]) } }
+    repositories { maven { name = "samples"; url = uri(samplesRepo) } }
+}
+rootProject.configure<PublishingExtension> {
+    repositories { maven { name = "resumableSamples"; url = uri(samplesRepo) } }
+}
+val samplesRepoReady by tasks.registering(Copy::class) {
+    dependsOn("publishOkayJavaResumablePublicationToSamplesRepository",
+        ":publishOkayJavaPublicationToResumableSamplesRepository")
+    from(File(System.getProperty("user.home"), ".m2/repository/dev/okay/okay-kernel-api"))
+    into(samplesRepo.map { it.dir("dev/okay/okay-kernel-api") })
+}
+fun mvnw(task: Exec, vararg args: String) {
+    task.workingDir = projectDir
+    task.environment("MAVEN_USER_HOME", layout.buildDirectory.dir("maven-home").get().asFile.path)
+    task.environment("JAVA_HOME", javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+        .get().metadata.installationPath.asFile.path)
+    task.commandLine(listOf("./mvnw", "-B", "-ntp") + args)
+}
+val mavenPlugin by tasks.registering(Exec::class) {
+    dependsOn(samplesRepoReady)
+    mvnw(this, "-f", "maven-plugin/pom.xml", "-Dmaven.repo.local=build/m2-plugin", "deploy",
+        "-DaltDeploymentRepository=samples::" + samplesRepo.get().asFile.toURI())
+}
+tasks.register<Exec>("mavenSample") {
+    dependsOn(mavenPlugin)
+    mvnw(this, "-f", "samples/maven/pom.xml", "-Dmaven.repo.local=build/m2-sample", "verify")
+}
