@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import okay.rows.Comp;
 import okay.rows.Eff;
 import okay.rows.Handler;
@@ -84,6 +87,20 @@ class DirectTest {
     // the same, every operation seen by a general handler on its way: the frames saved and resumed each time
     assertEquals(new Final<>(1_000_000, 1_000_000),
         run(Counter.run(0, Counter.watched(Direct.row(Counter.class).of(() -> count(1_000_000))))));
+  }
+
+  @Test
+  void capturesOnManyThreadsAtOnceEachTakesItsOwn() throws Exception {
+    // the frames saved at every operation, on four threads at once: a capture leaves the twins by returns, and the
+    // count each thread reads is everyone's — each must take its own capture only
+    try (ExecutorService pool = Executors.newFixedThreadPool(4)) {
+      List<Future<Final<Integer, Integer>>> runs = new ArrayList<>();
+      for (int i = 0; i < 8; i++) {
+        int n = 20_000 + i;
+        runs.add(pool.submit(() -> run(Counter.run(0, Counter.watched(Direct.row(Counter.class).of(() -> count(n)))))));
+      }
+      for (int i = 0; i < 8; i++) assertEquals(new Final<>(20_000 + i, 20_000 + i), runs.get(i).get());
+    }
   }
 
   @Test

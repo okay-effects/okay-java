@@ -16,6 +16,7 @@ import okay.direct.TailHandler;
 import okay.direct.loom.LoomEffects;
 import okay.resumable.Counter;
 import okay.resumable.Direct;
+import okay.resumable.DirectHandlers;
 import okay.resumable.Input;
 import okay.resumable.Pick;
 import okay.rows.Comp;
@@ -173,6 +174,27 @@ public class ResumableBench {
       for (int i = 0; i < N; i++) s += in.perform(new In.Next());
       return s;
     });
+  }
+
+  // ---- handlers written in direct style
+
+  @Benchmark
+  @OperationsPerInvocation(2 * N)
+  public Object stateDirectHandlerInPlace() {
+    return run(DirectHandlers.counted(0, COUNTER.of(() -> Programs.count(N))));
+  }
+
+  /** a general handler resumed in tail position: the body's frames saved, the clause run, at every operation */
+  @Benchmark
+  @OperationsPerInvocation(2 * N)
+  public Object stateDirectHandlerGeneral() {
+    return run(DirectHandlers.general(0, COUNTER.of(() -> Programs.count(N))));
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  public List<Integer> chooseDirectHandler() {
+    return run(DirectHandlers.all(PICK.of(Programs::choose)));
   }
 
   // ---- a choice: every path, multi-shot
