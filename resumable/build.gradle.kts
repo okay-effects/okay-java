@@ -63,3 +63,25 @@ tasks.test {
     // the stack-safety tests prove constant stack: a small stack makes a regression fail loudly
     jvmArgs("-Xss512k")
 }
+
+// a program in a jar built WITHOUT the transformation, everything it needs inside: `java -jar` transforms it as it
+// loads, through the manifest's Launcher-Agent-Class (AgentTest)
+val jarSample: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+}
+val jarSampleJar by tasks.registering(Jar::class) {
+    archiveFileName = "jar-sample.jar"
+    destinationDirectory = layout.buildDirectory.dir("jar-sample")
+    from(jarSample.output)
+    from(sourceSets.main.get().output)
+    from(configurations.runtimeClasspath.map { cp -> cp.map { if (it.isDirectory) it else zipTree(it) } })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes("Main-Class" to "okay.resumable.sample.Shop",
+            "Launcher-Agent-Class" to "okay.resumable.transform.Agent")
+    }
+}
+tasks.test {
+    dependsOn(jarSampleJar)
+    systemProperty("okay.resumable.jarSample", jarSampleJar.get().archiveFile.get().asFile.path)
+}
