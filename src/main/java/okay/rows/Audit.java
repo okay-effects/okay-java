@@ -18,14 +18,28 @@ public final class Audit {
   /** the sensitive effect of the program's first place audited by {@code interceptor}: its clause runs outside the
    * audit, where the place is {@link Audited}. The audit and the handler of {@link Audited} are
    * one place of the type and two handlers at run time: the body is under the audit as {@code under} puts it, so its
-   * other operations pass both */
+   * other operations pass both. An interceptor that declares {@link Once} makes the audit declare it */
   public static <E, A, R> Comp<A, Audited<E, R>> audit(Interceptor<E, A, R> interceptor,
       Comp<A, ? super Sensitive<E, R>> body) {
-    Pass<E, R> pass = new Pass<>();
-    return new Comp<>(DOOR.handle(new Handlers.General<>(Object.class, new Handler<E, A, A, Audited<E, R>>() {
-      public Comp<A, Audited<E, R>> ret(A a) { return pure(a); }
-      public Comp<A, Audited<E, R>> on(E op, K<A, Audited<E, R>> k) { return interceptor.on(op, pass, k); }
-    }, true), null, DOOR.lift(body.eff, 1)));
+    Auditor<E, A, R> auditor =
+        interceptor instanceof Once ? new OnceAuditor<>(interceptor) : new Auditor<>(interceptor);
+    return new Comp<>(DOOR.handle(new Handlers.General<>(Object.class, auditor, true), null, DOOR.lift(body.eff, 1)));
+  }
+
+  /** the audit's handler: each operation given to the interceptor, with the way on past it */
+  private static class Auditor<E, A, R> implements Handler<E, A, A, Audited<E, R>> {
+    private final Interceptor<E, A, R> interceptor;
+    private final Pass<E, R> pass = new Pass<>();
+
+    Auditor(Interceptor<E, A, R> interceptor) { this.interceptor = interceptor; }
+
+    public Comp<A, Audited<E, R>> ret(A a) { return pure(a); }
+
+    public Comp<A, Audited<E, R>> on(E op, K<A, Audited<E, R>> k) { return interceptor.on(op, pass, k); }
+  }
+
+  private static final class OnceAuditor<E, A, R> extends Auditor<E, A, R> implements Once {
+    OnceAuditor(Interceptor<E, A, R> interceptor) { super(interceptor); }
   }
 
   /** the sensitive effect handled, under its audit only: the program's first place is {@link Audited} */
