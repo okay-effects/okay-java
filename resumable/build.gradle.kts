@@ -93,3 +93,55 @@ tasks.test {
     dependsOn(jarSampleJar)
     systemProperty("okay.resumable.jarSample", jarSampleJar.get().archiveFile.get().asFile.path)
 }
+
+// THE BENCHMARK (./gradlew :okay-java-resumable:bench [--args='-f 1 ...']): the three tiers on the same programs,
+// against okay.rows and okay-direct's Loom implementation, resolved from its published repository; JMH as the root
+// project has it. Its classes and the test classes it uses are run transformed
+repositories {
+    maven("https://okay-effects.github.io/okay-direct/maven") {
+        content { includeGroup("io.github.okay-effects") }
+    }
+}
+val jmh: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output +
+        sourceSets.test.get().compileClasspath
+    runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().runtimeClasspath
+}
+dependencies {
+    "jmhImplementation"("org.openjdk.jmh:jmh-core:1.37")
+    "jmhAnnotationProcessor"("org.openjdk.jmh:jmh-generator-annprocess:1.37")
+    "jmhImplementation"("io.github.okay-effects:okay-direct-loom:0.1.0")
+}
+tasks.named<JavaCompile>("compileJmhJava") {
+    options.compilerArgs.add("-Xlint:-processing")
+}
+val resumableJmhClasses = layout.buildDirectory.dir("resumable/jmh")
+val transformJmhClasses by tasks.registering(JavaExec::class) {
+    val classes = jmh.output.classesDirs
+    dependsOn(tasks.named("jmhClasses"))
+    inputs.files(classes)
+    outputs.dir(resumableJmhClasses)
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "okay.resumable.transform.Main"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+    doFirst {
+        delete(resumableJmhClasses)
+        args(classes.files.first { it.exists() }.path, resumableJmhClasses.get().asFile.path,
+            jmh.runtimeClasspath.asPath)
+    }
+    // the untransformed twin of a transformed method, to measure what the transformation costs when nothing suspends
+    doLast {
+        copy {
+            from(classes) { include("okay/resumable/bench/Plain.class") }
+            into(resumableJmhClasses)
+        }
+    }
+}
+tasks.register<JavaExec>("bench") {
+    dependsOn(transformJmhClasses, transformTestClasses)
+    classpath = files(resumableJmhClasses, resumableTestClasses) +
+        (jmh.runtimeClasspath - jmh.output.classesDirs - sourceSets.test.get().output.classesDirs)
+    mainClass = "org.openjdk.jmh.Main"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+    jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
+}
