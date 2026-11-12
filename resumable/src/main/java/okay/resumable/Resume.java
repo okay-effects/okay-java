@@ -1,12 +1,14 @@
 package okay.resumable;
 
 import java.lang.invoke.CallSite;
+import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandleInfo;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.invoke.VarHandle;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import okay.rows.Op;
@@ -20,12 +22,85 @@ public final class Resume {
   /** {@link Direct#perform}, as a transformed caller calls it: answered in place, yielded, or the operation leaves,
    * saving the frames on its way */
   public static Object perform(Op<?, ?, ?> op) {
-    return Driver.perform(op);
+    Object a = Driver.perform(op);
+    if (a instanceof Capture c) throw c;
+    return a;
   }
 
   /** {@link Direct#perform(Sensitive.Op)}, as a transformed caller calls it: never answered in place */
   public static Object performSensitive(Sensitive.Op<?, ?, ?> op) {
-    return Driver.performSensitive(op);
+    Object a = Driver.performSensitive(op);
+    if (a instanceof Capture c) throw c;
+    return a;
+  }
+
+  // ---- captures on their way out of twins, by returns
+
+  /** how many captures are on their way out of twins, on every thread: read plainly by transformed code after each
+   * call to a twin — a thread sees its own count, so 0 means none of its own. Changed atomically, by captures only */
+  public static int going;
+
+  private static final VarHandle GOING;
+
+  static {
+    try {
+      GOING = MethodHandles.lookup().findStaticVarHandle(Resume.class, "going", int.class);
+    } catch (ReflectiveOperationException e) {
+      throw new ExceptionInInitializerError(e);
+    }
+  }
+
+  /** this thread's capture on its way out of twins */
+  private static final ThreadLocal<Capture> OUT = new ThreadLocal<>();
+
+  /** the capture a twin leaves by returning, for its caller to take */
+  public static void out(Capture c) {
+    if (c.out) return;
+    c.out = true;
+    OUT.set(c);
+    GOING.getAndAdd(1);
+  }
+
+  /** the capture taken by a method that is no twin: it goes on by a throw, or a copy's return to the boundary */
+  public static Capture in(Capture c) {
+    if (c.out) {
+      c.out = false;
+      OUT.set(null);
+      GOING.getAndAdd(-1);
+    }
+    return c;
+  }
+
+  /** after a call to a twin, where some capture is on its way: this thread's, or null */
+  public static Capture taken() {
+    return OUT.get();
+  }
+
+  /** a twin's call to a static method: to its twin, if it has one, else to the method itself */
+  public static CallSite twin(MethodHandles.Lookup lookup, String name, MethodType type, Class<?> owner)
+      throws ReflectiveOperationException {
+    MethodHandle m;
+    try {
+      m = lookup.findStatic(owner, name + "$okay$t", type);
+    } catch (NoSuchMethodException | IllegalAccessException e) {
+      m = lookup.findStatic(owner, name, type);
+    }
+    return new ConstantCallSite(m);
+  }
+
+  /** {@link #perform}, as a twin calls it: the capture returned, left for the caller */
+  public static Object performOut(Op<?, ?, ?> op) {
+    Object a = Driver.perform(op);
+    if (!(a instanceof Capture c)) return a;
+    out(c);
+    return null;
+  }
+
+  public static Object performSensitiveOut(Sensitive.Op<?, ?, ?> op) {
+    Object a = Driver.performSensitive(op);
+    if (!(a instanceof Capture c)) return a;
+    out(c);
+    return null;
   }
 
   /** the frame of a transformed method added to an operation on its way out. The call it was suspended at must have

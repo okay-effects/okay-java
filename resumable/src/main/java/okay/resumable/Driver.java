@@ -36,7 +36,7 @@ final class Driver {
   static final int[] TAKEN = new int[4];
 
   /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
-   * or yielded, or the frames saved */
+   * or yielded; or a capture returned, for the frames to be saved */
   static Object perform(Op<?, ?, ?> op) {
     // one that is both, through a raw type: sensitive, so it passes its audit
     if (op instanceof Sensitive.Op<?, ?, ?> s) return performSensitive(s);
@@ -54,7 +54,7 @@ final class Driver {
         if (!Loom.AVAILABLE) Loom.tell();
       }
     }
-    throw new Capture(op);
+    return new Capture(op);
   }
 
   /** {@link Resume#performSensitive}: a sensitive operation passes its audit, so it is never answered in place —
@@ -70,7 +70,7 @@ final class Driver {
         if (!Loom.AVAILABLE) Loom.tell();
       }
     }
-    throw new Capture(op);
+    return new Capture(op);
   }
 
   /** 2: the handler's clause called from the body's stack. Resumed at once, as most are, its answer is returned and
@@ -90,7 +90,7 @@ final class Driver {
     Object y = r.yield(p.next());
     if (y != LoomRun.NOT) return y;
     if (TRACE) TAKEN[2]--;
-    throw new Capture(op, p.next(), later);
+    return new Capture(op, p.next(), later);
   }
 
   private static <T> T at(Ctx c, Supplier<T> f) {

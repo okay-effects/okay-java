@@ -436,6 +436,36 @@ public final class Transformer {
 
   // ---- the rewrite
 
+  /** how a method's body is written: as it was, as its resumption (a copy), as its twin */
+  enum Mode { ORIGINAL, COPY, TWIN }
+
+  /** A TWIN of each static method rewritten, called by transformed code alone: a capture leaves it by a return, not
+   * a throw, which would cost the VM a search for the handler in each frame. Its caller reads one count after the
+   * call and takes the capture if there is one of this thread's. Linked by {@code Resume.twin}, which falls back to
+   * the method itself where it has no twin (a class built without the transformation); the method itself still
+   * throws, for any caller */
+  static final String TWIN = "$okay$t";
+
+  static boolean twinned(MethodModel mm) {
+    String name = mm.methodName().stringValue();
+    return mm.flags().has(java.lang.reflect.AccessFlag.STATIC) && !name.startsWith("lambda$") && !name.startsWith("<");
+  }
+
+  private static int twinFlags(MethodModel mm) {
+    int access = mm.flags().flagsMask() & (ClassFile.ACC_PUBLIC | ClassFile.ACC_PRIVATE | ClassFile.ACC_PROTECTED);
+    return access | ClassFile.ACC_STATIC | ClassFile.ACC_SYNTHETIC;
+  }
+
+  /** a call that may be linked to its callee's twin: a static one */
+  private static boolean twins(Site s) {
+    return s.invoke().opcode() == Opcode.INVOKESTATIC && !s.invoke().name().stringValue().startsWith("lambda$");
+  }
+
+  static final DirectMethodHandleDesc TWIN_BSM = MethodHandleDesc.ofMethod(DirectMethodHandleDesc.Kind.STATIC,
+      CD_RESUME, "twin", MethodTypeDesc.of(ConstantDescs.CD_CallSite,
+          ClassDesc.of("java.lang.invoke.MethodHandles$Lookup"), ConstantDescs.CD_String, ConstantDescs.CD_MethodType,
+          ConstantDescs.CD_Class));
+
   /** a local or a spilled stack value: its slot and its type */
   record Slot(int slot, VerificationTypeInfo type) {}
 
@@ -488,7 +518,7 @@ public final class Transformer {
       int temps = Math.max(top, 3); // above the copy's three parameters, which it moves there
       clb.withMethod(mm.methodName(), mm.methodType(), mm.flags().flagsMask(), mb -> {
         for (MethodElement me : mm) if (!(me instanceof CodeAttribute)) mb.with(me);
-        mb.withCode(cb -> body(cb, p, frames, false, temps));
+        mb.withCode(cb -> body(cb, p, frames, Mode.ORIGINAL, temps));
       });
     }
 
@@ -507,7 +537,10 @@ public final class Transformer {
         int temps = Math.max(top, 3); // above the copy's three parameters, which it moves there
         clb.withMethod(copyName(p), RESUME_TYPE,
             ClassFile.ACC_PRIVATE | ClassFile.ACC_STATIC | ClassFile.ACC_SYNTHETIC,
-            mb -> mb.withCode(cb -> body(cb, p, frames, true, temps)));
+            mb -> mb.withCode(cb -> body(cb, p, frames, Mode.COPY, temps)));
+        if (twinned(p.method)) clb.withMethod(p.method.methodName().stringValue() + TWIN,
+            p.method.methodTypeSymbol(), twinFlags(p.method),
+            mb -> mb.withCode(cb -> body(cb, p, frames, Mode.TWIN, temps)));
       }
     }
 
@@ -516,19 +549,26 @@ public final class Transformer {
     }
 
     /** the method's body: as it was (copy false) or as its resumption (copy true) */
-    void body(CodeBuilder cb, Plan p, Map<Site, Frames> frames, boolean copy, int temps) {
+    void body(CodeBuilder cb, Plan p, Map<Site, Frames> frames, Mode mode, int temps) {
+      boolean copy = mode == Mode.COPY;
       int thr = temps;
       int frame = temps + 1;
       int answer = temps + 2;
       int values = temps + 3;
       int prims = temps + 4;
+      int held = temps + 5; // a call's value, while the slow path asks whether a twin left a capture
       Relabel r = new Relabel(cb);
       int n = p.sites.size();
       Label[] start = new Label[n];
       Label[] call = new Label[n];
       Label[] end = new Label[n];
       Label[] handler = new Label[n];
+      Label[] slow = new Label[n];
+      Label[] back = new Label[n];
+      boolean[] checked = new boolean[n];
       for (int i = 0; i < n; i++) {
+        slow[i] = cb.newLabel();
+        back[i] = cb.newLabel();
         start[i] = cb.newLabel();
         call[i] = copy ? cb.newLabel() : start[i];
         end[i] = cb.newLabel();
@@ -605,15 +645,28 @@ public final class Transformer {
             cb.aload(thr).aconst_null().astore(thr).athrow();
             cb.labelBinding(call[s]);
           }
+          boolean twin = mode == Mode.TWIN;
           if (site.perform()) {
-            // by the operation's type: a sensitive one never answered in place
+            // by the operation's type: a sensitive one never answered in place. A twin's returns its capture
             ClassDesc op = site.invoke().typeSymbol().parameterList().getFirst();
-            if (op.equals(CD_SENSITIVE_OP)) cb.invokestatic(CD_RESUME, "performSensitive",
-                MethodTypeDesc.of(ConstantDescs.CD_Object, CD_SENSITIVE_OP));
-            else cb.invokestatic(CD_RESUME, "perform", MethodTypeDesc.of(ConstantDescs.CD_Object, CD_OP));
-          }
-          else r.emit(e);
+            boolean sensitive = op.equals(CD_SENSITIVE_OP);
+            cb.invokestatic(CD_RESUME, (sensitive ? "performSensitive" : "perform") + (twin ? "Out" : ""),
+                MethodTypeDesc.of(ConstantDescs.CD_Object, sensitive ? CD_SENSITIVE_OP : CD_OP));
+          } else if (twins(site)) {
+            twin = true;
+            InvokeInstruction inv = site.invoke();
+            Plan callee = inv.owner().asSymbol().equals(self) ? plans.get(inv.name().stringValue()
+                + inv.type().stringValue()) : null;
+            // a method of this class: its twin is known to be made, and a direct call costs no stack of a linkage
+            if (callee != null && twinned(callee.method)) cb.invokestatic(self, inv.name().stringValue() + TWIN,
+                inv.typeSymbol(), inv.isInterface());
+            else cb.invokedynamic(DynamicCallSiteDesc.of(TWIN_BSM, inv.name().stringValue(), inv.typeSymbol(),
+                inv.owner().asSymbol()));
+          } else r.emit(e);
           cb.labelBinding(end[s]);
+          // after a call that may return with a capture on its way: one plain read, the slow path out of line
+          if (twin) cb.getstatic(CD_RESUME, "going", ConstantDescs.CD_int).ifne(slow[s]).labelBinding(back[s]);
+          checked[s] = twin;
           s++;
           continue;
         }
@@ -654,9 +707,36 @@ public final class Transformer {
         }
         cb.invokestatic(CD_RESUME, "push", MethodTypeDesc.of(CD_CAPTURE, CD_CAPTURE, CD_RESUMER,
             ConstantDescs.CD_int, CD_OBJECTS, CD_LONGS));
-        // a resumed copy is called by the boundary alone: it returns the capture there, no throw to cross frames
-        if (copy) cb.areturn();
-        else cb.athrow();
+        switch (mode) {
+          // called by transformed code only, a twin returns, its capture left for the caller to take
+          case TWIN -> {
+            cb.invokestatic(CD_RESUME, "out", MethodTypeDesc.of(ConstantDescs.CD_void, CD_CAPTURE));
+            TypeKind kind = TypeKind.from(p.method.methodTypeSymbol().returnType());
+            if (kind != TypeKind.VOID) zero(cb, kind);
+            cb.return_(kind);
+          }
+          // a resumed copy is called by the boundary alone: it returns the capture there, no throw to cross frames
+          case COPY -> cb.invokestatic(CD_RESUME, "in", MethodTypeDesc.of(CD_CAPTURE, CD_CAPTURE)).areturn();
+          case ORIGINAL -> cb.invokestatic(CD_RESUME, "in", MethodTypeDesc.of(CD_CAPTURE, CD_CAPTURE)).athrow();
+        }
+      }
+      for (int i = 0; i < n; i++) {
+        if (!checked[i]) continue;
+        // a capture may be on its way: this thread's, to its handler; another thread's, the call's value goes on
+        TypeKind kind = TypeKind.from(p.sites.get(i).invoke().typeSymbol().returnType());
+        // the stack under the call is in its spilled locals too: dropped for the handler, loaded back to go on
+        List<Slot> rest = frames.get(p.sites.get(i)).rest;
+        cb.labelBinding(slow[i]);
+        if (kind != TypeKind.VOID) cb.storeLocal(kind, held);
+        for (int j = rest.size() - 1; j >= 0; j--) {
+          VerificationTypeInfo t = rest.get(j).type();
+          if (t == LONG || t == DOUBLE) cb.pop2();
+          else cb.pop();
+        }
+        cb.invokestatic(CD_RESUME, "taken", MethodTypeDesc.of(CD_CAPTURE)).dup().ifnonnull(handler[i]).pop();
+        for (Slot sl : rest) load(cb, sl);
+        if (kind != TypeKind.VOID) cb.loadLocal(kind, held);
+        cb.goto_(back[i]);
       }
     }
 
@@ -769,6 +849,16 @@ public final class Transformer {
     else if (t == FLOAT) cb.fstore(s.slot());
     else if (t == DOUBLE) cb.dstore(s.slot());
     else cb.astore(s.slot());
+  }
+
+  private static void zero(CodeBuilder cb, TypeKind k) {
+    switch (k) {
+      case LONG -> cb.lconst_0();
+      case FLOAT -> cb.fconst_0();
+      case DOUBLE -> cb.dconst_0();
+      case REFERENCE -> cb.aconst_null();
+      default -> cb.iconst_0();
+    }
   }
 
   private static void zero(CodeBuilder cb, VerificationTypeInfo t) {

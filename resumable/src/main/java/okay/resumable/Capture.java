@@ -15,6 +15,8 @@ public final class Capture extends Error {
   transient Frame covered;
   /** the outermost frame saved here whose call is not in tail position */
   transient Frame nonTail;
+  /** whether it is on its way out of twins, by returns */
+  transient boolean out;
   /** where the rest was taken already, by a clause called from the body's stack, and the body could not yield:
    * the clause's program, and what it gives the answer to */
   final transient Comp<Object, Object> next;
