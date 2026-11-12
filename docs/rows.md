@@ -227,6 +227,10 @@ a `Place`: the handler and, for one in place, its cell. A place is made each tim
 - **What changed in `okay.core`.** Two node classes, a method on the run (`enter`), and the end of an unwinding in
   `Kernel.unwind`. Nothing on the existing paths changed. The existing benchmarks allocate exactly what they did
   (`bench.d/2026-11-11_rows-*.csv`).
+- **For direct style** (okay-java-resumable): `Door.here` gives a program, when it runs, a `Rows.Probe` of the
+  delimiters in force. The probe walks them as an operation would and answers only where a handler in place would
+  answer. `okay.rows.Here` is its public face, and `okay.rows.Once` lets a general handler declare that it resumes at
+  most once. One node class (`Rows.Here`) and a method of `Spec` (`once`) were added; no existing path changed.
 
 ## Differences from the reference
 

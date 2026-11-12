@@ -1,0 +1,14 @@
+Benchmark                                 Mode  Cnt    Score    Error  Units
+ResumableBench.chooseDirect               avgt   10  111.098 ±  6.582  ns/op
+ResumableBench.chooseRows                 avgt   10   54.813 ±  4.178  ns/op
+ResumableBench.onceDirectLoom             avgt   10  280.974 ±  5.523  ns/op
+ResumableBench.onceDirectLoomDeep         avgt   10  320.822 ± 15.370  ns/op
+ResumableBench.onceDirectSavedFrames      avgt   10  271.238 ± 21.439  ns/op
+ResumableBench.onceDirectSavedFramesDeep  avgt   10  946.538 ± 71.757  ns/op
+ResumableBench.onceOkayDirectLoom         avgt   10  144.716 ±  9.355  ns/op
+ResumableBench.onceRows                   avgt   10   30.456 ±  1.465  ns/op
+ResumableBench.stateDirectInPlace         avgt   10   10.680 ±  0.519  ns/op
+ResumableBench.stateOkayDirectLoom        avgt   10    7.270 ±  0.362  ns/op
+ResumableBench.stateRows                  avgt   10   23.902 ±  1.317  ns/op
+ResumableBench.noSuspensionPlain        avgt   10  1.531 ± 0.099  ns/op
+ResumableBench.noSuspensionTransformed  avgt   10  1.508 ± 0.069  ns/op

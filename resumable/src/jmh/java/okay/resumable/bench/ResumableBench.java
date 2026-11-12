@@ -181,7 +181,7 @@ public class ResumableBench {
   @OperationsPerInvocation(N)
   public int noSuspensionTransformed() throws Counter {
     int s = 0;
-    for (int i = 0; i < N; i++) s = Programs.plus(s ^ i, x) * 31;
+    for (int i = 0; i < N; i++) s = Programs.plus((s ^ i) & 0xFFFF, x) * 31;
     return s;
   }
 
@@ -189,7 +189,7 @@ public class ResumableBench {
   @OperationsPerInvocation(N)
   public int noSuspensionPlain() throws Counter {
     int s = 0;
-    for (int i = 0; i < N; i++) s = Plain.plus(s ^ i, x) * 31;
+    for (int i = 0; i < N; i++) s = Plain.plus((s ^ i) & 0xFFFF, x) * 31;
     return s;
   }
 }

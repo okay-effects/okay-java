@@ -10,3 +10,6 @@
   method returning an `Eff`; a program in a transaction; how each works and where it stops.
 - [The row notation](rows.md): `okay.rows`, programs whose type is the row of their effects, okay-effects' Java
   interface on this machine; how it meets the capability notation; control and audit; what differs from the reference.
+- [Direct style, resumable](../resumable/README.md): the optional module okay-java-resumable — plain Java methods whose
+  effects are checked exceptions, made resumable many times by a build-time transformation, bridged into `okay.rows`;
+  its Gradle and Maven plugins, the three ways an operation runs, the limits, measured.

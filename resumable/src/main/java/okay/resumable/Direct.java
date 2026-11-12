@@ -6,8 +6,8 @@ import okay.rows.Op;
 import okay.rows.Pure;
 
 /** DIRECT STYLE: a plain Java method performs operations and gets their answers as values; the effects it uses are
- * its {@code throws}. {@link #row}{@code (..).of} makes it an {@code okay.rows} program, whose row is those effects, for the row's
- * handlers to answer:
+ * its {@code throws}. {@link #row}{@code (..).of} makes it an {@code okay.rows} program, whose row is those
+ * effects, for the row's handlers to answer:
  *
  * <pre>{@code
  * static Receipt checkout(String user) throws Cart, Payments {

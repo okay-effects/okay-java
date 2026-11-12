@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
  * transforms the classes as they load */
 class AgentTest {
   @Test
-  void aJarBuiltWithoutThePluginRunsWithJavaJarItsContinuationsExportedByItsManifest() throws IOException, InterruptedException {
+  void aJarBuiltWithoutThePluginRunsWithJavaJarItsContinuationsExportedByItsManifest()
+      throws IOException, InterruptedException {
     String java = ProcessHandle.current().info().command().orElseThrow();
     Process p = new ProcessBuilder(java, "-jar", System.getProperty("okay.resumable.jarSample"))
         .redirectErrorStream(true).start();

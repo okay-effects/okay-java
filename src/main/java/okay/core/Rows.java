@@ -307,7 +307,8 @@ public final class Rows {
 
   /** THE HANDLERS IN FORCE where a program of {@link Door#here} runs, while it runs: an operation found as
    * {@link #asked} finds it, but answered only by a handler in place — nothing captured, nothing changed but that
-   * handler's state, as {@code asked} would. Any other handler, or none, is left to the operation asked the usual way */
+   * handler's state, as {@code asked} would. Any other handler, or none, is left to the operation asked the usual
+   * way */
   public static final class Probe {
     /** not answered here: the operation's handler is general (and may resume more than once), an unwinding's mark, the
      * root, or none; or the probe is dead */

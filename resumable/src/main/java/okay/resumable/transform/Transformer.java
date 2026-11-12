@@ -357,7 +357,8 @@ public final class Transformer {
         clb.with(ce);
         return;
       }
-      clb.withMethod(p.method.methodName(), p.method.methodType(), p.method.flags().flagsMask(), mb -> mb.withCode(cb -> {
+      int flags = p.method.flags().flagsMask();
+      clb.withMethod(p.method.methodName(), p.method.methodType(), flags, mb -> mb.withCode(cb -> {
         Relabel r = new Relabel(cb);
         int s = 0;
         for (int i = 0; i < p.elements.size(); i++) {
