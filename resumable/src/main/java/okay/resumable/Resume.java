@@ -40,6 +40,7 @@ public final class Resume {
       inner.next = f;
     }
     c.last = f;
+    if (r.sites[site].covered()) c.covered = f;
     return c;
   }
 

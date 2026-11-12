@@ -1,5 +1,6 @@
 package okay.resumable;
 
+import static okay.rows.Effects.defer;
 import static okay.rows.Effects.handle;
 import static okay.rows.Effects.pure;
 
@@ -33,6 +34,20 @@ public abstract sealed class Input extends Suspend {
       }
     }
     return handle(Input.class, new Feed(), p);
+  }
+
+  /** declared Once, its clause not resuming at once: the rest is resumed when the program it returns is run, so
+   * a body on the JVM's continuation yields */
+  public static <A, R> Comp<A, R> deferred(Iterator<Integer> values, Comp<A, ? super Eff<Input, R>> p) {
+    final class Later implements Handler<Input, A, A, R>, Once {
+      public Comp<A, R> ret(A a) { return pure(a); }
+      public Comp<A, R> on(Input op, K<A, R> k) {
+        return switch (op) {
+          case Next n -> defer(() -> k.resume(n, values.next()));
+        };
+      }
+    }
+    return handle(Input.class, new Later(), p);
   }
 
   /** the same, not declared: its programs' frames are saved */

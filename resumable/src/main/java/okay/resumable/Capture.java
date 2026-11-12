@@ -11,6 +11,8 @@ public final class Capture extends Error {
   /** the frames saved, linked by {@link Frame#next}: the innermost, and the outermost so far */
   transient Frame first;
   transient Frame last;
+  /** the outermost frame saved here whose call a handler of its method covers */
+  transient Frame covered;
   /** where the rest was taken already, by a clause called from the body's stack, and the body could not yield:
    * the clause's program, and what it gives the answer to */
   final transient Comp<Object, Object> next;
@@ -28,28 +30,20 @@ public final class Capture extends Error {
   }
 
   /** the frames linked to {@code tail}, the rest under which they were taken, and each told whether it or one
-   * further out finalizes: the chain is then never changed. Two passes over the frames saved here, none over the
+   * further out finalizes: the chain is then never changed. One pass over the frames saved here, none over the
    * tail, nothing made */
   Frame link(Frame tail) {
-    // reversed, the outermost first; then back, each finalizes as the frames outside it do
-    Frame prev = null;
-    for (Frame f = first; f != null; ) {
-      Frame n = f.next;
-      f.next = prev;
-      prev = f;
-      f = n;
+    boolean outside = tail != null && tail.finalizes;
+    // the frames up to the outermost covered one finalize; those outside it only if the tail does
+    boolean inside = covered != null;
+    for (Frame f = first; ; f = f.next) {
+      f.finalizes = inside || outside;
+      if (f == covered) inside = false;
+      if (f == last) {
+        f.next = tail;
+        return first;
+      }
     }
-    boolean fin = tail != null && tail.finalizes;
-    Frame out = tail;
-    for (Frame f = prev; f != null; ) {
-      Frame n = f.next;
-      fin |= f.covered();
-      f.finalizes = fin;
-      f.next = out;
-      out = f;
-      f = n;
-    }
-    return out;
   }
 
   @Override

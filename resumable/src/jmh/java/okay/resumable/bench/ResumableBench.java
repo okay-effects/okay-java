@@ -125,6 +125,24 @@ public class ResumableBench {
     return run(Input.many(ones(), INPUT.of(() -> Programs.sumDeep(N))));
   }
 
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object yieldDirectLoom() {
+    return run(Input.deferred(ones(), INPUT.of(() -> Programs.sum(N))));
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object yieldDirectLoomDeep() {
+    return run(Input.deferred(ones(), INPUT.of(() -> Programs.sumDeep(N))));
+  }
+
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object yieldRows() {
+    return run(Input.deferred(ones(), sumRows(N, 0)));
+  }
+
   static Comp<Integer, Eff<Input, ?>> sumRows(int n, int s) {
     if (n == 0) return pure(s);
     return perform(new Input.Next()).flatMap(x -> defer(() -> sumRows(n - 1, s + x)));
