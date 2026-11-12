@@ -91,6 +91,8 @@ val jarSampleJar by tasks.registering(Jar::class) {
 }
 tasks.test {
     dependsOn(jarSampleJar)
+    // the tests count which way each operation went
+    systemProperty("okay.resumable.trace", "true")
     systemProperty("okay.resumable.jarSample", jarSampleJar.get().archiveFile.get().asFile.path)
 }
 

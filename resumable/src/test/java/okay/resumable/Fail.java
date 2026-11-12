@@ -7,6 +7,7 @@ import okay.rows.Comp;
 import okay.rows.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
+import okay.rows.Once;
 import okay.rows.Op;
 import okay.rows.std.Throws;
 
@@ -35,5 +36,18 @@ public abstract sealed class Fail extends Suspend {
         };
       }
     }, p);
+  }
+
+  /** the same, declared Once (it never resumes): on the JVM's continuation the body yields, and is unwound there */
+  public static <A, R> Comp<Throws.Result<String, A>, R> runOnce(Comp<A, ? super Eff<Fail, R>> p) {
+    final class Leave implements Handler<Fail, A, Throws.Result<String, A>, R>, Once {
+      public Comp<Throws.Result<String, A>, R> ret(A a) { return pure(new Throws.Ok<>(a)); }
+      public Comp<Throws.Result<String, A>, R> on(Fail op, K<Throws.Result<String, A>, R> k) {
+        return switch (op) {
+          case Raise raise -> k.unwind().map(left -> new Throws.Err<>(raise.why));
+        };
+      }
+    }
+    return handle(Fail.class, new Leave(), p);
   }
 }

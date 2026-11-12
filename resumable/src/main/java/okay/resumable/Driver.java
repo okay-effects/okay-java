@@ -28,6 +28,11 @@ final class Driver {
 
   static final ThreadLocal<Ctx> CTX = new ThreadLocal<>();
 
+  /** for the module's tests (-Dokay.resumable.trace=true): how many operations went each way — 0 answered in place,
+   * 1 answered by a clause on the body's stack, 2 yielded, 3 frames saved. Off, the counting is compiled away */
+  static final boolean TRACE = Boolean.getBoolean("okay.resumable.trace");
+  static final int[] TAKEN = new int[4];
+
   /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
    * or yielded, or the frames saved */
   static Object perform(Op<?, ?, ?> op) {
@@ -36,7 +41,10 @@ final class Driver {
       int place = place(c.row(), op);
       Object a = c.here().ask(op, place);
       if (a != Here.ELSEWHERE) {
-        if (a != Here.ONCE) return a;
+        if (a != Here.ONCE) {
+          if (TRACE) TAKEN[0]++;
+          return a;
+        }
         LoomRun r = c.loom();
         if (r != null && r.current()) return once(c, r, op, place);
         if (!Loom.AVAILABLE) Loom.tell();
@@ -53,10 +61,13 @@ final class Driver {
     Object x = c.here().resumeHere(op, place, later);
     if (!(x instanceof Here.Pending p)) {
       r.answered = later.n;
+      if (TRACE) TAKEN[1]++;
       return x;
     }
+    if (TRACE) TAKEN[2]++;
     Object y = r.yield(p.next());
     if (y != LoomRun.NOT) return y;
+    if (TRACE) TAKEN[2]--;
     throw new Capture(op, p.next(), later);
   }
 
@@ -113,6 +124,7 @@ final class Driver {
         Resume.outermost(c);
         if (c.next == null) return suspended(row, c, null);
         // a yield that could not be made: the frames wait for the answer the clause's program will give
+        if (TRACE) TAKEN[3]++;
         c.later.frames = r.waiting = c.link(null);
         return c.next;
       }
@@ -179,6 +191,7 @@ final class Driver {
   // ---- 3: frames saved as data
 
   static Comp<Object, Object> suspended(Class<?>[] row, Capture c, Frame tail) {
+    if (TRACE) TAKEN[3]++;
     Frame rest = c.link(tail);
     Comp<Object, Object> ask = ask(c.op, place(row, c.op));
     if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));

@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.IntStream;
 import okay.rows.std.State.Final;
+import okay.rows.std.Throws;
 import org.junit.jupiter.api.Test;
 
 /** Which of the three ways an operation takes, by its handler */
@@ -24,6 +25,30 @@ class TiersTest {
     int before = depth();
     Counter.put(Counter.get() + 1);
     return List.of(before, depth());
+  }
+
+  /** how many operations {@code r} sent each way: in place, a clause on the body's stack, yielded, frames saved */
+  static List<Integer> taken(Runnable r) {
+    int[] before = Driver.TAKEN.clone();
+    r.run();
+    return IntStream.range(0, 4).mapToObj(i -> Driver.TAKEN[i] - before[i]).toList();
+  }
+
+  @Test
+  void eachOperationTakesTheWayItsHandlerAllows() {
+    assertTrue(Driver.TRACE, "the tests run with -Dokay.resumable.trace=true");
+    // in place: answered on the body's stack, by the handler's cell
+    assertEquals(List.of(2, 0, 0, 0), taken(() ->
+        run(Counter.run(0, Direct.row(Counter.class).of(TiersTest::depthsAround)))));
+    // general, declared Once, its clause resuming at once: the clause called from the body's stack, nothing yields
+    assertEquals(List.of(0, 3, 0, 0), taken(() ->
+        assertEquals(6, run(Input.once(ints(), Direct.row(Input.class).of(TiersTest::sumOfThree))))));
+    // declared Once, its clause resuming later: the body yields on the JVM's continuation
+    assertEquals(List.of(0, 0, 3, 0), taken(() ->
+        assertEquals(6, run(Input.deferred(ints(), Direct.row(Input.class).of(TiersTest::sumOfThree))))));
+    // not declared Once: the frames are saved
+    assertEquals(List.of(0, 0, 0, 3), taken(() ->
+        assertEquals(6, run(Input.many(ints(), Direct.row(Input.class).of(TiersTest::sumOfThree))))));
   }
 
   @Test
@@ -58,6 +83,7 @@ class TiersTest {
     assertEquals(6, run(Input.once(ints(), Direct.row(Input.class).of(TiersTest::sumOfThree))));
     // the JVM freezes every frame, transformed or not: a frame that would be lost to saved frames is not
     assertEquals(2, run(Input.once(ints(), Direct.row(Input.class).of(() -> Untransformed.input() * 2))));
+    assertEquals(2, run(Input.deferred(ints(), Direct.row(Input.class).of(() -> Untransformed.input() * 2))));
     // the same body, its handler not declared Once: saved frames
     assertEquals(6, run(Input.many(ints(), Direct.row(Input.class).of(TiersTest::sumOfThree))));
   }
@@ -72,10 +98,19 @@ class TiersTest {
   @Test
   void onTheJvmsContinuationTheWholeStackComesBack() {
     List<Integer> depths = new ArrayList<>();
-    run(Input.once(ints(), Direct.row(Input.class).of(() -> deep(200, depths))));
+    assertEquals(List.of(0, 0, 1, 0), taken(() ->
+        run(Input.deferred(ints(), Direct.row(Input.class).of(() -> deep(200, depths))))));
     // thawed by the JVM: the recursion's frames are all there again, each level one deeper than the next
     assertEquals(200, depths.size());
     assertEquals(199, depths.getFirst() - depths.getLast());
+  }
+
+  @Test
+  void aYieldedBodyLeftUnansweredHasItsFinallyBlocksRun() {
+    List<String> log = new ArrayList<>();
+    assertEquals(List.of(0, 0, 1, 0), taken(() -> assertEquals(new Throws.Err<>("no"),
+        run(Fail.runOnce(Direct.row(Fail.class).of(() -> DirectTest.outerFinally(log)))))));
+    assertEquals(List.of("body", "inner", "outer"), log);
   }
 
   @Test
