@@ -2,10 +2,12 @@ package okay.resumable;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
+import okay.rows.Audit;
 import okay.rows.Comp;
 import okay.rows.Effects;
 import okay.rows.Here;
 import okay.rows.Op;
+import okay.rows.Sensitive;
 
 /** The boundary: runs a direct-style body; where it suspends, asks the operation at its place in the row, and
  * resumes the body with the answer. Three ways, by the handler the operation goes to, found when it is performed:
@@ -20,7 +22,7 @@ final class Driver {
   private Driver() {}
 
   interface Run {
-    Object run() throws Suspend;
+    Object run() throws Exception;
   }
 
   /** where a body runs, while it runs on this thread: the handlers in force, its row, its continuation if any */
@@ -36,6 +38,8 @@ final class Driver {
   /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
    * or yielded, or the frames saved */
   static Object perform(Op<?, ?, ?> op) {
+    // one that is both, through a raw type: sensitive, so it passes its audit
+    if (op instanceof Sensitive.Op<?, ?, ?> s) return performSensitive(s);
     Ctx c = CTX.get();
     if (c != null) {
       int place = place(c.row(), op);
@@ -53,12 +57,30 @@ final class Driver {
     throw new Capture(op);
   }
 
+  /** {@link Resume#performSensitive}: a sensitive operation passes its audit, so it is never answered in place —
+   * its audit's clause is called on the body's stack where it declares {@code Once} and the body runs on the JVM's
+   * continuation; else the frames are saved */
+  static Object performSensitive(Sensitive.Op<?, ?, ?> op) {
+    Ctx c = CTX.get();
+    if (c != null) {
+      int place = place(c.row(), op);
+      if (c.here().kind(op, place) == Here.ONCE) {
+        LoomRun r = c.loom();
+        if (r != null && r.current()) return once(c, r, op, place);
+        if (!Loom.AVAILABLE) Loom.tell();
+      }
+    }
+    throw new Capture(op);
+  }
+
   /** 2: the handler's clause called from the body's stack. Resumed at once, as most are, its answer is returned and
    * nothing suspends; else the body yields, and the boundary goes on with the clause's program. If the yield cannot
    * be made, the frames are saved, and the answer resumes them */
-  private static Object once(Ctx c, LoomRun r, Op<?, ?, ?> op, int place) {
+  private static Object once(Ctx c, LoomRun r, Object op, int place) {
     Answer later = new Answer(c.row(), r, ++r.asked, op);
-    Object x = c.here().resumeHere(op, place, later);
+    // the cast: an operation that is not sensitive came here from perform, which takes an Op
+    Object x = op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later)
+        : c.here().resumeHere((Op<?, ?, ?>) op, place, later);
     if (!(x instanceof Here.Pending p)) {
       r.answered = later.n;
       if (TRACE) TAKEN[1]++;
@@ -98,8 +120,10 @@ final class Driver {
       a = at(new Ctx(h, row, null), () -> {
         try {
           return body.run();
-        } catch (Suspend s) {
+        } catch (Suspend | SensitiveSuspend s) {
           throw thrown(s);
+        } catch (Exception e) {
+          throw sneaky(e);
         }
       });
     } catch (Capture c) {
@@ -109,7 +133,7 @@ final class Driver {
     return Effects.pure(a);
   }
 
-  private static IllegalStateException thrown(Suspend s) {
+  private static IllegalStateException thrown(Throwable s) {
     return new IllegalStateException("okay.resumable: the operation " + s + " was thrown, not performed");
   }
 
@@ -128,7 +152,7 @@ final class Driver {
         c.later.frames = r.waiting = c.link(null);
         return c.next;
       }
-      if (r.failure instanceof Suspend s) throw thrown(s);
+      if (r.failure instanceof Suspend || r.failure instanceof SensitiveSuspend) throw thrown(r.failure);
       if (r.failure != null) throw sneaky(r.failure);
       return Effects.pure(r.value);
     }
@@ -275,17 +299,18 @@ final class Driver {
 
   @SuppressWarnings({"unchecked", "rawtypes"}) // the operation is of the row's effect at `place`: rows are types only
   private static Comp<Object, Object> ask(Object op, int place) {
-    Comp c = Effects.perform((Op) op);
+    Comp c = op instanceof Sensitive.Op s ? Audit.perform(s) : Effects.perform((Op) op);
     for (int i = 0; i < place; i++) c = Effects.up(c);
     return c;
   }
 
-  /** the effect of an operation: the class right under Suspend */
+  /** the effect of an operation: the class right under Suspend or SensitiveSuspend */
   private static final ClassValue<Class<?>> EFFECT = new ClassValue<>() {
     @Override
     protected Class<?> computeValue(Class<?> type) {
       Class<?> effect = type;
-      while (effect.getSuperclass() != Suspend.class) effect = effect.getSuperclass();
+      while (effect.getSuperclass() != Suspend.class && effect.getSuperclass() != SensitiveSuspend.class)
+        effect = effect.getSuperclass();
       return effect;
     }
   };

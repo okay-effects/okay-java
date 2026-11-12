@@ -10,6 +10,7 @@ import java.lang.invoke.MethodType;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import okay.rows.Op;
+import okay.rows.Sensitive;
 
 /** What transformed code calls. Public because the transformed classes are anywhere; not an API: the transformation
  * writes these calls, a program never does. */
@@ -20,6 +21,11 @@ public final class Resume {
    * saving the frames on its way */
   public static Object perform(Op<?, ?, ?> op) {
     return Driver.perform(op);
+  }
+
+  /** {@link Direct#perform(Sensitive.Op)}, as a transformed caller calls it: never answered in place */
+  public static Object performSensitive(Sensitive.Op<?, ?, ?> op) {
+    return Driver.performSensitive(op);
   }
 
   /** the frame of a transformed method added to an operation on its way out. The call it was suspended at must have

@@ -63,8 +63,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 /** THE TRANSFORMATION: every method with a call that may suspend — to a method whose {@code throws} names a subclass
- * of {@code okay.resumable.Suspend} — is rewritten so that its frame can be saved as data and re-entered, after
- * "continuations from generalized stack inspection" (Pettyjohn et al., ICFP 2005):
+ * of {@code okay.resumable.Suspend} or {@code SensitiveSuspend} — is rewritten so that its frame can be saved as
+ * data and re-entered, after "continuations from generalized stack inspection" (Pettyjohn et al., ICFP 2005):
  * <ul>
  * <li>each such call is covered by a handler of {@code Capture}, first in the exception table so that no handler of
  * the method sees it: it saves the call's index, the locals, and the operand stack under the call — spilled to fresh
@@ -86,12 +86,14 @@ public final class Transformer {
   }
 
   static final String SUSPEND = "okay/resumable/Suspend";
+  static final String SENSITIVE = "okay/resumable/SensitiveSuspend";
   static final ClassDesc CD_RESUME = ClassDesc.of("okay.resumable.Resume");
   static final ClassDesc CD_CAPTURE = ClassDesc.of("okay.resumable.Capture");
   static final ClassDesc CD_FRAME = ClassDesc.of("okay.resumable.Frame");
   static final ClassDesc CD_RESUMER = ClassDesc.of("okay.resumable.Resumer");
   static final ClassDesc CD_TRANSFORMED = ClassDesc.of("okay.resumable.Transformed");
   static final ClassDesc CD_OP = ClassDesc.of("okay.rows.Op");
+  static final ClassDesc CD_SENSITIVE_OP = ClassDesc.of("okay.rows.Sensitive$Op");
   static final ClassDesc CD_OBJECTS = ConstantDescs.CD_Object.arrayType();
   static final ClassDesc CD_LONGS = ConstantDescs.CD_long.arrayType();
   static final MethodTypeDesc RESUME_TYPE =
@@ -314,7 +316,7 @@ public final class Transformer {
   }
 
   private boolean suspendType(String name) {
-    if (name.equals(SUSPEND)) return true;
+    if (name.equals(SUSPEND) || name.equals(SENSITIVE)) return true;
     if (jdk(name)) return false;
     Boolean known = suspendTypes.get(name);
     if (known != null) return known;
@@ -568,8 +570,13 @@ public final class Transformer {
             cb.aload(thr).aconst_null().astore(thr).athrow();
             cb.labelBinding(call[s]);
           }
-          if (site.perform()) cb.invokestatic(CD_RESUME, "perform",
-              MethodTypeDesc.of(ConstantDescs.CD_Object, CD_OP));
+          if (site.perform()) {
+            // by the operation's type: a sensitive one never answered in place
+            ClassDesc op = site.invoke().typeSymbol().parameterList().getFirst();
+            if (op.equals(CD_SENSITIVE_OP)) cb.invokestatic(CD_RESUME, "performSensitive",
+                MethodTypeDesc.of(ConstantDescs.CD_Object, CD_SENSITIVE_OP));
+            else cb.invokestatic(CD_RESUME, "perform", MethodTypeDesc.of(ConstantDescs.CD_Object, CD_OP));
+          }
           else r.emit(e);
           cb.labelBinding(end[s]);
           s++;
