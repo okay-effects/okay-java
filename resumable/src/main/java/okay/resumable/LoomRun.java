@@ -7,9 +7,9 @@ import okay.rows.Comp;
 import okay.rows.Here;
 
 /** A DIRECT-STYLE BODY ON THE JVM'S ONE-SHOT CONTINUATION: an operation whose handler is general and declared
- * {@code Once} yields; the JVM freezes the frames and thaws them when the answer comes. Only frames between the body
- * and the yield are in it: nothing of the machine. A yield that cannot be made (a native frame, a monitor held)
- * falls back to saved frames. */
+ * {@code Once}, and whose clause does not resume at once, yields; the JVM freezes the frames and thaws them when the
+ * answer comes. Only frames between the body and the yield are in it: nothing of the machine. A yield that cannot be
+ * made (a native frame, a monitor held) falls back to saved frames. */
 final class LoomRun implements Supplier<Object> {
   static final ContinuationScope SCOPE = new ContinuationScope("okay.resumable");
   /** not yielded: the frames are saved instead */
@@ -35,6 +35,8 @@ final class LoomRun implements Supplier<Object> {
   int answered;
   /** the frames that wait for an answer, where a yield could not be made and they were saved instead */
   Frame waiting;
+  /** whether the program's guard is in place: put before the first operation of a handler declared Once */
+  boolean guarded;
   /** the body run on from where it waits: one program, made once */
   final Comp<Object, Object> next;
 

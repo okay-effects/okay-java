@@ -14,7 +14,8 @@ import okay.rows.Sensitive;
  * <ol>
  * <li>in place: answered at once, on the body's own stack ({@link Here}) — nothing suspends;
  * <li>general and declared {@code Once}, where the JVM's continuations can be used: the body runs in one
- * ({@link LoomRun}) and yields;
+ * ({@link LoomRun}); the handler's clause is called from the body's stack, and the body yields only if the clause
+ * does not resume at once;
  * <li>otherwise: the frames are saved as data ({@link Capture}) and re-entered — the innermost first, each given
  * what the one inside it returned, so the Java stack holds one of them at a time.
  * </ol> */
@@ -77,6 +78,13 @@ final class Driver {
    * nothing suspends; else the body yields, and the boundary goes on with the clause's program. If the yield cannot
    * be made, the frames are saved, and the answer resumes them */
   private static Object once(Ctx c, LoomRun r, Object op, int place) {
+    if (!r.guarded) {
+      // the program's one guard, put before the first rest a clause may keep: if a rest is left unanswered while
+      // the body waits, its frames are unwound. Not put for a program that never asks such a handler
+      r.guarded = true;
+      Class<?>[] row = c.row();
+      c.here().ensure(() -> Here.here(h -> unwound(row, r, h)));
+    }
     Answer later = new Answer(c.row(), r, ++r.asked, op);
     // the cast: an operation that is not sensitive came here from perform, which takes an Op
     Object x = op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later)
@@ -106,12 +114,8 @@ final class Driver {
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
   static <A, R> Comp<A, R> program(Class<?>[] row, Run body) {
     if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h, RUN));
-    // a continuation for each run of the program, and its one guard around it: if the rest is left unanswered
-    // while the body waits, its frames are unwound
-    return (Comp<A, R>) (Comp<?, ?>) Effects.defer(() -> {
-      LoomRun r = new LoomRun(row, body);
-      return r.next.ensuring(() -> Here.here(h -> unwound(row, r, h)));
-    });
+    // a continuation for each run of the program
+    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(row, new LoomRun(row, body), h));
   }
 
   /** how the boundary enters the outermost frame: a body's run, a direct-style clause's on or ret */
