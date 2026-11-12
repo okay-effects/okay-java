@@ -317,10 +317,12 @@ public final class Rows {
     public static final Object ONCE = new Object();
 
     private Run m;
-    /** where the operations of each place go, found once while the probe lives — the stack does not change under
-     * it: a handler in place's {@link Place}, {@link #ONCE} or {@link #ELSEWHERE}. Not kept where an interceptor
-     * stands on the way: whether it takes an operation is asked of each */
-    private Object[] routes;
+    /** where the operations of the first two places go, found once while the probe lives — the stack does not change
+     * under it: a handler in place's {@link Place}, {@link #ONCE} or {@link #ELSEWHERE}. Not kept where an
+     * interceptor stands on the way: whether it takes an operation is asked of each. Fields, not an array: a probe
+     * often lives for one operation */
+    private Object route0;
+    private Object route1;
 
     Probe(Run m) {
       this.m = m;
@@ -362,6 +364,14 @@ public final class Rows {
       return next == HIT ? mk.x : new Pending(next);
     }
 
+    /** a finalizer made by {@code fin}, from here on: the program that probes and all it goes on with are under it,
+     * as under {@link Door#ensuring} — entered now, while it runs, so that a rest taken after this has it */
+    public void ensure(Supplier<? extends Eff<?, ?>> fin) {
+      Function<Object, Eff<?, ?>> ret = a -> fin.get().then(Eff.pure(a));
+      m.ms = new Seg(new Prompt<>(new Kernel.KEnsuring(fin)), ret, null, m.k, m.ms);
+      m.k = Frames.END;
+    }
+
     /** the operation asked by {@link #resumeHere} and not answered at once: the program to go on with */
     public record Pending(Eff<?, ?> next) {}
 
@@ -390,13 +400,13 @@ public final class Rows {
 
     private Object route(Object op, int skip) {
       if (m == null) return ELSEWHERE;
-      Object[] known = routes;
-      if (known != null && skip < known.length && known[skip] != null) return known[skip];
+      Object known = skip == 0 ? route0 : skip == 1 ? route1 : null;
+      if (known != null) return known;
       crossed = false;
       Object r = walk(op, skip);
-      if (!crossed && skip < 8) {
-        if (known == null) routes = known = new Object[8];
-        known[skip] = r;
+      if (!crossed) {
+        if (skip == 0) route0 = r;
+        else if (skip == 1) route1 = r;
       }
       return r;
     }

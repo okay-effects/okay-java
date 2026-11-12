@@ -1,6 +1,7 @@
 package okay.rows;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 import okay.core.Rows;
 
 /** WHERE A PROGRAM RUNS, while it runs: what direct-style code (okay-java-resumable) asks of the handlers in force
@@ -34,6 +35,12 @@ public final class Here {
    * so that it passes its audit */
   public Object kind(Sensitive.Op<?, ?, ?> op, int place) {
     return probe.kind(op, place);
+  }
+
+  /** {@code finalizer} from here on, as {@link Comp#ensuring} puts it: the program the function given {@link #here}
+   * returns, and everything it goes on with, are under it — so a rest taken after this has it */
+  public void ensure(Supplier<? extends Comp<?, ?>> finalizer) {
+    probe.ensure(() -> finalizer.get().eff);
   }
 
   /** an operation whose handler is general and declared {@link Once} — {@link #ONCE} — asked from here, the

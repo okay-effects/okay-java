@@ -231,6 +231,12 @@ a `Place`: the handler and, for one in place, its cell. A place is made each tim
   delimiters in force. The probe walks them as an operation would and answers only where a handler in place would
   answer. `okay.rows.Here` is its public face, and `okay.rows.Once` lets a general handler declare that it resumes at
   most once. One node class (`Rows.Here`) and a method of `Spec` (`once`) were added; no existing path changed.
+  The probe keeps, while it lives, where each place's operations go (not past an interceptor, which is asked of
+  each operation). `resumeHere` asks an operation of a general handler declared `Once` from the probing stack: the
+  handler takes the rest at once, topped by a mark, and its clause runs; if the clause resumes at once, the machine
+  resumes the rest right there, the mark notes the answer, and the stack is as it was. Otherwise the clause's program
+  is what the probing program goes on with. `kind` says where a sensitive operation goes without answering it in
+  place. `Audit.audit` declares `Once` when its interceptor does. `saved` walks nothing when no delimiter is crossed.
 
 ## Differences from the reference
 
