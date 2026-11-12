@@ -41,7 +41,9 @@ import java.lang.classfile.instruction.LocalVariable;
 import java.lang.classfile.instruction.LocalVariableType;
 import java.lang.classfile.instruction.LookupSwitchInstruction;
 import java.lang.classfile.instruction.MonitorInstruction;
+import java.lang.classfile.instruction.NewObjectInstruction;
 import java.lang.classfile.instruction.ReturnInstruction;
+import java.lang.classfile.instruction.StackInstruction;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.classfile.instruction.TableSwitchInstruction;
 import java.lang.constant.ClassDesc;
@@ -52,6 +54,7 @@ import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.DynamicConstantDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -114,7 +117,7 @@ public final class Transformer {
     ClassModel cm = cf.parse(in);
     String self = cm.thisClass().asInternalName();
     if (runtime(self) || marked(cm)) return null;
-    models.putIfAbsent(self, cm);
+    models.put(self, cm);
     Map<String, Plan> plans = new HashMap<>();
     for (MethodModel mm : cm.methods()) {
       Plan p = plan(cm, mm);
@@ -123,7 +126,75 @@ public final class Transformer {
     Map<String, Boolean> lambdas = lambdas(cm, plans);
     if (plans.isEmpty() && lambdas.isEmpty()) return null;
     if (!plans.isEmpty()) probe(cm, plans);
+    List<Plan> unmade = plans.values().stream().filter(Transformer::unmade).toList();
+    if (!unmade.isEmpty() && !made(cm)) return transform(made(cm, unmade));
     return cf.transformClass(cm, new Rewrite(cm, plans, lambdas));
+  }
+
+  /** whether an object not yet constructed is on the stack at a call that may suspend: {@code new X(.., call(), ..)} */
+  private static boolean unmade(Plan p) {
+    for (StackMapFrameInfo f : p.frames.values())
+      for (VerificationTypeInfo t : f.stack())
+        if (t instanceof StackMapFrameInfo.UninitializedVerificationTypeInfo) return true;
+    return false;
+  }
+
+  private static final String MADE = "okay$made";
+
+  private boolean made(ClassModel cm) {
+    return cm.fields().stream().anyMatch(f -> f.fieldName().equalsString(MADE));
+  }
+
+  /** the class with each {@code new X; dup; args..; invokespecial X.<init>} of these methods made
+   * {@code args..; new X; dup; args..; invokespecial}, the arguments spilled to locals and loaded back: nothing
+   * unconstructed is then on the stack at a call. X's class is initialized after the arguments, not before. A field
+   * marks the class as done, so this happens once. */
+  private byte[] made(ClassModel cm, List<Plan> unmade) {
+    Map<String, Plan> byKey = new HashMap<>();
+    for (Plan p : unmade) byKey.put(key(p.method), p);
+    return cf.transformClass(cm, ClassTransform.endHandler(clb -> clb.withField(MADE, ConstantDescs.CD_boolean,
+        ClassFile.ACC_PRIVATE | ClassFile.ACC_STATIC | ClassFile.ACC_SYNTHETIC)).andThen((clb, ce) -> {
+          Plan p = ce instanceof MethodModel mm ? byKey.get(key(mm)) : null;
+          if (p == null) {
+            clb.with(ce);
+            return;
+          }
+          clb.withMethod(p.method.methodName(), p.method.methodType(), p.method.flags().flagsMask(), mb -> {
+            for (MethodElement me : p.method) if (!(me instanceof CodeAttribute)) mb.with(me);
+            mb.withCode(cb -> made(cb, p));
+          });
+        }));
+  }
+
+  private static void made(CodeBuilder cb, Plan p) {
+    Relabel r = new Relabel(cb);
+    ArrayDeque<Boolean> pending = new ArrayDeque<>();
+    for (int i = 0; i < p.elements.size(); i++) {
+      CodeElement e = p.elements.get(i);
+      if (e instanceof NewObjectInstruction) {
+        boolean moved = i + 1 < p.elements.size()
+            && p.elements.get(i + 1) instanceof StackInstruction s && s.opcode() == Opcode.DUP;
+        pending.push(moved);
+        if (moved) {
+          i++;
+          continue;
+        }
+      }
+      if (e instanceof InvokeInstruction inv && inv.opcode() == Opcode.INVOKESPECIAL
+          && inv.name().equalsString("<init>") && !pending.isEmpty() && pending.pop()) {
+        List<ClassDesc> params = inv.typeSymbol().parameterList();
+        int[] slots = new int[params.size()];
+        int slot = p.maxLocals;
+        for (int j = 0; j < params.size(); j++) {
+          slots[j] = slot;
+          slot += TypeKind.from(params.get(j)).slotSize();
+        }
+        for (int j = params.size() - 1; j >= 0; j--) cb.storeLocal(TypeKind.from(params.get(j)), slots[j]);
+        cb.new_(inv.owner().asSymbol()).dup();
+        for (int j = 0; j < params.size(); j++) cb.loadLocal(TypeKind.from(params.get(j)), slots[j]);
+      }
+      r.emit(e);
+    }
   }
 
   /** the boundary itself runs bodies and catches their suspensions: it is never rewritten */
