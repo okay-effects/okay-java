@@ -20,7 +20,8 @@ class RefusalTest {
   @Test
   void aFrameLostBetweenTwoTransformedOnesIsRefused() {
     var e = assertThrows(IllegalStateException.class,
-        () -> run(Counter.run(0, Direct.row(Counter.class).of(() -> Untransformed.middle() * 2))));
+        () -> run(Counter.run(0,
+            Counter.watched(Direct.row(Counter.class).of(() -> Untransformed.middle() * 2)))));
     System.out.println(e.getMessage());
     assertTrue(e.getMessage().startsWith("okay.resumable: a frame was lost between okay.resumable.RefusalTest."
         + "lambda$aFrameLostBetweenTwoTransformedOnesIsRefused$"), e.getMessage());

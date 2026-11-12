@@ -129,6 +129,13 @@ public final class Rows {
       return Machine.run(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
     }
 
+    /** {@code body}, given when it is run a {@link Probe}: what it may ask, while it runs on this Java stack, of the
+     * handlers in force there. For direct-style code (okay-java-resumable): an operation a handler in place answers is
+     * answered at once, with nothing captured */
+    public Eff<?, ?> here(Function<Probe, ? extends Eff<?, ?>> body) {
+      return new Here<>(body);
+    }
+
     /** whether {@code t} is an unwinding that went on where none is: the rest of one resumed elsewhere */
     public boolean lostUnwinding(Throwable t) {
       return t instanceof IllegalStateException && t.getCause() instanceof Unwinding;
@@ -187,6 +194,11 @@ public final class Rows {
     }
 
     protected void state(Object entry, Object state) {}
+
+    /** general: whether it declares that it resumes the rest at most once (okay.rows.Once) */
+    protected boolean once() {
+      return false;
+    }
 
     /** general: the clause for {@code op}, outside the handler; {@code skip} the places the operation had still to
      * pass when it came here — an observer's, for the operation passed on */
@@ -272,6 +284,73 @@ public final class Rows {
     Eff<?, ?> step(Run m) {
       Place p = new Place(spec, spec.enter(init));
       return m.enter(new Prompt<>(p), p, body);
+    }
+  }
+
+  /** a program given a probe of the handlers in force where it runs; the probe dies when the program is made */
+  static final class Here<L, A> extends Nodes.Node<L, A> {
+    private final Function<Probe, ? extends Eff<?, ?>> body;
+
+    Here(Function<Probe, ? extends Eff<?, ?>> body) {
+      this.body = body;
+    }
+
+    Eff<?, ?> step(Run m) {
+      Probe p = new Probe(m);
+      try {
+        return body.apply(p);
+      } finally {
+        p.m = null;
+      }
+    }
+  }
+
+  /** THE HANDLERS IN FORCE where a program of {@link Door#here} runs, while it runs: an operation found as
+   * {@link #asked} finds it, but answered only by a handler in place — nothing captured, nothing changed but that
+   * handler's state, as {@code asked} would. Any other handler, or none, is left to the operation asked the usual way */
+  public static final class Probe {
+    /** not answered here: the operation's handler is general (and may resume more than once), an unwinding's mark, the
+     * root, or none; or the probe is dead */
+    public static final Object ELSEWHERE = new Object();
+    /** not answered here: the operation's handler is general and declared to resume at most once */
+    public static final Object ONCE = new Object();
+
+    private Run m;
+
+    Probe(Run m) {
+      this.m = m;
+    }
+
+    /** the answer of the handler in place that {@code op} goes to, {@code skip} row places past the nearest; or
+     * {@link #ONCE} or {@link #ELSEWHERE} */
+    public Object ask(Object op, int skip) {
+      if (m == null) return ELSEWHERE;
+      Meta rest = m.ms;
+      Walk w = null;
+      while (true) {
+        Seg s;
+        if (w != null) s = w.next();
+        else if (rest instanceof Seg plain) {
+          s = plain;
+          rest = plain.next();
+        } else if (rest instanceof Machine.Top) s = null;
+        else {
+          w = new Walk(rest);
+          s = w.next();
+        }
+        if (s == null) return ELSEWHERE;
+        Object f = s.prompt().frame;
+        if (f instanceof Place p) {
+          boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
+          if (p.spec.row && !found) skip--;
+          if (found) return p.spec.inPlace ? p.spec.answer(p.entry, op) : p.spec.once() ? ONCE : ELSEWHERE;
+        } else if (f instanceof Marker mk) {
+          if (skip >= mk.keep) skip += mk.by;
+        } else if (f instanceof Gone g) {
+          if (g.mode == GONE && --skip < 0) return ELSEWHERE;
+          if (g.mode == KEPT && skip >= 1) skip--;
+        } else if (f instanceof Root) return ELSEWHERE;
+      }
     }
   }
 

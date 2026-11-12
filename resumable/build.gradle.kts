@@ -26,8 +26,12 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// the JVM's one-shot continuations (jdk.internal.vm) and the thread's scoped-value bindings (jdk.internal.access,
+// java.lang): to compile, and to run the tests with them
+val loomExports = listOf("--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
+    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
 tasks.withType<JavaCompile> {
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-serial"))
+    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-serial") + loomExports)
 }
 
 // the module's own test classes, transformed as a consumer's would be: written to a directory of their own, which
@@ -62,6 +66,7 @@ tasks.test {
     classpath = files(resumableTestClasses) + (classpath - sourceSets.test.get().output.classesDirs)
     // the stack-safety tests prove constant stack: a small stack makes a regression fail loudly
     jvmArgs("-Xss512k")
+    jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
 }
 
 // a program in a jar built WITHOUT the transformation, everything it needs inside: `java -jar` transforms it as it
@@ -74,7 +79,8 @@ val jarSampleJar by tasks.registering(Jar::class) {
     destinationDirectory = layout.buildDirectory.dir("jar-sample")
     from(jarSample.output)
     from(sourceSets.main.get().output)
-    from(configurations.runtimeClasspath.map { cp -> cp.map { if (it.isDirectory) it else zipTree(it) } })
+    dependsOn(configurations.runtimeClasspath)
+    from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes("Main-Class" to "okay.resumable.sample.Shop",

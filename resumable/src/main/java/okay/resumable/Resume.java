@@ -16,9 +16,10 @@ import okay.rows.Op;
 public final class Resume {
   private Resume() {}
 
-  /** {@link Direct#perform}, as a transformed caller calls it: the operation leaves, saving the frames on its way */
+  /** {@link Direct#perform}, as a transformed caller calls it: answered in place, yielded, or the operation leaves,
+   * saving the frames on its way */
   public static Object perform(Op<?, ?, ?> op) {
-    throw new Capture(op);
+    return Driver.perform(op);
   }
 
   /** the frame of a transformed method added to an operation on its way out. The call it was suspended at must have

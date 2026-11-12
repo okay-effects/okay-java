@@ -43,6 +43,11 @@ final class Handlers {
     protected okay.core.Eff<?, ?> on(Object op, Rows.Rest rest, int skip) {
       return h.on(trusted(op), new K<>(op, rest, row)).eff;
     }
+
+    @Override
+    protected boolean once() {
+      return h instanceof Once;
+    }
   }
 
   /** a handler in place: its state in the cell of its entry */

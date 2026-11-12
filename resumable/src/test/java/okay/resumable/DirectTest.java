@@ -81,6 +81,9 @@ class DirectTest {
   void constantStackAMillionOperations() {
     assertEquals(new Final<>(1_000_000, 1_000_000),
         run(Counter.run(0, Direct.row(Counter.class).of(() -> count(1_000_000)))));
+    // the same, every operation seen by a general handler on its way: the frames saved and resumed each time
+    assertEquals(new Final<>(1_000_000, 1_000_000),
+        run(Counter.run(0, Counter.watched(Direct.row(Counter.class).of(() -> count(1_000_000))))));
   }
 
   @Test
@@ -156,7 +159,9 @@ class DirectTest {
   void deepRecursionResumedOneFrameAtATime() {
     List<Integer> depths = new ArrayList<>();
     int n = 1_000; // the first descent is plain Java recursion, under the tests' -Xss512k
-    assertEquals(new Final<>(n, n), run(Counter.run(0, Direct.row(Counter.class).of(() -> deep(n, depths)))));
+    // watched: every operation goes by a general handler, so the frames are saved at each
+    assertEquals(new Final<>(n, n),
+        run(Counter.run(0, Counter.watched(Direct.row(Counter.class).of(() -> deep(n, depths))))));
     // every level runs after a resumption: the driver re-enters one saved frame at a time, so each sees the
     // same, small Java stack — not the n frames of the recursion
     assertEquals(n, depths.size());

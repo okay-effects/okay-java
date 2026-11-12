@@ -1,6 +1,7 @@
 package okay.resumable;
 
 import static okay.rows.Effects.handle;
+import static okay.rows.Effects.observe;
 import static okay.rows.Effects.pure;
 
 import okay.rows.Cell;
@@ -32,6 +33,12 @@ public abstract sealed class Counter extends Suspend {
 
   public static void put(int value) throws Counter {
     Direct.perform(new Put(value));
+  }
+
+  /** each operation seen on its way, by a general handler (okay.rows' observe): the body's operations then do not
+   * reach the handler in place from its stack, and its frames are saved at every one */
+  public static <A, T> Comp<A, Eff<Counter, ? extends T>> watched(Comp<A, ? super Eff<Counter, T>> p) {
+    return observe(Counter.class, op -> pure(null), p);
   }
 
   /** the okay.rows handler, in place: a state per path */
