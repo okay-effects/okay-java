@@ -15,7 +15,8 @@ import java.util.stream.Stream;
 /** The transformation of a directory of classes, as a build runs it:
  * {@code Main <classes> <output> <classpath>} — every class of {@code classes} written to {@code output}, rewritten
  * where it may suspend, as it was otherwise; {@code classpath} (the path separator between entries) is what its
- * calls are resolved against. A refusal fails the build with what to change. */
+ * calls are resolved against. {@code output} may be {@code classes}: rewritten in place, the rest untouched. A
+ * refusal fails the build with what to change. */
 public final class Main {
   private Main() {}
 
@@ -44,7 +45,7 @@ public final class Main {
           }
         }
         if (result != null) changed++;
-        Files.write(target, result == null ? bytes : result);
+        if (result != null || !in.equals(out)) Files.write(target, result == null ? bytes : result);
       }
     }
     if (!refused.isEmpty()) {
