@@ -273,6 +273,41 @@ public final class Transformer {
     return p;
   }
 
+  /** whether the call at {@code index} is in tail position: what follows it only returns its value — a cast, an
+   * unboxing, a jump, then a return. A frame suspended at such a call adds nothing to what the call gives */
+  static boolean tail(List<CodeElement> elements, int index) {
+    Map<Label, Integer> at = new HashMap<>();
+    for (int i = 0; i < elements.size(); i++) if (elements.get(i) instanceof LabelTarget t) at.put(t.label(), i);
+    int i = index + 1;
+    for (int steps = 0; i < elements.size() && steps < 64; steps++) {
+      CodeElement e = elements.get(i);
+      switch (e) {
+        case ReturnInstruction r -> {
+          return true;
+        }
+        case BranchInstruction b when b.opcode() == Opcode.GOTO || b.opcode() == Opcode.GOTO_W -> {
+          i = at.get(b.target());
+          continue;
+        }
+        case java.lang.classfile.instruction.TypeCheckInstruction c when c.opcode() == Opcode.CHECKCAST -> { }
+        case InvokeInstruction u when u.opcode() == Opcode.INVOKEVIRTUAL && unboxing(u) -> { }
+        case Instruction ins -> {
+          return false;
+        }
+        default -> { } // a label, a line number, debug information
+      }
+      i++;
+    }
+    return false;
+  }
+
+  /** {@code Integer.intValue()} and the like: a value unboxed to be returned, boxed again by a resumed copy */
+  private static boolean unboxing(InvokeInstruction u) {
+    String owner = u.owner().asInternalName();
+    return owner.startsWith("java/lang/") && u.name().stringValue().endsWith("Value")
+        && u.typeSymbol().parameterCount() == 0 && u.typeSymbol().returnType().isPrimitive();
+  }
+
   private boolean marked(ClassModel cm) {
     return cm.findAttribute(Attributes.runtimeVisibleAnnotations()).map(a -> a.annotations().stream()
         .anyMatch(an -> an.classSymbol().equals(CD_TRANSFORMED))).orElse(false);
@@ -641,7 +676,8 @@ public final class Transformer {
         };
         String name = s.perform() ? "perform" : s.invoke().name().stringValue();
         sites.append(kind).append('|').append(name).append('|').append(s.invoke().type().stringValue())
-            .append('|').append(s.covered() ? 1 : 0).append('|').append(s.line()).append('\n');
+            .append('|').append(s.covered() ? 1 : 0).append('|').append(s.line())
+            .append('|').append(!s.covered() && tail(p.elements, s.index()) ? 1 : 0).append('\n');
       }
       return DynamicConstantDesc.ofNamed(bsm, "resumer", CD_RESUMER, resume, cm.thisClass().asInternalName(),
           p.method.methodName().stringValue(), p.method.methodType().stringValue(), sites.toString());

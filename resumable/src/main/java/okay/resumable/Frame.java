@@ -14,6 +14,9 @@ public final class Frame {
   Frame next;
   /** whether this frame or one further out has a handler at its call: an unwinding re-enters it */
   boolean finalizes;
+  /** whether this frame and every one further out are suspended at a call in tail position: the rest of them only
+   * returns what the call gives */
+  boolean tails;
 
   Frame(Resumer resumer, int site, Object[] refs, long[] prims) {
     this.resumer = resumer;

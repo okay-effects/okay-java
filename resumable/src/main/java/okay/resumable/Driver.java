@@ -105,7 +105,7 @@ final class Driver {
 
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
   static <A, R> Comp<A, R> program(Class<?>[] row, Run body) {
-    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h));
+    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h, RUN));
     // a continuation for each run of the program, and its one guard around it: if the rest is left unanswered
     // while the body waits, its frames are unwound
     return (Comp<A, R>) (Comp<?, ?>) Effects.defer(() -> {
@@ -114,7 +114,35 @@ final class Driver {
     });
   }
 
-  private static Comp<Object, Object> start(Class<?>[] row, Run body, Here h) {
+  /** how the boundary enters the outermost frame: a body's run, a direct-style clause's on or ret */
+  record Entry(String name, String desc) {}
+
+  static final Entry RUN = new Entry("run", "()Ljava/lang/Object;");
+  static final Entry ON = new Entry("on", "(Ljava/lang/Object;Lokay/resumable/Direct$K;)Ljava/lang/Object;");
+  static final Entry RET = new Entry("ret", "(Ljava/lang/Object;)Ljava/lang/Object;");
+
+  /** A DIRECT-STYLE CLAUSE as a program of the row outside its handler: run as a body is, on saved frames — its
+   * {@code k.resume} suspends it while the rest of the handled program runs */
+  @SuppressWarnings("unchecked") // the row is types only: the handler was made for the row its caller named
+  static <B, R> Comp<B, R> clause(Class<?>[] row, Run body, Entry entry) {
+    return (Comp<B, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h, entry));
+  }
+
+  /** what a clause's {@code k.resume} or {@code k.unwind} asks: the rest of the handled program, as okay.rows gives
+   * it, run outside the handler — its value the clause's answer */
+  record Await(Comp<Object, Object> rest) {}
+
+  /** {@code rest} awaited by the clause running here, made for the row {@code row}: its frames saved, the rest run,
+   * they are resumed with its value. Refused outside a clause of that handler */
+  @SuppressWarnings("unchecked") // the rest's value is the clause's B, its row the handler's: rows are types only
+  static <T> T await(Class<?>[] row, Comp<?, ?> rest) {
+    Ctx c = CTX.get();
+    if (c == null || c.row() != row) throw new IllegalStateException("okay.resumable: the rest of a handled "
+        + "program resumed outside a clause of its handler: k.resume is called by the handler's clauses only");
+    throw new Capture(new Await((Comp<Object, Object>) rest));
+  }
+
+  private static Comp<Object, Object> start(Class<?>[] row, Run body, Here h, Entry entry) {
     Object a;
     try {
       a = at(new Ctx(h, row, null), () -> {
@@ -127,7 +155,7 @@ final class Driver {
         }
       });
     } catch (Capture c) {
-      Resume.outermost(c);
+      Resume.outermost(c, entry);
       return suspended(row, c, null);
     }
     return Effects.pure(a);
@@ -145,7 +173,7 @@ final class Driver {
     if (r.cont.isDone()) {
       Capture c = r.capture;
       if (c != null) {
-        Resume.outermost(c);
+        Resume.outermost(c, RUN);
         if (c.next == null) return suspended(row, c, null);
         // a yield that could not be made: the frames wait for the answer the clause's program will give
         if (TRACE) TAKEN[3]++;
@@ -217,7 +245,13 @@ final class Driver {
   static Comp<Object, Object> suspended(Class<?>[] row, Capture c, Frame tail) {
     if (TRACE) TAKEN[3]++;
     Frame rest = c.link(tail);
-    Comp<Object, Object> ask = ask(c.op, place(row, c.op));
+    Comp<Object, Object> ask;
+    if (c.op instanceof Await a) {
+      // a clause's k.resume: in tail position, the clause's program is the resumption itself — nothing waits
+      // for it, so a handler that resumes so adds nothing for each operation
+      if (rest.tails) return a.rest();
+      ask = a.rest();
+    } else ask = ask(c.op, place(row, c.op));
     if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));
     return ask.flatMap(x -> Here.here(h -> resume(row, rest, x, h)));
   }

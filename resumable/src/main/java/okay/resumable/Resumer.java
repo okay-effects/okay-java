@@ -7,8 +7,8 @@ import java.lang.invoke.MethodHandle;
  * only. */
 public final class Resumer {
   /** a call that may suspend: how it invokes, what, whether a handler of the method covers it (a finally, a catch),
-   * its line */
-  record Site(char kind, String name, String desc, boolean covered, int line) {}
+   * its line, whether it is in tail position (the method only returns what it gives) */
+  record Site(char kind, String name, String desc, boolean covered, int line, boolean tail) {}
 
   /** (Frame, Object answer, Throwable thrown) Object: the method re-entered at the frame's call */
   final MethodHandle resume;
@@ -20,8 +20,8 @@ public final class Resumer {
   /** for each call, the callee last found to be the method it calls: the names are compared once for it. Written
    * by any thread: a stale entry only costs a comparison */
   final Resumer[] callees;
-  /** whether the method was found to be entered by the boundary, as a body is */
-  boolean entered;
+  /** how the boundary was last found to enter the method, as a body or a clause: one of its constants */
+  Driver.Entry entered;
 
   Resumer(MethodHandle resume, String owner, String method, String desc, Site[] sites) {
     this.callees = new Resumer[sites.length];

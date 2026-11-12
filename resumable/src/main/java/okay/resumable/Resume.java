@@ -47,17 +47,19 @@ public final class Resume {
     }
     c.last = f;
     if (r.sites[site].covered()) c.covered = f;
+    if (!r.sites[site].tail()) c.nonTail = f;
     return c;
   }
 
-  /** the outermost frame was entered by the boundary's {@code run()} */
-  static void outermost(Capture c) {
+  /** the outermost frame was entered by the boundary, as {@code e} says: a body's {@code run()}, a clause's {@code on}
+   * or {@code ret} */
+  static void outermost(Capture c, Driver.Entry e) {
     if (c.last == null) throw new IllegalStateException("okay.resumable: " + c.op + " was performed by no "
         + "transformed method: the rest of the program could not be resumed");
     Resumer r = c.last.resumer;
-    if (r.entered) return;
-    if (!calls("run", "()Ljava/lang/Object;", r)) throw lost("Direct.of (calling run)", r);
-    r.entered = true;
+    if (r.entered == e) return;
+    if (!calls(e.name(), e.desc(), r)) throw lost("the boundary (calling " + e.name() + ")", r);
+    r.entered = e;
   }
 
   private static boolean calls(String name, String desc, Resumer inner) {
@@ -77,14 +79,15 @@ public final class Resume {
   }
 
   /** the constant of a transformed method: its {@link Resumer}. {@code sites}: for each call that may suspend,
-   * {@code kind|name|desc|covered|line}, one a line */
+   * {@code kind|name|desc|covered|line|tail}, one a line */
   public static Resumer resumer(MethodHandles.Lookup lookup, String name, Class<?> type, MethodHandle resume,
       String owner, String method, String desc, String sites) {
     String[] parts = sites.isEmpty() ? new String[0] : sites.split("\n");
     Resumer.Site[] s = new Resumer.Site[parts.length];
     for (int i = 0; i < parts.length; i++) {
       String[] f = parts[i].split("\\|");
-      s[i] = new Resumer.Site(f[0].charAt(0), f[1], f[2], f[3].equals("1"), Integer.parseInt(f[4]));
+      s[i] = new Resumer.Site(f[0].charAt(0), f[1], f[2], f[3].equals("1"), Integer.parseInt(f[4]),
+          f[5].equals("1"));
     }
     return new Resumer(resume, owner, method, desc, s);
   }

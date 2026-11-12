@@ -1,7 +1,11 @@
 package okay.resumable;
 
+import java.util.function.Predicate;
+import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.rows.Eff;
+import okay.rows.Effects;
+import okay.rows.Once;
 import okay.rows.Op;
 import okay.rows.Pure;
 import okay.rows.Sensitive;
@@ -111,6 +115,11 @@ public final class Direct {
     public <A> Comp<A, Eff<E1, Pure>> of(Body1<A, E1> body) {
       return Driver.program(row, body::run);
     }
+
+    /** a handler written in direct style, its clauses performing this row's effects, outside the handler */
+    public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, R>> handler(Handler1<F, A, B, E1> h) {
+      return adapt(row, h, h::ret, h::on, h::mine);
+    }
   }
 
   public static final class Row2<E1 extends Suspend, E2 extends Suspend> {
@@ -120,6 +129,10 @@ public final class Direct {
 
     public <A> Comp<A, Eff<E1, Eff<E2, Pure>>> of(Body2<A, E1, E2> body) {
       return Driver.program(row, body::run);
+    }
+
+    public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, R>>> handler(Handler2<F, A, B, E1, E2> h) {
+      return adapt(row, h, h::ret, h::on, h::mine);
     }
   }
 
@@ -131,6 +144,11 @@ public final class Direct {
     public <A> Comp<A, Eff<E1, Eff<E2, Eff<E3, Pure>>>> of(Body3<A, E1, E2, E3> body) {
       return Driver.program(row, body::run);
     }
+
+    public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, Eff<E3, R>>>> handler(
+        Handler3<F, A, B, E1, E2, E3> h) {
+      return adapt(row, h, h::ret, h::on, h::mine);
+    }
   }
 
   public static final class Row4<E1 extends Suspend, E2 extends Suspend, E3 extends Suspend, E4 extends Suspend> {
@@ -140,6 +158,11 @@ public final class Direct {
 
     public <A> Comp<A, Eff<E1, Eff<E2, Eff<E3, Eff<E4, Pure>>>>> of(Body4<A, E1, E2, E3, E4> body) {
       return Driver.program(row, body::run);
+    }
+
+    public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, Eff<E3, Eff<E4, R>>>>> handler(
+        Handler4<F, A, B, E1, E2, E3, E4> h) {
+      return adapt(row, h, h::ret, h::on, h::mine);
     }
   }
 
@@ -235,6 +258,167 @@ public final class Direct {
     public <A> Comp<A, Sensitive<S, ? extends Eff<E1, ? extends Eff<E2, ? extends Eff<E3, ?>>>>> of(
         Body4<A, S, E1, E2, E3> body) {
       return Driver.program(row, body::run);
+    }
+  }
+
+  // ---- handlers in direct style
+
+  /** What a clause that resumes the rest declares, beside the effects it performs: {@code k.resume} suspends the
+   * clause while the rest of the handled program runs, and javac then keeps it out of code that cannot suspend (a
+   * JDK lambda). No operation is of it */
+  public static final class Resumes extends Suspend {
+    private Resumes() {}
+  }
+
+  /** THE REST of a handled program, given to a direct-style clause: {@code k.resume(op, x)} runs it with the answer
+   * {@code x} to the handler's result, and returns that — once, many times, or never ({@code k.unwind()}: its
+   * finalizers run). Deep, as okay.rows' {@code K}: the rest runs under the handler again. Called by the handler's
+   * own clauses only; nothing is replayed — the clause's frames are saved while the rest runs, and resumed with its
+   * result. {@code return k.resume(..)} adds nothing for each operation: in tail position the clause's program is the
+   * resumption itself */
+  public static final class K<B> {
+    private final okay.rows.K<B, ?> k;
+    private final Class<?>[] row;
+
+    K(okay.rows.K<B, ?> k, Class<?>[] row) {
+      this.k = k;
+      this.row = row;
+    }
+
+    /** the rest resumed with the answer to {@code op}, the operation asked, and run to the handler's result */
+    public <X> B resume(Op<?, X, ?> op, X answer) throws Resumes {
+      return Driver.await(row, k.resume(op, answer));
+    }
+
+    /** the same, of a sensitive operation: by a handler under its audit ({@code Audit.handle}) */
+    public <X> B resume(Sensitive.Op<?, X, ?> op, X answer) throws Resumes {
+      return Driver.await(row, k.resume(op, answer));
+    }
+
+    /** the rest left: its finalizers run, the innermost first; nothing else of it */
+    public void unwind() throws Resumes {
+      Driver.await(row, k.unwind());
+    }
+  }
+
+  /** A GENERAL HANDLER IN DIRECT STYLE of the effect {@code F}, in a program of an {@code A}: a {@code B}. Its
+   * clauses are plain methods, transformed as a body is: {@code on} is given the operation and the rest, and returns
+   * the handler's result. Made an okay.rows {@code Handler} by {@link Direct#handler}, so it is installed, and
+   * composes, as any: {@code handle}, {@code intercept}, {@code Audit.handle}. Declaring {@code okay.rows.Once}
+   * declares it of that handler */
+  public interface Handler0<F, A, B> {
+    B ret(A a);
+
+    B on(F op, K<B> k) throws Resumes;
+
+    /** for an interceptor: of the operations of its class, those it takes */
+    default boolean mine(F op) { return true; }
+  }
+
+  /** the same, its clauses performing {@code E1}, the effect next outside it: {@code Direct.row(E1.class)
+   * .handler(h)}. javac refuses a clause that performs any other */
+  public interface Handler1<F, A, B, E1 extends Suspend> {
+    B ret(A a) throws E1;
+
+    B on(F op, K<B> k) throws E1, Resumes;
+
+    default boolean mine(F op) { return true; }
+  }
+
+  public interface Handler2<F, A, B, E1 extends Suspend, E2 extends Suspend> {
+    B ret(A a) throws E1, E2;
+
+    B on(F op, K<B> k) throws E1, E2, Resumes;
+
+    default boolean mine(F op) { return true; }
+  }
+
+  public interface Handler3<F, A, B, E1 extends Suspend, E2 extends Suspend, E3 extends Suspend> {
+    B ret(A a) throws E1, E2, E3;
+
+    B on(F op, K<B> k) throws E1, E2, E3, Resumes;
+
+    default boolean mine(F op) { return true; }
+  }
+
+  public interface Handler4<F, A, B, E1 extends Suspend, E2 extends Suspend, E3 extends Suspend,
+      E4 extends Suspend> {
+    B ret(A a) throws E1, E2, E3, E4;
+
+    B on(F op, K<B> k) throws E1, E2, E3, E4, Resumes;
+
+    default boolean mine(F op) { return true; }
+  }
+
+  /** a direct-style handler whose clauses perform nothing outside it, as an okay.rows {@code Handler} */
+  public static <F, A, B, R> okay.rows.Handler<F, A, B, R> handler(Handler0<F, A, B> h) {
+    return adapt(new Class<?>[0], h, h::ret, h::on, h::mine);
+  }
+
+  /** A HANDLER IN PLACE in direct style: each operation answered at once from a state, per path — and so on the
+   * body's own stack, nothing suspended. As okay.rows' {@code InPlace}, its result a value */
+  public interface InPlace<F, S, A, B> {
+    B ret(S state, A a);
+
+    Cell.Answered answer(Cell<S> state, F op);
+
+    default boolean mine(F op) { return true; }
+  }
+
+  public static <F, S, A, B, R> okay.rows.InPlace<F, S, A, B, R> inPlace(InPlace<F, S, A, B> h) {
+    return new okay.rows.InPlace<>() {
+      public Comp<B, R> ret(S state, A a) { return Effects.pure(h.ret(state, a)); }
+      public Cell.Answered answer(Cell<S> state, F op) { return h.answer(state, op); }
+      public boolean mine(F op) { return h.mine(op); }
+    };
+  }
+
+  /** a clause as the adapter calls it */
+  interface Ret<A, B> {
+    B apply(A a) throws Exception;
+  }
+
+  interface On<F, B> {
+    B apply(F op, K<B> k) throws Exception;
+  }
+
+  /** the okay.rows handler of a direct-style one: each clause run as a program of the row outside, {@code row} its
+   * effects' classes — one array for each handler, by which its {@code k} knows its clauses */
+  private static <F, A, B, R> okay.rows.Handler<F, A, B, R> adapt(Class<?>[] row, Object h, Ret<A, B> ret,
+      On<F, B> on, Predicate<F> mine) {
+    return h instanceof Once ? new OnceAdapter<>(row, ret, on, mine) : new Adapter<>(row, ret, on, mine);
+  }
+
+  private static class Adapter<F, A, B, R> implements okay.rows.Handler<F, A, B, R> {
+    private final Class<?>[] row;
+    private final Ret<A, B> ret;
+    private final On<F, B> on;
+    private final Predicate<F> mine;
+
+    Adapter(Class<?>[] row, Ret<A, B> ret, On<F, B> on, Predicate<F> mine) {
+      this.row = row;
+      this.ret = ret;
+      this.on = on;
+      this.mine = mine;
+    }
+
+    public Comp<B, R> ret(A a) {
+      return Driver.clause(row, () -> ret.apply(a), Driver.RET);
+    }
+
+    public Comp<B, R> on(F op, okay.rows.K<B, R> k) {
+      K<B> rest = new K<>(k, row);
+      return Driver.clause(row, () -> on.apply(op, rest), Driver.ON);
+    }
+
+    public boolean mine(F op) {
+      return mine.test(op);
+    }
+  }
+
+  private static final class OnceAdapter<F, A, B, R> extends Adapter<F, A, B, R> implements Once {
+    OnceAdapter(Class<?>[] row, Ret<A, B> ret, On<F, B> on, Predicate<F> mine) {
+      super(row, ret, on, mine);
     }
   }
 }

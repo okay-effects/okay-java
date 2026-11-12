@@ -13,6 +13,8 @@ public final class Capture extends Error {
   transient Frame last;
   /** the outermost frame saved here whose call a handler of its method covers */
   transient Frame covered;
+  /** the outermost frame saved here whose call is not in tail position */
+  transient Frame nonTail;
   /** where the rest was taken already, by a clause called from the body's stack, and the body could not yield:
    * the clause's program, and what it gives the answer to */
   final transient Comp<Object, Object> next;
@@ -34,11 +36,16 @@ public final class Capture extends Error {
    * tail, nothing made */
   Frame link(Frame tail) {
     boolean outside = tail != null && tail.finalizes;
-    // the frames up to the outermost covered one finalize; those outside it only if the tail does
+    boolean outsideTails = tail == null || tail.tails;
+    // the frames up to the outermost covered one finalize; those outside it only if the tail does; the
+    // same for the frames suspended in tail position
     boolean inside = covered != null;
+    boolean insideNonTail = nonTail != null;
     for (Frame f = first; ; f = f.next) {
       f.finalizes = inside || outside;
+      f.tails = !insideNonTail && outsideTails;
       if (f == covered) inside = false;
+      if (f == nonTail) insideNonTail = false;
       if (f == last) {
         f.next = tail;
         return first;
