@@ -46,6 +46,13 @@ val transformTestClasses by tasks.registering(JavaExec::class) {
         args(classes.files.first { it.exists() }.path, resumableTestClasses.get().asFile.path,
             sourceSets.test.get().runtimeClasspath.asPath)
     }
+    // the refusal tests' class stays as javac wrote it: code built without the transformation
+    doLast {
+        copy {
+            from(classes) { include("okay/resumable/Untransformed*.class") }
+            into(resumableTestClasses)
+        }
+    }
 }
 
 tasks.test {
