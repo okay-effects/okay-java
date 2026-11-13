@@ -9,6 +9,50 @@ The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whos
 module](docs/spring-boot.md). A second way of writing programs, the row of effects as a type, with control and
 audit of effects: [`docs/rows.md`](docs/rows.md).
 
+## Install
+
+Released 0.1.0, group `io.github.okay-effects`, in okay-java's Maven repository on GitHub Pages,
+https://okay-effects.github.io/okay-java/maven; okay-java's one dependency, `okay-kernel-api`, is in okay-kernel's,
+https://okay-effects.github.io/okay-kernel/maven. Java 25.
+
+| artifact | what |
+|---|---|
+| `okay-java` | the library: `okay.core`, `okay.std`, `okay.rows` |
+| `okay-java-resumable` | direct-style programs made resumable ([`resumable/README.md`](resumable/README.md)) |
+| `okay-java-spring-boot` | Spring Boot 4 support ([`docs/spring-boot.md`](docs/spring-boot.md)) |
+| plugin `io.github.okay-effects.resumable` | Gradle: the transformation of `okay-java-resumable`, the library added |
+| `okay-java-resumable-maven-plugin` | Maven: the same, goals `transform` and `transform-test` |
+
+Gradle:
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://okay-effects.github.io/okay-java/maven")
+    maven("https://okay-effects.github.io/okay-kernel/maven")
+}
+
+dependencies {
+    implementation("io.github.okay-effects:okay-java:0.1.0")
+}
+```
+
+Maven:
+
+```xml
+<repositories>
+  <repository><id>okay-java</id><url>https://okay-effects.github.io/okay-java/maven</url></repository>
+  <repository><id>okay-kernel</id><url>https://okay-effects.github.io/okay-kernel/maven</url></repository>
+</repositories>
+
+<dependency>
+  <groupId>io.github.okay-effects</groupId><artifactId>okay-java</artifactId><version>0.1.0</version>
+</dependency>
+```
+
+The plugins' setup (`pluginManagement`, `<pluginRepositories>`, okay-audit's repository for `forbid`):
+[`resumable/README.md`](resumable/README.md#install). How a release is made: [`RELEASING.md`](RELEASING.md).
+
 ## Layout
 
 ### `okay.core`
@@ -54,8 +98,8 @@ way past it a compile error;
 
 ### okay-kernel: okay-java implements its API
 
-okay-java depends on `dev.okay:okay-kernel-api` (0.2, from `~/.m2`: interfaces and a few records, no dependency of
-their own) and implements it itself, with no wrapper: `Eff` is a kernel `Prog`, and `okay.core.Kernel.EFFECTS` is the
+okay-java depends on `io.github.okay-effects:okay-kernel-api` (0.1.0, from okay-kernel's Maven repository on
+GitHub Pages: interfaces and a few records, no dependency of their own) and implements it itself, with no wrapper: `Eff` is a kernel `Prog`, and `okay.core.Kernel.EFFECTS` is the
 kernel's `Effects` in `Eff`'s own nodes. The machine runs the kernel's operations: it finds an operation's handler on
 its own stack of delimiters, where the operation runs, and unwinds failures, aborts and cancellations to the
 delimiters they concern. `computation` and `foreign` are the protocol's export and import. The design, and what it
@@ -65,7 +109,7 @@ costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.m
 
 ### `spring-boot/`: optional Spring Boot support
 
-A module of its own, `dev.okay:okay-java-spring-boot`; okay-java itself depends on nothing of Spring's. On the
+A module of its own, `io.github.okay-effects:okay-java-spring-boot`; okay-java itself depends on nothing of Spring's. On the
 classpath of an application of Spring Boot 4.x, it lets a controller's method return a program at the top,
 `Eff<Eff.Top, A>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
 transaction. A controller's program's value is the method's, as if the method had returned it: a body, a

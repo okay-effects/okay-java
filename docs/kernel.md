@@ -1,8 +1,8 @@
 # okay-java as an implementation of okay-kernel
 
-okay-java implements okay-kernel's API (`dev.okay:okay-kernel-api`, 0.2) directly. There is no wrapper and no
-translation layer: a kernel program is an `Eff`, and okay-java's machine runs kernel operations itself. The kernel's
-protocol and semantics are okay-kernel's (`docs/design.md` there; its reference machine `Steps`, its TCK).
+okay-java implements okay-kernel's API (`io.github.okay-effects:okay-kernel-api`, 0.1.0) directly. There is no wrapper
+and no translation layer: a kernel program is an `Eff`, and okay-java's machine runs kernel operations itself. The
+kernel's protocol and semantics are okay-kernel's (`docs/design.md` there; its reference machine `Steps`, its TCK).
 
 ## The design
 

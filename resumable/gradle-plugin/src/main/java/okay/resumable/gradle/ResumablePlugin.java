@@ -24,7 +24,8 @@ import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.process.ExecOperations;
 
-/** {@code plugins { id("dev.okay.resumable") }}: direct-style methods made resumable, with nothing else to write.
+/** {@code plugins { id("io.github.okay-effects.resumable") }}: direct-style methods made resumable, with nothing
+ * else to write.
  * <ul>
  * <li>okay-java-resumable is added to {@code implementation}, of this plugin's version;
  * <li>every source set's Java classes are transformed as {@code compileJava} (and {@code compileTestJava}, ..) ends,
@@ -56,7 +57,7 @@ public abstract class ResumablePlugin implements Plugin<Project> {
   public void apply(Project project) {
     project.getPluginManager().apply(JavaPlugin.class);
     String version = ResumablePlugin.class.getPackage().getImplementationVersion();
-    String library = "dev.okay:okay-java-resumable:" + (version == null ? "0.2.0-SNAPSHOT" : version);
+    String library = "io.github.okay-effects:okay-java-resumable:" + (version == null ? "0.1.0" : version);
     project.getDependencies().add(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME, library);
     Configuration transformer = project.getConfigurations().create("okayResumableTransformer", c -> {
       c.setCanBeConsumed(false);

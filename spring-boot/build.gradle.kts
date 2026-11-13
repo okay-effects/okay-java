@@ -3,7 +3,7 @@ plugins {
     `maven-publish`
 }
 
-group = "dev.okay"
+group = "io.github.okay-effects"
 version = rootProject.version
 
 java {
@@ -13,9 +13,9 @@ java {
 }
 
 repositories {
-    // okay-kernel-api, okay-java's one dependency: published by okay-kernel to ~/.m2
-    mavenLocal()
     mavenCentral()
+    // okay-kernel-api, okay-java's one dependency: released in okay-kernel's Maven repository on GitHub Pages
+    maven("https://okay-effects.github.io/okay-kernel/maven")
 }
 
 // okay-java in Spring Boot (README.md): a controller's method returns an Eff, its value the response, in web MVC and

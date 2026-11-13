@@ -2,7 +2,7 @@ plugins {
     `java-library`
 }
 
-group = "dev.okay"
+group = "io.github.okay-effects"
 version = rootProject.version
 
 java {
@@ -12,9 +12,9 @@ java {
 }
 
 repositories {
-    // okay-kernel-api, okay-java's one dependency: published by okay-kernel to ~/.m2
-    mavenLocal()
     mavenCentral()
+    // okay-kernel-api, okay-java's one dependency: released in okay-kernel's Maven repository on GitHub Pages
+    maven("https://okay-effects.github.io/okay-kernel/maven")
     // okay-audit: released in okay's Maven repository on GitHub Pages
     maven("https://okay-effects.github.io/okay/maven")
 }
@@ -39,6 +39,10 @@ val loomExports = listOf("--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
     "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
 tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-serial") + loomExports)
+}
+tasks.withType<Javadoc> {
+    (options as StandardJavadocDocletOptions).addMultilineStringsOption("-add-exports").value =
+        loomExports.map { it.removePrefix("--add-exports=") }
 }
 
 // the module's own test classes, transformed as a consumer's would be: written to a directory of their own, which
@@ -156,10 +160,10 @@ tasks.register<JavaExec>("bench") {
 }
 
 // THE MAVEN PLUGIN AND THE MAVEN SAMPLE (./gradlew :okay-java-resumable:mavenSample): okay-java and this module
-// published to a repository directory under build/ — not ~/.m2 —, with okay-kernel-api beside them
-// (copied from ~/.m2; okay-audit from okay's Pages repository); the plugin built by the Maven wrapper (Maven
-// fetched under build/), deployed to that directory; the sample built against it, each
-// Maven build with a local repository of its own under build/
+// published to a repository directory under build/ — not ~/.m2 — (okay-kernel-api from okay-kernel's Pages
+// repository, okay-audit from okay's); the plugin built by the Maven wrapper (Maven fetched under build/), deployed
+// to that directory; the sample built against it, each Maven build with a local repository of its own under build/.
+// The release (`./gradlew release`): the plugin deployed to build/pages-maven beside the libraries
 apply(plugin = "maven-publish")
 val samplesRepo = layout.buildDirectory.dir("maven-repo")
 configure<PublishingExtension> {
@@ -169,11 +173,9 @@ configure<PublishingExtension> {
 rootProject.configure<PublishingExtension> {
     repositories { maven { name = "resumableSamples"; url = uri(samplesRepo) } }
 }
-val samplesRepoReady by tasks.registering(Copy::class) {
+val samplesRepoReady by tasks.registering {
     dependsOn("publishOkayJavaResumablePublicationToSamplesRepository",
         ":publishOkayJavaPublicationToResumableSamplesRepository")
-    from(File(System.getProperty("user.home"), ".m2/repository/dev/okay/okay-kernel-api"))
-    into(samplesRepo.map { it.dir("dev/okay/okay-kernel-api") })
 }
 fun mvnw(task: Exec, vararg args: String) {
     task.workingDir = projectDir
@@ -181,13 +183,38 @@ fun mvnw(task: Exec, vararg args: String) {
     task.environment("JAVA_HOME", javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
         .get().metadata.installationPath.asFile.path)
     task.commandLine(listOf("./mvnw", "-B", "-ntp") + args)
+    // okay-java's own artifacts as this build has just published them: Maven never fetches a release's again
+    task.doFirst {
+        listOf("m2-plugin", "m2-sample").forEach { m2 ->
+            layout.buildDirectory.dir("$m2/io/github/okay-effects").get().asFile.listFiles()
+                ?.filter { it.name.startsWith("okay-java") }?.forEach { it.deleteRecursively() }
+        }
+    }
 }
+val okayRepo = "-Dokay.repo=" + samplesRepo.get().asFile.toURI()
 val mavenPlugin by tasks.registering(Exec::class) {
     dependsOn(samplesRepoReady)
-    mvnw(this, "-f", "maven-plugin/pom.xml", "-Dmaven.repo.local=build/m2-plugin", "deploy",
+    mvnw(this, "-f", "maven-plugin/pom.xml", "-Dmaven.repo.local=build/m2-plugin", okayRepo, "deploy",
         "-DaltDeploymentRepository=samples::" + samplesRepo.get().asFile.toURI())
 }
 tasks.register<Exec>("mavenSample") {
     dependsOn(mavenPlugin)
-    mvnw(this, "-f", "samples/maven/pom.xml", "-Dmaven.repo.local=build/m2-sample", "verify")
+    mvnw(this, "-f", "samples/maven/pom.xml", "-Dmaven.repo.local=build/m2-sample", okayRepo, "verify")
+}
+val mavenPluginRelease by tasks.registering(Exec::class) {
+    dependsOn(samplesRepoReady)
+    mvnw(this, "-f", "maven-plugin/pom.xml", "-Dmaven.repo.local=build/m2-plugin", okayRepo, "deploy",
+        "-DaltDeploymentRepository=pages::" +
+            rootProject.layout.buildDirectory.dir("pages-maven").get().asFile.toURI())
+}
+// the release written into build/pages-maven (RELEASING.md): the libraries, the Maven plugin, the Gradle plugin (a
+// build of its own) with its marker
+val gradlePluginRelease by tasks.registering(GradleBuild::class) {
+    dir = file("gradle-plugin")
+    tasks = listOf("publishAllPublicationsToPagesRepository")
+}
+rootProject.tasks.register("release") {
+    dependsOn(gradlePluginRelease, ":publishAllPublicationsToPagesRepository",
+        ":okay-java-resumable:publishAllPublicationsToPagesRepository",
+        ":okay-java-spring-boot:publishAllPublicationsToPagesRepository", mavenPluginRelease)
 }

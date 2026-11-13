@@ -23,35 +23,51 @@ run(priced(Map.of("tea", 4, "cup", 11), everyDelivery(program)));
 `okay.rows` handlers (`samples/*/src/main/java/sample/Shop.java`). Once a program has crossed the boundary, everything
 after it is `okay.rows` as it is: handlers, `intercept`, `observe`, `ensuring`, `up`/`under`.
 
-Module `resumable/`, artifact `dev.okay:okay-java-resumable`, package `okay.resumable`. The package is named after
-the family's word for this: okay-rust has `okay::resumable` and `#[resumable]`. It is not `okay.direct`, which is
-the sibling library okay-direct's. okay-java does not depend on this module.
+Module `resumable/`, artifact `io.github.okay-effects:okay-java-resumable`, package `okay.resumable`. The package is
+named after the family's word for this: okay-rust has `okay::resumable` and `#[resumable]`. It is not `okay.direct`,
+which is the sibling library okay-direct's. okay-java does not depend on this module.
 
 ## Install
 
-**Gradle**: one line.
+Released 0.1.0 in okay-java's Maven repository on GitHub Pages, https://okay-effects.github.io/okay-java/maven,
+beside okay-kernel's (okay-kernel-api) and okay's (okay-audit, the check of `forbid`).
+
+**Gradle**: the plugin `io.github.okay-effects.resumable`, which adds the library.
 
 ```kotlin
-plugins { id("dev.okay.resumable") }
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven("https://okay-effects.github.io/okay-java/maven")
+    }
+}
+
+// build.gradle.kts
+plugins { id("io.github.okay-effects.resumable") version "0.1.0" }
+
+repositories {
+    mavenCentral()
+    maven("https://okay-effects.github.io/okay-java/maven")
+    maven("https://okay-effects.github.io/okay-kernel/maven")
+    maven("https://okay-effects.github.io/okay/maven")
+}
 ```
 
-Until the plugin is published, a build takes it from this repository as a composite build
-(`samples/gradle/settings.gradle.kts`):
+This repository's own sample takes the plugin and the library from the sources instead, as a composite build
+(`samples/gradle/settings.gradle.kts`).
 
-```kotlin
-pluginManagement { includeBuild("<okay-java>/resumable/gradle-plugin") }
-includeBuild("<okay-java>")
-```
-
-**Maven**: the library and the plugin (`samples/maven/pom.xml`):
+**Maven**: the library and the plugin (`samples/maven/pom.xml`), the three repositories as `<repositories>` and
+`<pluginRepositories>` both (ids `okay-java`, `okay-kernel`, `okay`, the URLs above):
 
 ```xml
 <dependency>
-  <groupId>dev.okay</groupId><artifactId>okay-java-resumable</artifactId><version>0.2.0-SNAPSHOT</version>
+  <groupId>io.github.okay-effects</groupId><artifactId>okay-java-resumable</artifactId><version>0.1.0</version>
 </dependency>
 ...
 <plugin>
-  <groupId>dev.okay</groupId><artifactId>okay-java-resumable-maven-plugin</artifactId><version>0.2.0-SNAPSHOT</version>
+  <groupId>io.github.okay-effects</groupId><artifactId>okay-java-resumable-maven-plugin</artifactId>
+  <version>0.1.0</version>
   <executions><execution><goals><goal>transform</goal><goal>transform-test</goal></goals></execution></executions>
 </plugin>
 ```

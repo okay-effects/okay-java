@@ -50,10 +50,10 @@ public final class Direct {
     String why = caller.getDeclaringClass().isAnnotationPresent(Transformed.class)
         ? "its class was transformed but this method was not (a constructor, a static initializer or a synchronized"
             + " method cannot suspend)"
-        : "its class was not transformed: build it with the okay-java-resumable plugin (Gradle: id(\"dev.okay"
-            + ".resumable\"); Maven: okay-java-resumable-maven-plugin), or run a jar with java -jar, whose manifest's"
-            + " Launcher-Agent-Class transforms it as it is loaded. An IDE that compiles by itself does not run the"
-            + " plugin: delegate the build and the tests to Gradle or Maven";
+        : "its class was not transformed: build it with the okay-java-resumable plugin (Gradle:"
+            + " id(\"io.github.okay-effects.resumable\"); Maven: okay-java-resumable-maven-plugin), or run a jar with"
+            + " java -jar, whose manifest's Launcher-Agent-Class transforms it as it is loaded. An IDE that compiles"
+            + " by itself does not run the plugin: delegate the build and the tests to Gradle or Maven";
     return new IllegalStateException("okay.resumable: " + method + " performed " + op + ", but " + why
         + " — the rest of the program could not be resumed.");
   }

@@ -1,8 +1,8 @@
 # okay-java in Spring Boot
 
-`dev.okay:okay-java-spring-boot`, the `spring-boot/` module, is optional: okay-java itself depends on nothing of
-Spring's. On the classpath of an application of Spring Boot 4.x it configures itself, each part only where its part
-of Spring is:
+`io.github.okay-effects:okay-java-spring-boot`, the `spring-boot/` module, is optional: okay-java itself depends on
+nothing of Spring's. On the classpath of an application of Spring Boot 4.x it configures itself, each part only
+where its part of Spring is:
 
 | Part | On where | What it gives |
 |---|---|---|
@@ -16,14 +16,20 @@ Any of them is off by `spring.autoconfigure.exclude=okay.spring.<name>`.
 ## Setup
 
 ```kotlin
+repositories {
+    mavenCentral()
+    maven("https://okay-effects.github.io/okay-java/maven")
+    maven("https://okay-effects.github.io/okay-kernel/maven")
+}
+
 dependencies {
-    implementation("dev.okay:okay-java-spring-boot:0.2.0-SNAPSHOT")   // okay-java comes with it
+    implementation("io.github.okay-effects:okay-java-spring-boot:0.1.0")   // okay-java comes with it
 }
 ```
 
 The module's Spring is `compileOnly`: its POM has one dependency, okay-java, and the application's own Spring Boot
-is the one used. It is built and tested on Spring Boot 4.1.1 (Spring Framework 7.0). Published to `~/.m2` by
-`./gradlew publishToMavenLocal`, as okay-java is.
+is the one used. It is built and tested on Spring Boot 4.1.1 (Spring Framework 7.0). Released with okay-java
+(the README's Install, `RELEASING.md`).
 
 Nothing else is needed outside these four parts. okay-java has no state to be a bean: no runtime, no pool, no
 configuration. `Eff.run` and `Async.runAsync` are called wherever a program is to run, in a service, a

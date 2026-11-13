@@ -3,8 +3,8 @@ plugins {
     `maven-publish`
 }
 
-group = "dev.okay"
-version = "0.2.0-SNAPSHOT"
+group = "io.github.okay-effects"
+version = "0.1.0"
 
 java {
     toolchain {
@@ -13,13 +13,13 @@ java {
 }
 
 repositories {
-    // okay-kernel-api: published by okay-kernel to ~/.m2
-    mavenLocal()
     mavenCentral()
+    // okay-kernel-api: released in okay-kernel's Maven repository on GitHub Pages
+    maven("https://okay-effects.github.io/okay-kernel/maven")
 }
 
 // a library of one dependency, okay-kernel's API (interfaces and a few records, of no dependency of its own): okay-java
-// implements it (docs/kernel.md). Published (`./gradlew publishToMavenLocal`, to ~/.m2) for okay-kernel's TCK
+// implements it (docs/kernel.md). Released (RELEASING.md) as io.github.okay-effects:okay-java
 publishing {
     publications {
         create<MavenPublication>("okayJava") {
@@ -28,8 +28,57 @@ publishing {
     }
 }
 
+// THE RELEASE (RELEASING.md): every module's publication — okay-java, okay-java-resumable, okay-java-spring-boot —
+// with its sources, its javadoc and the family's POM; `./gradlew publishAllPublicationsToPagesRepository` writes them
+// into build/pages-maven, the Maven repository on GitHub Pages (the Gradle and Maven plugins beside them:
+// `./gradlew release`)
+allprojects {
+    plugins.withId("java") {
+        configure<JavaPluginExtension> {
+            withSourcesJar()
+            withJavadocJar()
+        }
+        tasks.withType<Javadoc> { (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet") }
+    }
+    plugins.withId("maven-publish") {
+        configure<PublishingExtension> {
+            publications.withType<MavenPublication>().configureEach { pom { okayPom(project.name) } }
+            repositories {
+                maven {
+                    name = "pages"
+                    url = uri(rootProject.layout.buildDirectory.dir("pages-maven"))
+                }
+            }
+        }
+    }
+}
+
+fun MavenPom.okayPom(artifact: String) {
+    name = artifact
+    description = "okay-java: algebraic effects for Java — effects as data, handlers, a row of effects (okay.rows); " +
+        "direct-style programs made resumable (okay.resumable); Spring Boot support"
+    url = "https://github.com/okay-effects/okay-java"
+    licenses {
+        license {
+            name = "Apache-2.0"
+            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        }
+    }
+    developers {
+        developer {
+            id = "sergey-scherbina"
+            name = "Sergiy Shcherbyna"
+            email = "sergey.scherbina@gmail.com"
+        }
+    }
+    scm {
+        url = "https://github.com/okay-effects/okay-java"
+        connection = "scm:git:https://github.com/okay-effects/okay-java.git"
+    }
+}
+
 dependencies {
-    api("dev.okay:okay-kernel-api:0.2.0-SNAPSHOT")
+    api("io.github.okay-effects:okay-kernel-api:0.1.0")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

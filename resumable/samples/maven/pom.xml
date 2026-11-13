@@ -4,7 +4,8 @@
   <modelVersion>4.0.0</modelVersion>
 
   <!-- a consumer of okay-java-resumable, built against this repository with nothing in ~/.m2: the library and the
-       plugin come from a repository directory under the module's build/ (../../build.gradle.kts: mavenSample) -->
+       plugin come from a repository directory under the module's build/ (../../build.gradle.kts: mavenSample),
+       okay-kernel-api from okay-kernel's Maven repository on GitHub Pages -->
   <groupId>sample</groupId>
   <artifactId>resumable-sample-maven</artifactId>
   <version>1.0</version>
@@ -20,11 +21,19 @@
       <id>okay-java-resumable-build</id>
       <url>${okay.repo}</url>
     </repository>
+    <repository>
+      <id>okay-kernel</id>
+      <url>https://okay-effects.github.io/okay-kernel/maven</url>
+    </repository>
   </repositories>
   <pluginRepositories>
     <pluginRepository>
       <id>okay-java-resumable-build</id>
       <url>${okay.repo}</url>
+    </pluginRepository>
+    <pluginRepository>
+      <id>okay-kernel</id>
+      <url>https://okay-effects.github.io/okay-kernel/maven</url>
     </pluginRepository>
     <!-- okay-audit, the plugin's check of forbid: okay's Maven repository on GitHub Pages -->
     <pluginRepository>
@@ -36,9 +45,9 @@
   <dependencies>
     <!-- 1. the library -->
     <dependency>
-      <groupId>dev.okay</groupId>
+      <groupId>io.github.okay-effects</groupId>
       <artifactId>okay-java-resumable</artifactId>
-      <version>0.2.0-SNAPSHOT</version>
+      <version>0.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -53,9 +62,9 @@
       <!-- 2. the plugin: target/classes and target/test-classes made resumable; surefire's argLine given the
            JVM's continuations -->
       <plugin>
-        <groupId>dev.okay</groupId>
+        <groupId>io.github.okay-effects</groupId>
         <artifactId>okay-java-resumable-maven-plugin</artifactId>
-        <version>0.2.0-SNAPSHOT</version>
+        <version>0.1.0</version>
         <!-- effectful code that reaches a handler or an effect's implementation other than to install it, or an API
              of the strict list (the network, files, processes, reflection, ..), or the ambient way of doing what an
              effect of okay.rows.std does (pure: state, reader, writer, clock, fresh, async, io, a nested run):
