@@ -6,12 +6,25 @@ okay-java is algebraic effects for Java 25 on delimited continuations (`shift0`)
 operations of declared effects, handlers answer them, and the host runs it. Two notations share one machine:
 the row notation `okay.rows` (`Comp<A, Row>`, the effects in the type) and the capability notation `okay.core.Eff`.
 
-Getting it: the README gives no published repository or coordinates yet. Build it from source
-(https://github.com/okay-effects/okay-java, JDK 25 toolchain): `./gradlew publishToMavenLocal` publishes
-`dev.okay:okay-java:0.2.0-SNAPSHOT` (and `dev.okay:okay-java-spring-boot:0.2.0-SNAPSHOT`, see docs/spring-boot.md)
-to `~/.m2`. It depends on `dev.okay:okay-kernel-api:0.2.0-SNAPSHOT`, which okay-kernel publishes to `~/.m2`.
-Direct-style methods: module `resumable/`, `dev.okay:okay-java-resumable` with the Gradle plugin
-`id("dev.okay.resumable")` or the Maven plugin `okay-java-resumable-maven-plugin` (resumable/README.md, "Install").
+Getting it: released 0.1.0, group `io.github.okay-effects`, Java 25. Repositories: Maven Central,
+https://okay-effects.github.io/okay-java/maven (okay-java's artifacts and plugins) and
+https://okay-effects.github.io/okay-kernel/maven (its one dependency, `okay-kernel-api`):
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://okay-effects.github.io/okay-java/maven")
+    maven("https://okay-effects.github.io/okay-kernel/maven")
+}
+dependencies { implementation("io.github.okay-effects:okay-java:0.1.0") }
+```
+
+Also `okay-java-spring-boot` (docs/spring-boot.md). Direct-style methods: `okay-java-resumable` with the Gradle
+plugin `id("io.github.okay-effects.resumable") version "0.1.0"` (in `settings.gradle.kts`:
+`pluginManagement { repositories { gradlePluginPortal(); maven("https://okay-effects.github.io/okay-java/maven") } }`;
+it adds the library) or the Maven plugin `io.github.okay-effects:okay-java-resumable-maven-plugin:0.1.0` (the three
+repositories as `<pluginRepositories>` too); `forbid` needs okay's repository, https://okay-effects.github.io/okay/maven
+(resumable/README.md, "Install").
 
 ### The model (row notation; compiled and run against the build)
 
