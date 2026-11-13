@@ -22,6 +22,8 @@ final class LoomRun implements Supplier<Object> {
   }
 
   final Continuation cont;
+  /** how the boundary enters its outermost frame: a body's run, a clause's on or ret */
+  final Driver.Entry entry;
   /** what the body came to: its value, its failure, or frames it saved */
   Object value;
   Throwable failure;
@@ -40,8 +42,9 @@ final class LoomRun implements Supplier<Object> {
   /** the body run on from where it waits: one program, made once */
   final Comp<Object, Object> next;
 
-  LoomRun(Class<?>[] row, Driver.Run body) {
-    next = Here.here(h -> Driver.step(row, this, h));
+  LoomRun(Driver.Prog p, Driver.Run body, Driver.Entry entry) {
+    this.entry = entry;
+    next = Here.here(h -> Driver.step(p, this, h));
     cont = new Continuation(SCOPE, () -> {
       try {
         value = body.run();

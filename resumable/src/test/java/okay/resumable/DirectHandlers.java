@@ -245,4 +245,30 @@ public final class DirectHandlers {
           }
         }), p);
   }
+
+  /** an interceptor of the input that asks each operation again of the input's handler outside, from its clause */
+  public static <A, T> Comp<A, Eff<Input, T>> relayed(Comp<A, ? super Eff<Input, T>> p) {
+    return intercept(Input.class, Direct.row(Input.class).<Input, A, A, T>handler(
+        new Direct.Handler1<Input, A, A, Input>() {
+          public A ret(A a) { return a; }
+          public A on(Input op, Direct.K<A> k) throws Input, Direct.Resumes {
+            return switch (op) {
+              case Input.Next next -> k.resume(next, Input.next());
+            };
+          }
+        }), p);
+  }
+
+  /** the same, declared Once */
+  public static <A, T> Comp<A, Eff<Input, T>> relayedOnce(Comp<A, ? super Eff<Input, T>> p) {
+    final class Relay implements Direct.Handler1<Input, A, A, Input>, okay.rows.Once {
+      public A ret(A a) { return a; }
+      public A on(Input op, Direct.K<A> k) throws Input, Direct.Resumes {
+        return switch (op) {
+          case Input.Next next -> k.resume(next, Input.next());
+        };
+      }
+    }
+    return intercept(Input.class, Direct.row(Input.class).<Input, A, A, T>handler(new Relay()), p);
+  }
 }

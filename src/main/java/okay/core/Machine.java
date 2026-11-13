@@ -278,8 +278,14 @@ final class Machine {
         if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
         else k = new Frames.Then(d.then(), k);
       }
-      // the usual clauses, k(x) and k(x) bound: resumed right here, no step of the loop between
+      return atOnce(c, true);
+    }
+
+    /** the usual clauses, k(x) and k(x) bound: resumed right here, no step of the loop between — k(x) bound or
+     * mapped only if {@code bound} */
+    Eff<?, ?> atOnce(Eff<?, ?> c, boolean bound) {
       if (c instanceof Resumption r) return resume(r, null);
+      if (!bound) return c;
       if (c instanceof Bind b && b.m() instanceof Resumption r) return resume(r, b.f());
       if (c instanceof Map mp && mp.m() instanceof Resumption r) {
         k = new Frames.Mapped(mp.f(), k);

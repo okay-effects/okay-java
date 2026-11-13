@@ -12,6 +12,16 @@ import okay.core.Rows;
 public final class Here {
   public static final Object ELSEWHERE = Rows.Probe.ELSEWHERE;
   public static final Object ONCE = Rows.Probe.ONCE;
+  /** a general handler that may resume more than once, of a clause made where it runs ({@link Eager}) */
+  public static final Object EAGER = Rows.Probe.EAGER;
+
+  /** A GENERAL HANDLER WHOSE CLAUSE IS A PROGRAM MADE WHERE IT RUNS ({@link #here}): a direct-style handler's
+   * (okay-java-resumable). Its operation may be asked from the probing stack ({@link #resumeHere}) though it may
+   * resume more than once: answered at once if the clause resumes the rest in tail position. {@link #eager}: whether
+   * to ask it so now — false, the operation is asked as a program, as of any general handler */
+  public interface Eager {
+    default boolean eager() { return true; }
+  }
 
   private final Rows.Probe probe;
 
@@ -51,10 +61,26 @@ public final class Here {
     return pending(probe.resumeHere(op, place, x -> later.apply(x).eff));
   }
 
+  /** the same, of a handler {@link #EAGER} or {@link #ONCE}: its clause, made where it runs, is made on this stack;
+   * answered at once if it resumes at once — in tail position only, unless {@code once}. {@code unwound}, if not null,
+   * the finalizer of what {@code later} resumes: run first when the rest is unwound */
+  public Object resumeHere(Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later,
+      Supplier<? extends Comp<?, ?>> unwound, boolean once) {
+    return pending(probe.resumeHere(op, place, x -> later.apply(x).eff, unwound == null ? null
+        : () -> unwound.get().eff, once));
+  }
+
   /** the same, of a sensitive operation: its audit's clause, which passes it on as a program, and so never answers
    * it at once */
   public Object resumeHere(Sensitive.Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later) {
     return pending(probe.resumeHere(op, place, x -> later.apply(x).eff));
+  }
+
+  /** the same, of a sensitive operation, with {@code unwound} as above */
+  public Object resumeHere(Sensitive.Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later,
+      Supplier<? extends Comp<?, ?>> unwound, boolean once) {
+    return pending(probe.resumeHere(op, place, x -> later.apply(x).eff, unwound == null ? null
+        : () -> unwound.get().eff, once));
   }
 
   private static Object pending(Object r) {

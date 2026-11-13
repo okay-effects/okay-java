@@ -13,9 +13,10 @@ import okay.rows.Sensitive;
  * resumes the body with the answer. Three ways, by the handler the operation goes to, found when it is performed:
  * <ol>
  * <li>in place: answered at once, on the body's own stack ({@link Here}) — nothing suspends;
- * <li>general and declared {@code Once}, where the JVM's continuations can be used: the body runs in one
- * ({@link LoomRun}); the handler's clause is called from the body's stack, and the body yields only if the clause
- * does not resume at once;
+ * <li>general and declared {@code Once}, or written in direct style: the handler's clause is called from the body's
+ * stack, and its answer returned if it resumes at once (a direct-style handler that may resume many times: in tail
+ * position). Else, where the JVM's continuations can be used and the handler is declared {@code Once}, the body runs
+ * in one ({@link LoomRun}) and yields; otherwise its frames are saved as in 3, for the clause's answer to resume;
  * <li>otherwise: the frames are saved as data ({@link Capture}) and re-entered — the innermost first, each given
  * what the one inside it returned, so the Java stack holds one of them at a time.
  * </ol> */
@@ -26,8 +27,19 @@ final class Driver {
     Object run() throws Exception;
   }
 
-  /** where a body runs, while it runs on this thread: the handlers in force, its row, its continuation if any */
-  record Ctx(Here here, Class<?>[] row, LoomRun loom) {}
+  /** A PROGRAM while it runs: its row. A direct-style clause's is its {@link Direct.K}, so that the rest is resumed
+   * only by its own clause */
+  static class Prog {
+    final Class<?>[] row;
+
+    Prog(Class<?>[] row) {
+      this.row = row;
+    }
+  }
+
+  /** where a program runs, while it runs on this thread: the handlers in force, the program, its continuation if
+   * any */
+  record Ctx(Here here, Prog prog, LoomRun loom) {}
 
   static final ThreadLocal<Ctx> CTX = new ThreadLocal<>();
 
@@ -38,39 +50,39 @@ final class Driver {
   /** for the tests: how many times a direct-style clause's k.resume was found in tail position, nothing kept */
   static int TAILS;
 
-  /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
-   * or yielded; or a capture returned, for the frames to be saved */
+  /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} or written in
+   * direct style on this stack, or yielded; or a capture returned, for the frames to be saved */
   static Object perform(Op<?, ?, ?> op) {
     // one that is both, through a raw type: sensitive, so it passes its audit
     if (op instanceof Sensitive.Op<?, ?, ?> s) return performSensitive(s);
     Ctx c = CTX.get();
     if (c != null) {
-      int place = place(c.row(), op);
+      int place = place(c.prog().row, op);
       Object a = c.here().ask(op, place);
       if (a != Here.ELSEWHERE) {
+        if (a == Here.EAGER) return here(c, op, place, false);
         if (a != Here.ONCE) {
           if (TRACE) TAKEN[0]++;
           return a;
         }
         LoomRun r = c.loom();
         if (r != null && r.current()) return once(c, r, op, place);
-        if (!Loom.AVAILABLE) Loom.tell();
+        return here(c, op, place, true);
       }
     }
     return new Capture(op);
   }
 
   /** {@link Resume#performSensitive}: a sensitive operation passes its audit, so it is never answered in place —
-   * its audit's clause is called on the body's stack where it declares {@code Once} and the body runs on the JVM's
-   * continuation; else the frames are saved */
+   * its audit's clause is called on the body's stack where it declares {@code Once}; else the frames are saved */
   static Object performSensitive(Sensitive.Op<?, ?, ?> op) {
     Ctx c = CTX.get();
     if (c != null) {
-      int place = place(c.row(), op);
+      int place = place(c.prog().row, op);
       if (c.here().kind(op, place) == Here.ONCE) {
         LoomRun r = c.loom();
         if (r != null && r.current()) return once(c, r, op, place);
-        if (!Loom.AVAILABLE) Loom.tell();
+        return here(c, op, place, true);
       }
     }
     return new Capture(op);
@@ -84,10 +96,10 @@ final class Driver {
       // the program's one guard, put before the first rest a clause may keep: if a rest is left unanswered while
       // the body waits, its frames are unwound. Not put for a program that never asks such a handler
       r.guarded = true;
-      Class<?>[] row = c.row();
-      c.here().ensure(() -> Here.here(h -> unwound(row, r, h)));
+      Prog p = c.prog();
+      c.here().ensure(() -> Here.here(h -> unwound(p, r, h)));
     }
-    Answer later = new Answer(c.row(), r, ++r.asked, op);
+    Answer later = new Answer(c.prog(), r, ++r.asked, op);
     // the cast: an operation that is not sensitive came here from perform, which takes an Op
     Object x = op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later)
         : c.here().resumeHere((Op<?, ?, ?>) op, place, later);
@@ -103,6 +115,22 @@ final class Driver {
     return new Capture(op, p.next(), later);
   }
 
+  /** 2 with no continuation to yield: the clause of a handler declared {@code Once} ({@code once}), or of one
+   * written in direct style, called from this stack. Its answer returned if it resumes at once — a direct-style one
+   * that may resume many times, in tail position; else the frames are saved, the clause's program goes on, and its
+   * answer resumes them, as many times as it is given */
+  private static Object here(Ctx c, Object op, int place, boolean once) {
+    Many later = new Many(c.prog(), op);
+    Object x = op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later, later, once)
+        : c.here().resumeHere((Op<?, ?, ?>) op, place, later, later, once);
+    if (!(x instanceof Here.Pending p)) {
+      if (TRACE) TAKEN[1]++;
+      return x;
+    }
+    if (once && !Loom.AVAILABLE) Loom.tell();
+    return new Capture(op, p.next(), later);
+  }
+
   private static <T> T at(Ctx c, Supplier<T> f) {
     Ctx outer = CTX.get();
     CTX.set(c);
@@ -115,9 +143,10 @@ final class Driver {
 
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
   static <A, R> Comp<A, R> program(Class<?>[] row, Run body) {
-    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h, RUN));
+    Prog p = new Prog(row);
+    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, RUN));
     // a continuation for each run of the program
-    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(row, new LoomRun(row, body), h));
+    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(p, new LoomRun(p, body, RUN), h));
   }
 
   /** how the boundary enters the outermost frame: a body's run, a direct-style clause's on or ret */
@@ -127,42 +156,61 @@ final class Driver {
   static final Entry ON = new Entry("on", "(Ljava/lang/Object;Lokay/resumable/Direct$K;)Ljava/lang/Object;");
   static final Entry RET = new Entry("ret", "(Ljava/lang/Object;)Ljava/lang/Object;");
 
-  /** A DIRECT-STYLE CLAUSE as a program of the row outside its handler: run as a body is, on saved frames — its
-   * {@code k.resume} suspends it while the rest of the handled program runs */
+  /** A DIRECT-STYLE CLAUSE as a program of the row outside its handler, {@code p}'s: run as a body is, on saved
+   * frames — not on the JVM's continuation: one made for each clause, run inside the body's, cost 20 times what
+   * the saved frames do (bench.d/2026-11-13_resumable-3.txt). Its operations of a handler declared Once are asked
+   * from its stack all the same; its {@code k.resume} saves its frames while the rest of the handled program runs */
   @SuppressWarnings("unchecked") // the row is types only: the handler was made for the row its caller named
-  static <B, R> Comp<B, R> clause(Class<?>[] row, Run body, Entry entry) {
-    return (Comp<B, R>) (Comp<?, ?>) Here.here(h -> start(row, body, h, entry));
+  static <B, R> Comp<B, R> clause(Prog p, Run body, Entry entry) {
+    return (Comp<B, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, entry));
   }
 
   /** what a clause's {@code k.resume} or {@code k.unwind} asks: the rest of the handled program, as okay.rows gives
    * it, run outside the handler — its value the clause's answer */
   record Await(Comp<Object, Object> rest) {}
 
-  /** {@code rest} awaited by the clause running here, made for the row {@code row}: its frames saved, the rest run,
-   * they are resumed with its value. Refused outside a clause of that handler */
-  @SuppressWarnings("unchecked") // the rest's value is the clause's B, its row the handler's: rows are types only
-  static <T> T await(Class<?>[] row, Comp<?, ?> rest) {
+  /** whether {@code k} may be used here: by its own clause only, while it runs, on its thread — refused otherwise,
+   * with what was done */
+  static void valid(Direct.K<?> k) {
     Ctx c = CTX.get();
-    if (c == null || c.row() != row) throw new IllegalStateException("okay.resumable: the rest of a handled "
-        + "program resumed outside a clause of its handler: k.resume is called by the handler's clauses only");
+    if (c != null && c.prog() == k) return;
+    String what = "okay.resumable: the rest k of " + k.asked + " was used ";
+    String rule = ": a direct-style k is valid only in its own clause, while that clause runs, on the thread that runs"
+        + " it — the clause may resume it once, many times or never, but nothing else may";
+    if (c == null) throw new IllegalStateException(what + "where no program runs — on another thread, or after its "
+        + "clause and program ended (kept in a field?)" + rule);
+    if (c.prog() instanceof Direct.K<?> other && other.handler == k.handler)
+      throw new IllegalStateException(what + "by a later clause of its handler, after its own clause returned (kept "
+          + "in a field?); use the k this clause is given" + rule);
+    if (c.prog() instanceof Direct.K<?>) throw new IllegalStateException(what + "by a clause of another handler"
+        + rule);
+    throw new IllegalStateException(what + "by a program's body, not by its handler's clause (a handler reached "
+        + "through a reference and called directly?)" + rule);
+  }
+
+  /** {@code rest} awaited by the clause running here, whose {@code k} is {@link #valid}: its frames saved, the rest
+   * run, they are resumed with its value */
+  @SuppressWarnings("unchecked") // the rest's value is the clause's B, its row the handler's: rows are types only
+  static <T> T await(Comp<?, ?> rest) {
     throw new Capture(new Await((Comp<Object, Object>) rest));
   }
 
-  private static Comp<Object, Object> start(Class<?>[] row, Run body, Here h, Entry entry) {
+  private static Comp<Object, Object> start(Prog p, Run body, Here h, Entry entry) {
     Object a;
+    // the body called from here, no frame between: a capture crosses as few as it can
+    Ctx outer = CTX.get();
+    CTX.set(new Ctx(h, p, null));
     try {
-      a = at(new Ctx(h, row, null), () -> {
-        try {
-          return body.run();
-        } catch (Suspend | SensitiveSuspend s) {
-          throw thrown(s);
-        } catch (Exception e) {
-          throw sneaky(e);
-        }
-      });
+      a = body.run();
     } catch (Capture c) {
       Resume.outermost(c, entry);
-      return suspended(row, c, null);
+      return suspended(p, c, null, null);
+    } catch (Suspend | SensitiveSuspend s) {
+      throw thrown(s);
+    } catch (Exception e) {
+      throw sneaky(e);
+    } finally {
+      CTX.set(outer);
     }
     return Effects.pure(a);
   }
@@ -174,17 +222,13 @@ final class Driver {
   // ---- 2: on the JVM's continuation
 
   /** the body run on to its end or its next yield, then the program it yielded */
-  static Comp<Object, Object> step(Class<?>[] row, LoomRun r, Here h) {
-    at(new Ctx(h, row, r), r);
+  static Comp<Object, Object> step(Prog p, LoomRun r, Here h) {
+    at(new Ctx(h, p, r), r);
     if (r.cont.isDone()) {
       Capture c = r.capture;
       if (c != null) {
-        Resume.outermost(c, RUN);
-        if (c.next == null) return suspended(row, c, null);
-        // a yield that could not be made: the frames wait for the answer the clause's program will give
-        if (TRACE) TAKEN[3]++;
-        c.later.frames = r.waiting = c.link(null);
-        return c.next;
+        Resume.outermost(c, r.entry);
+        return suspended(p, c, null, r);
       }
       if (r.failure instanceof Suspend || r.failure instanceof SensitiveSuspend) throw thrown(r.failure);
       if (r.failure != null) throw sneaky(r.failure);
@@ -195,28 +239,41 @@ final class Driver {
     return next;
   }
 
+  /** WHAT ANSWERS A REST TAKEN FROM THE BODY'S STACK ({@code Here.resumeHere}) whose clause did not resume at once:
+   * the frames saved for it, if the body could not wait on its own stack */
+  abstract static class Later implements Function<Object, Comp<Object, Object>> {
+    Frame frames;
+
+    /** the frames saved, {@code r} the body's continuation if it ran in one */
+    void saved(Frame f, LoomRun r) {
+      frames = f;
+    }
+  }
+
   /** the answer to the {@code n}th operation asked: given once — a handler declared {@code Once} that resumes
    * again is refused */
-  static final class Answer implements Function<Object, Comp<Object, Object>> {
-    final Class<?>[] row;
+  static final class Answer extends Later {
+    final Prog p;
     final LoomRun r;
     final int n;
     final Object op;
-    /** the frames saved for it, where the body could not yield */
-    Frame frames;
 
-    Answer(Class<?>[] row, LoomRun r, int n, Object op) {
-      this.row = row;
+    Answer(Prog p, LoomRun r, int n, Object op) {
+      this.p = p;
       this.r = r;
       this.n = n;
       this.op = op;
     }
 
     @Override
+    void saved(Frame f, LoomRun r) {
+      frames = f;
+      this.r.waiting = f;
+    }
+
+    @Override
     public Comp<Object, Object> apply(Object x) {
-      if (r.answered >= n) throw new IllegalStateException("okay.resumable: the handler of " + op + " declares Once "
-          + "but resumed its rest again; the JVM's continuation goes on once. A handler that resumes more than once "
-          + "must not implement Once: its programs' frames are then saved as data");
+      if (r.answered >= n) throw twice(op);
       r.answered = n;
       Frame k = frames;
       if (k == null) {
@@ -224,22 +281,54 @@ final class Driver {
         return r.next;
       }
       r.waiting = null;
-      return Here.here(h -> resume(row, k, x, h));
+      return Here.here(h -> resume(p, k, x, h));
+    }
+  }
+
+  static IllegalStateException twice(Object op) {
+    return new IllegalStateException("okay.resumable: the handler of " + op + " declares Once but resumed its rest "
+        + "again; the JVM's continuation goes on once. A handler that resumes more than once must not implement Once: "
+        + "its programs' frames are then saved as data");
+  }
+
+  /** the answer to an operation asked from the body's stack with no continuation to yield: the frames saved, resumed
+   * with each answer given — many times, for a handler that may. Answered at once, nothing was saved: a handler
+   * declared Once that resumes again is refused. Its {@link #get}: the frames' finalizers, when the rest is unwound */
+  static final class Many extends Later implements Supplier<Comp<Object, Object>> {
+    final Prog p;
+    final Object op;
+
+    Many(Prog p, Object op) {
+      this.p = p;
+      this.op = op;
+    }
+
+    @Override
+    public Comp<Object, Object> apply(Object x) {
+      Frame k = frames;
+      if (k == null) throw twice(op);
+      return Here.here(h -> resume(p, k, x, h));
+    }
+
+    @Override
+    public Comp<Object, Object> get() {
+      Frame k = frames;
+      return k == null || !k.finalizes ? Effects.pure(null) : Here.here(h -> unwind(p, k, h));
     }
   }
 
   /** the program's guard: run when the program is left, by its end or unwound. Unwound while the body waits for an
    * answer, its frames are left: by {@link Unwound} thrown at the yield, or re-entered if they were saved */
-  private static Comp<Object, Object> unwound(Class<?>[] row, LoomRun r, Here h) {
+  private static Comp<Object, Object> unwound(Prog p, LoomRun r, Here h) {
     r.answered = r.asked;
     Frame k = r.waiting;
     if (k != null) {
       r.waiting = null;
-      return k.finalizes ? unwind(row, k, h) : Effects.pure(null);
+      return k.finalizes ? unwind(p, k, h) : Effects.pure(null);
     }
     if (r.cont.isDone()) return Effects.pure(null);
     r.thrown = Unwound.INSTANCE;
-    at(new Ctx(h, row, r), r);
+    at(new Ctx(h, p, r), r);
     if (!r.cont.isDone() || r.capture != null)
       throw new IllegalStateException("okay.resumable: a finally block performed an operation while its program "
           + "was unwound: not supported");
@@ -248,21 +337,30 @@ final class Driver {
 
   // ---- 3: frames saved as data
 
-  static Comp<Object, Object> suspended(Class<?>[] row, Capture c, Frame tail) {
+  /** the frames of {@code c} saved, linked to {@code tail}, and the program to go on with: the operation asked, its
+   * answer resuming them; or the program of a clause already called, where one was ({@code c.next}) */
+  static Comp<Object, Object> suspended(Prog p, Capture c, Frame tail, LoomRun r) {
     if (TRACE) TAKEN[3]++;
     Frame rest = c.link(tail);
+    if (c.next != null) {
+      // a clause called from the body's stack that did not resume at once: the frames wait for its answer
+      c.later.saved(rest, r);
+      return c.next;
+    }
     Comp<Object, Object> ask;
     if (c.op instanceof Await a) {
       // a clause's k.resume: in tail position, the clause's program is the resumption itself — nothing waits
       // for it, so a handler that resumes so adds nothing for each operation
-      if (rest.tails) {
+      boolean tails = rest.tails;
+      if (p instanceof Direct.K<?> k) k.handler.resumed(tails);
+      if (tails) {
         if (TRACE) TAILS++;
         return a.rest();
       }
       ask = a.rest();
-    } else ask = ask(c.op, place(row, c.op));
-    if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));
-    return ask.flatMap(x -> Here.here(h -> resume(row, rest, x, h)));
+    } else ask = ask(c.op, place(p.row, c.op));
+    if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(p, rest, h)));
+    return ask.flatMap(x -> Here.here(h -> resume(p, rest, x, h)));
   }
 
   /** the operation's answer, and — if the rest is left unanswered — {@code unwind}. The flag is per path: a path
@@ -282,8 +380,8 @@ final class Driver {
 
   /** the frames re-entered one at a time, the innermost first: each is given the value the one inside it returned,
    * or what it threw. A frame that suspends again returns its capture */
-  private static Comp<Object, Object> resume(Class<?>[] row, Frame k, Object x, Here h) {
-    Ctx ctx = new Ctx(h, row, null);
+  private static Comp<Object, Object> resume(Prog p, Frame k, Object x, Here h) {
+    Ctx ctx = new Ctx(h, p, null);
     Ctx outer = CTX.get();
     CTX.set(ctx);
     try {
@@ -294,13 +392,13 @@ final class Driver {
           v = enter(f, v, t);
           t = null;
         } catch (Capture cap) {
-          return suspended(row, cap, f.next);
+          return suspended(p, cap, f.next, null);
         } catch (Throwable e) {
           t = e;
           v = null;
           continue;
         }
-        if (v instanceof Capture cap) return suspended(row, cap, f.next);
+        if (v instanceof Capture cap) return suspended(p, cap, f.next, null);
       }
       if (t != null) throw Driver.<RuntimeException>sneaky(t);
       return Effects.pure(v);
@@ -311,8 +409,8 @@ final class Driver {
 
   /** the frames left: each that a handler of its method covers re-entered with {@link Unwound} thrown at its call,
    * so its {@code finally} blocks run; a finalizer that fails does not stop the others */
-  private static Comp<Object, Object> unwind(Class<?>[] row, Frame k, Here h) {
-    return at(new Ctx(h, row, null), () -> {
+  private static Comp<Object, Object> unwind(Prog p, Frame k, Here h) {
+    return at(new Ctx(h, p, null), () -> {
       for (Frame f = k; f != null; f = f.next) {
         if (!f.covered()) continue;
         Object v;

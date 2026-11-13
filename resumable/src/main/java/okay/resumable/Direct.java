@@ -5,6 +5,7 @@ import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.rows.Eff;
 import okay.rows.Effects;
+import okay.rows.Here;
 import okay.rows.Once;
 import okay.rows.Op;
 import okay.rows.Pure;
@@ -276,28 +277,35 @@ public final class Direct {
    * own clauses only; nothing is replayed — the clause's frames are saved while the rest runs, and resumed with its
    * result. {@code return k.resume(..)} adds nothing for each operation: in tail position the clause's program is the
    * resumption itself */
-  public static final class K<B> {
+  public static final class K<B> extends Driver.Prog {
     private final okay.rows.K<B, ?> k;
-    private final Class<?>[] row;
+    /** the operation asked, and the handler whose clause was given this */
+    final Object asked;
+    final Adapter<?, ?, B, ?> handler;
 
-    K(okay.rows.K<B, ?> k, Class<?>[] row) {
+    K(okay.rows.K<B, ?> k, Class<?>[] row, Object asked, Adapter<?, ?, B, ?> handler) {
+      super(row);
       this.k = k;
-      this.row = row;
+      this.asked = asked;
+      this.handler = handler;
     }
 
     /** the rest resumed with the answer to {@code op}, the operation asked, and run to the handler's result */
     public <X> B resume(Op<?, X, ?> op, X answer) throws Resumes {
-      return Driver.await(row, k.resume(op, answer));
+      Driver.valid(this);
+      return Driver.await(k.resume(op, answer));
     }
 
     /** the same, of a sensitive operation: by a handler under its audit ({@code Audit.handle}) */
     public <X> B resume(Sensitive.Op<?, X, ?> op, X answer) throws Resumes {
-      return Driver.await(row, k.resume(op, answer));
+      Driver.valid(this);
+      return Driver.await(k.resume(op, answer));
     }
 
     /** the rest left: its finalizers run, the innermost first; nothing else of it */
     public void unwind() throws Resumes {
-      Driver.await(row, k.unwind());
+      Driver.valid(this);
+      Driver.await(k.unwind());
     }
   }
 
@@ -389,26 +397,48 @@ public final class Direct {
     return h instanceof Once ? new OnceAdapter<>(row, ret, on, mine) : new Adapter<>(row, ret, on, mine);
   }
 
-  private static class Adapter<F, A, B, R> implements okay.rows.Handler<F, A, B, R> {
+  /** asked from the body's stack ({@link Here.Eager}): its clause made there, and answered at once if it resumes in
+   * tail position */
+  static class Adapter<F, A, B, R> implements okay.rows.Handler<F, A, B, R>, Here.Eager {
     private final Class<?>[] row;
     private final Ret<A, B> ret;
     private final On<F, B> on;
     private final Predicate<F> mine;
+    /** the program of each ret: a clause given no k */
+    private final Driver.Prog rets;
 
     Adapter(Class<?>[] row, Ret<A, B> ret, On<F, B> on, Predicate<F> mine) {
       this.row = row;
       this.ret = ret;
       this.on = on;
       this.mine = mine;
+      this.rets = new Driver.Prog(row);
+    }
+
+    /** how often its clauses resumed the rest in tail position, and not: counted from any thread, unsynchronized —
+     * a count lost only changes which way an operation is asked, never its answer */
+    private int tails;
+    private int nonTails;
+
+    void resumed(boolean tail) {
+      if (tail) tails++;
+      else nonTails++;
+    }
+
+    /** asked from the body's stack while its clauses resume in tail position as often as not: a handler that
+     * resumes otherwise (a choice, a log after the rest) gains nothing there, its frames saved anyway */
+    @Override
+    public boolean eager() {
+      return nonTails <= tails;
     }
 
     public Comp<B, R> ret(A a) {
-      return Driver.clause(row, () -> ret.apply(a), Driver.RET);
+      return Driver.clause(rets, () -> ret.apply(a), Driver.RET);
     }
 
     public Comp<B, R> on(F op, okay.rows.K<B, R> k) {
-      K<B> rest = new K<>(k, row);
-      return Driver.clause(row, () -> on.apply(op, rest), Driver.ON);
+      K<B> rest = new K<>(k, row, op, this);
+      return Driver.clause(rest, () -> on.apply(op, rest), Driver.ON);
     }
 
     public boolean mine(F op) {

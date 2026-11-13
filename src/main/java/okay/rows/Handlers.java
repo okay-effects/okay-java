@@ -48,6 +48,11 @@ final class Handlers {
     protected boolean once() {
       return h instanceof Once;
     }
+
+    @Override
+    protected boolean eager() {
+      return h instanceof Here.Eager e && e.eager();
+    }
   }
 
   /** a handler in place: its state in the cell of its entry */

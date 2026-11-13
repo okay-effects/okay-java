@@ -150,7 +150,8 @@ class DirectHandlersTest {
   static void assertConstant(List<Integer> depths) {
     assertEquals(10, depths.size());
     assertEquals(1, depths.stream().distinct().count(), "depths " + depths);
-    assertTrue(depths.getFirst() < 100, "depth " + depths.getFirst());
+    // the body on its own stack, under the test's and the machine's frames: the same at every operation
+    assertTrue(depths.getFirst() < 150, "depth " + depths.getFirst());
   }
 
   interface Shape {

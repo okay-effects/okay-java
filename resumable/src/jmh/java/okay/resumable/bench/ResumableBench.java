@@ -191,6 +191,27 @@ public class ResumableBench {
     return run(DirectHandlers.general(0, COUNTER.of(() -> Programs.count(N))));
   }
 
+  /** a direct-style interceptor whose clause asks the operation again of a handler declared Once outside */
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object onceThroughDirectInterceptor() {
+    return run(Input.once(ones(), DirectHandlers.relayed(INPUT.of(() -> Programs.sum(N)))));
+  }
+
+  /** the same, the handler outside answering later: the clause waits */
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object yieldThroughDirectInterceptor() {
+    return run(Input.deferred(ones(), DirectHandlers.relayed(INPUT.of(() -> Programs.sum(N)))));
+  }
+
+  /** the same, the interceptor declared Once */
+  @Benchmark
+  @OperationsPerInvocation(N)
+  public Object yieldThroughDirectOnceInterceptor() {
+    return run(Input.deferred(ones(), DirectHandlers.relayedOnce(INPUT.of(() -> Programs.sum(N)))));
+  }
+
   @Benchmark
   @OperationsPerInvocation(1000)
   public List<Integer> chooseDirectHandler() {

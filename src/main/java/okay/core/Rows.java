@@ -112,6 +112,11 @@ public final class Rows {
         restore(rest.saved);
         return r;
       });
+      // a rest taken from a probing stack whose frames wait elsewhere (Probe.resumeHere): theirs first, innermost
+      if (k.k() instanceof Frames.Then t && t.f() instanceof Probe.Mark mk && mk.unwound != null) {
+        Eff<?, ?> then = run;
+        run = Eff.delay(() -> (Eff) mk.unwound.get()).then(then);
+      }
       return new Nodes.Handle<>(Nodes.plain(run), Machine.SAME, new End(u));
     }
 
@@ -197,6 +202,12 @@ public final class Rows {
 
     /** general: whether it declares that it resumes the rest at most once (okay.rows.Once) */
     protected boolean once() {
+      return false;
+    }
+
+    /** general: whether its clause is a program made where it runs ({@link Door#here}), and may be asked from a probing
+     * stack though it may resume more than once: a direct-style handler's (okay-java-resumable) */
+    protected boolean eager() {
       return false;
     }
 
@@ -315,6 +326,9 @@ public final class Rows {
     public static final Object ELSEWHERE = new Object();
     /** not answered here: the operation's handler is general and declared to resume at most once */
     public static final Object ONCE = new Object();
+    /** not answered here: the operation's handler is general, may resume more than once, and its clause is made where
+     * it runs — {@link #resumeHere} answers it at once if the clause resumes in tail position */
+    public static final Object EAGER = new Object();
 
     private Run m;
     /** where the operations of the first two places go, found once while the probe lives — the stack does not change
@@ -349,12 +363,25 @@ public final class Rows {
      * {@link Pending}: the stack is now the clause's, and its program must be what the probing program goes on
      * with — {@code later} is given the answer when the rest is resumed */
     public Object resumeHere(Object op, int skip, Function<Object, ? extends Eff<?, ?>> later) {
-      Mark mk = new Mark(later);
+      return resumeHere(op, skip, later, null, true);
+    }
+
+    /** the same, for a handler {@link #EAGER} or {@link #ONCE}: a clause that is a program made where it runs
+     * ({@link Door#here}) is made on this stack too. Answered at once if it resumes the rest at once — for a handler
+     * that may resume more than once ({@code once} false), only in tail position, the clause's own program then
+     * the resumption itself: nothing of the clause is left to resume the rest again. {@code unwound}, if not null,
+     * the finalizer of what {@code later} would resume: run first when the rest is unwound, as the innermost of the
+     * rest's finalizers */
+    public Object resumeHere(Object op, int skip, Function<Object, ? extends Eff<?, ?>> later,
+        Supplier<? extends Eff<?, ?>> unwound, boolean once) {
+      Mark mk = new Mark(later, unwound);
       Frames k0 = m.k;
       m.k = new Frames.Then(mk, k0);
       Eff<?, ?> next;
       try {
         next = asked(m, op, skip);
+        // a clause made where it runs: made here, and resumed here as the machine's capture would
+        if (next instanceof Here<?, ?> h) next = m.atOnce(h.step(m), once);
       } catch (Throwable t) {
         // the clause failed: a failure outside the handler, as the machine's loop would make it
         next = new Kernel.Fail<>(Kernel.nonFatal(t));
@@ -377,13 +404,15 @@ public final class Rows {
 
     /** the top of the rest {@link #resumeHere} gives the handler: resumed while the clause is called, it notes the
      * answer and leaves the rest as it was put back; resumed later, {@code later} goes on */
-    private static final class Mark implements Function<Object, Eff<?, ?>> {
+    static final class Mark implements Function<Object, Eff<?, ?>> {
       final Function<Object, ? extends Eff<?, ?>> later;
+      final Supplier<? extends Eff<?, ?>> unwound;
       boolean here = true;
       Object x;
 
-      Mark(Function<Object, ? extends Eff<?, ?>> later) {
+      Mark(Function<Object, ? extends Eff<?, ?>> later, Supplier<? extends Eff<?, ?>> unwound) {
         this.later = later;
+        this.unwound = unwound;
       }
 
       @Override
@@ -435,7 +464,7 @@ public final class Rows {
           if (!p.spec.row) crossed = true;
           boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
           if (p.spec.row && !found) skip--;
-          if (found) return p.spec.inPlace ? p : p.spec.once() ? ONCE : ELSEWHERE;
+          if (found) return p.spec.inPlace ? p : p.spec.once() ? ONCE : p.spec.eager() ? EAGER : ELSEWHERE;
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {

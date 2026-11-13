@@ -52,6 +52,30 @@ class TiersTest {
   }
 
   @Test
+  void aHandlerWrittenInDirectStyleIsAskedFromTheBodysStack() {
+    // its clause resuming in tail position: answered at once, the body goes on on its stack; the clause's own frame
+    // is saved at its k.resume, and dropped: the resumption is the clause's program
+    assertEquals(List.of(0, 7, 0, 7), taken(() -> assertEquals(new Final<>(3, 3),
+        run(DirectHandlers.general(0, Direct.row(Counter.class).of(() -> DirectTest.count(3)))))));
+    // resuming after the rest has run (a log): not answered at once, the body's frames saved and the clause's
+    assertEquals(List.of(0, 0, 0, 6), taken(() -> run(DirectHandlers.logged(Direct.row(Log.class).of(() -> {
+      Log.tell("a");
+      Log.tell("b");
+      Log.tell("c");
+      return 1;
+    })))));
+    // a direct-style interceptor whose clause asks the operation again of a handler declared Once outside: that
+    // one asked from the clause's stack, answered at once too — two on the stack for each, nothing yields
+    assertEquals(List.of(0, 6, 0, 3), taken(() -> assertEquals(6, run(Input.once(ints(),
+        DirectHandlers.relayed(Direct.row(Input.class).of(TiersTest::sumOfThree)))))));
+    assertEquals(List.of(0, 6, 0, 3), taken(() -> assertEquals(6, run(Input.once(ints(),
+        DirectHandlers.relayedOnce(Direct.row(Input.class).of(TiersTest::sumOfThree)))))));
+    // the handler outside answering later: the clause's frames wait, and the body's
+    assertEquals(List.of(0, 0, 0, 9), taken(() -> assertEquals(6, run(Input.deferred(ints(),
+        DirectHandlers.relayed(Direct.row(Input.class).of(TiersTest::sumOfThree)))))));
+  }
+
+  @Test
   void inPlaceAnsweredOnTheBodysOwnStack() {
     // no suspension: the body goes on on the same Java stack, at the same depth
     List<Integer> d = run(Counter.run(0, Direct.row(Counter.class).of(TiersTest::depthsAround))).value();
@@ -121,16 +145,20 @@ class TiersTest {
   }
 
   @Test
-  void withoutTheExportsOnceTakesSavedFramesAndSaysWhy() throws IOException, InterruptedException {
+  void withoutTheExportsOnceIsAskedFromTheStackAndAWaitSavesTheFramesSaidOnce() throws IOException, InterruptedException {
     String java = ProcessHandle.current().info().command().orElseThrow();
-    Process p = new ProcessBuilder(java, "-cp", System.getProperty("java.class.path"), "okay.resumable.TiersMain")
+    Process p = new ProcessBuilder(java, "-Dokay.resumable.trace=true", "-cp", System.getProperty("java.class.path"),
+        "okay.resumable.TiersMain")
         .start();
     String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
     String err = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).strip();
     assertEquals(0, p.waitFor(), out + err);
     System.out.println(out);
     System.out.println(err);
-    assertEquals(List.of("saved frames: java.base does not export jdk.internal.vm to unnamed module", "6"),
+    // the clause called from the body's stack, no continuation needed: answered at once; the Once handler that
+    // unwinds does not resume at once, so the frames are saved — and unwound, their finally blocks run
+    assertEquals(List.of("saved frames: java.base does not export jdk.internal.vm to unnamed module", "6",
+        "[0, 3, 0, 0]", "Err[error=no]", "[0, 0, 0, 1]", "[body, inner, outer]"),
         out.lines().map(l -> l.replaceAll(" @[0-9a-f]+", "")).toList());
     assertEquals(1,
         err.lines().filter(l -> l.contains("okay.resumable: the JVM's continuations are not used")).count(), err);

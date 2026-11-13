@@ -29,7 +29,8 @@ final class Loom {
     if (told) return;
     told = true;
     System.getLogger("okay.resumable").log(Level.INFO, "okay.resumable: the JVM's continuations are not used ("
-        + WHY_NOT + "): a handler that resumes once takes saved frames. To use them: --add-exports "
+        + WHY_NOT + "): a handler declared Once whose clause does not resume at once has the frames saved, where the "
+        + "body would have waited on its own stack. To use them: --add-exports "
         + "java.base/jdk.internal.vm=ALL-UNNAMED --add-exports java.base/jdk.internal.access=ALL-UNNAMED "
         + "--add-opens java.base/java.lang=ALL-UNNAMED, as the okay-java-resumable plugins add, or java -jar of a "
         + "jar whose manifest has Add-Exports and Add-Opens");
