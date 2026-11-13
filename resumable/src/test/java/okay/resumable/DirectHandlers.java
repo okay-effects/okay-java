@@ -54,6 +54,108 @@ public final class DirectHandlers {
     return handle(Counter.class, Direct.handler(new State()), p);
   }
 
+  /** the same state, its clause resuming in tail position through a local: {@code var r = k.resume(..); return r} */
+  public static <A, R> Comp<Final<Integer, A>, R> generalThroughALocal(int s0, Comp<A, ? super Eff<Counter, R>> p) {
+    final class State implements Direct.Handler0<Counter, A, Final<Integer, A>> {
+      int s = s0;
+
+      public Final<Integer, A> ret(A a) { return new Final<>(s, a); }
+
+      public Final<Integer, A> on(Counter op, Direct.K<Final<Integer, A>> k) throws Direct.Resumes {
+        if (op instanceof Counter.Put put) {
+          s = put.value;
+          Final<Integer, A> r = k.resume(put, null);
+          return r;
+        }
+        var r = k.resume((Counter.Get) op, s);
+        return r;
+      }
+    }
+    return handle(Counter.class, Direct.handler(new State()), p);
+  }
+
+  /** through a cast of a local, and an arm of a ternary */
+  public static <A, R> Comp<Final<Integer, A>, R> generalThroughACastAndATernary(int s0,
+      Comp<A, ? super Eff<Counter, R>> p) {
+    final class State implements Direct.Handler0<Counter, A, Final<Integer, A>> {
+      int s = s0;
+
+      public Final<Integer, A> ret(A a) { return new Final<>(s, a); }
+
+      @SuppressWarnings("unchecked")
+      public Final<Integer, A> on(Counter op, Direct.K<Final<Integer, A>> k) throws Direct.Resumes {
+        if (op instanceof Counter.Put put) {
+          s = put.value;
+          Object r = k.resume(put, null);
+          return (Final<Integer, A>) r;
+        }
+        Counter.Get get = (Counter.Get) op;
+        return s >= 0 ? k.resume(get, s) : k.resume(get, -s);
+      }
+    }
+    return handle(Counter.class, Direct.handler(new State()), p);
+  }
+
+  /** through a switch's value kept in a local */
+  public static <A, R> Comp<Final<Integer, A>, R> generalThroughASwitchsLocal(int s0,
+      Comp<A, ? super Eff<Counter, R>> p) {
+    final class State implements Direct.Handler0<Counter, A, Final<Integer, A>> {
+      int s = s0;
+
+      public Final<Integer, A> ret(A a) { return new Final<>(s, a); }
+
+      public Final<Integer, A> on(Counter op, Direct.K<Final<Integer, A>> k) throws Direct.Resumes {
+        Final<Integer, A> r = switch (op) {
+          case Counter.Get get -> k.resume(get, s);
+          case Counter.Put put -> {
+            s = put.value;
+            yield k.resume(put, null);
+          }
+        };
+        return r;
+      }
+    }
+    return handle(Counter.class, Direct.handler(new State()), p);
+  }
+
+  /** a count of the program's value: an int unboxed into a local and boxed again to be returned */
+  public static <R> Comp<Integer, R> counting(Comp<Integer, ? super Eff<Counter, R>> p) {
+    final class State implements Direct.Handler0<Counter, Integer, Integer> {
+      int s;
+
+      public Integer ret(Integer a) { return a; }
+
+      public Integer on(Counter op, Direct.K<Integer> k) throws Direct.Resumes {
+        if (op instanceof Counter.Put put) {
+          s = put.value;
+          int r = k.resume(put, null);
+          return r;
+        }
+        int r = k.resume((Counter.Get) op, s);
+        return r;
+      }
+    }
+    return handle(Counter.class, Direct.handler(new State()), p);
+  }
+
+  /** NOT in tail position: the local is read for something else before it is returned */
+  public static <A, R> Comp<Final<Integer, A>, R> generalLookingAtTheLocal(int s0, List<Object> seen,
+      Comp<A, ? super Eff<Counter, R>> p) {
+    final class State implements Direct.Handler0<Counter, A, Final<Integer, A>> {
+      int s = s0;
+
+      public Final<Integer, A> ret(A a) { return new Final<>(s, a); }
+
+      public Final<Integer, A> on(Counter op, Direct.K<Final<Integer, A>> k) throws Direct.Resumes {
+        if (op instanceof Counter.Put put) s = put.value;
+        var r = op instanceof Counter.Get get ? k.resume(get, s) : k.resume((Counter.Put) op, null);
+        seen.add(r);
+        return r;
+      }
+    }
+    return handle(Counter.class, Direct.handler(new State()), p);
+  }
+
   /** every value the program comes to: the rest resumed once for each value, a choice of none unwinding it */
   public static <A, R> Comp<List<A>, R> all(Comp<A, ? super Eff<Pick, R>> p) {
     return handle(Pick.class, Direct.handler(new Direct.Handler0<Pick, A, List<A>>() {

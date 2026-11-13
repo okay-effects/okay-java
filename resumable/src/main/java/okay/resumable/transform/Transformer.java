@@ -274,23 +274,43 @@ public final class Transformer {
   }
 
   /** whether the call at {@code index} is in tail position: what follows it only returns its value — a cast, an
-   * unboxing, a jump, then a return. A frame suspended at such a call adds nothing to what the call gives */
+   * unboxing or a boxing, a jump, a store to a local and that local's load, then a return. The value is followed
+   * where it goes, on the stack or in one local: a local read for anything but to be returned, any other
+   * instruction, a branch that tests, is not tail. {@code var r = k.resume(..); return r;}, a ternary's arms, a
+   * switch's value kept in a local and returned all are. A frame suspended at such a call adds nothing to what the
+   * call gives */
   static boolean tail(List<CodeElement> elements, int index) {
     Map<Label, Integer> at = new HashMap<>();
     for (int i = 0; i < elements.size(); i++) if (elements.get(i) instanceof LabelTarget t) at.put(t.label(), i);
+    // where the call's value is: on the stack (-1), in a local (its slot), or none (-2) for a void call
+    boolean isVoid = elements.get(index) instanceof InvokeInstruction inv
+        && inv.typeSymbol().returnType().equals(ConstantDescs.CD_void);
+    int where = isVoid ? -2 : -1;
     int i = index + 1;
     for (int steps = 0; i < elements.size() && steps < 64; steps++) {
       CodeElement e = elements.get(i);
       switch (e) {
         case ReturnInstruction r -> {
-          return true;
+          return r.typeKind() == TypeKind.VOID ? where == -2 : where == -1;
         }
         case BranchInstruction b when b.opcode() == Opcode.GOTO || b.opcode() == Opcode.GOTO_W -> {
           i = at.get(b.target());
           continue;
         }
-        case java.lang.classfile.instruction.TypeCheckInstruction c when c.opcode() == Opcode.CHECKCAST -> { }
-        case InvokeInstruction u when u.opcode() == Opcode.INVOKEVIRTUAL && unboxing(u) -> { }
+        case java.lang.classfile.instruction.TypeCheckInstruction c when c.opcode() == Opcode.CHECKCAST -> {
+          if (where != -1) return false;
+        }
+        case InvokeInstruction u when unboxing(u) || boxing(u) -> {
+          if (where != -1) return false;
+        }
+        case java.lang.classfile.instruction.StoreInstruction s -> {
+          if (where != -1) return false;
+          where = s.slot();
+        }
+        case java.lang.classfile.instruction.LoadInstruction l -> {
+          if (where < 0 || l.slot() != where) return false;
+          where = -1;
+        }
         case Instruction ins -> {
           return false;
         }
@@ -304,8 +324,18 @@ public final class Transformer {
   /** {@code Integer.intValue()} and the like: a value unboxed to be returned, boxed again by a resumed copy */
   private static boolean unboxing(InvokeInstruction u) {
     String owner = u.owner().asInternalName();
-    return owner.startsWith("java/lang/") && u.name().stringValue().endsWith("Value")
-        && u.typeSymbol().parameterCount() == 0 && u.typeSymbol().returnType().isPrimitive();
+    return u.opcode() == Opcode.INVOKEVIRTUAL && owner.startsWith("java/lang/")
+        && u.name().stringValue().endsWith("Value") && u.typeSymbol().parameterCount() == 0
+        && u.typeSymbol().returnType().isPrimitive();
+  }
+
+  /** {@code Integer.valueOf(int)} and the like: a primitive boxed to be returned — of a value unboxed before */
+  private static boolean boxing(InvokeInstruction u) {
+    String owner = u.owner().asInternalName();
+    return u.opcode() == Opcode.INVOKESTATIC && owner.startsWith("java/lang/")
+        && u.name().stringValue().equals("valueOf") && u.typeSymbol().parameterCount() == 1
+        && u.typeSymbol().parameterList().getFirst().isPrimitive()
+        && u.typeSymbol().returnType().descriptorString().equals("L" + owner + ";");
   }
 
   private boolean marked(ClassModel cm) {

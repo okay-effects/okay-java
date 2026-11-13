@@ -5,8 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import okay.rows.Comp;
+import okay.rows.Eff;
+import okay.rows.Pure;
 import okay.rows.std.State.Final;
 import okay.rows.std.Throws;
 import okay.rows.std.Writer;
@@ -138,9 +143,53 @@ class DirectHandlersTest {
         run(DirectHandlers.general(0, Direct.row(Counter.class).of(() -> depthAt(1_000_000, depths)))));
     long ns = (System.nanoTime() - t0) / 2_000_001;
     System.out.println("a direct-style general handler, resumed in tail position: about " + ns + " ns an operation");
-    // every operation suspends the body and runs the clause; neither stack grows: the Java stack the same at each
+    // every operation runs the clause; neither stack grows: the Java stack the same at each
+    assertConstant(depths);
+  }
+
+  static void assertConstant(List<Integer> depths) {
     assertEquals(10, depths.size());
     assertEquals(1, depths.stream().distinct().count(), "depths " + depths);
     assertTrue(depths.getFirst() < 100, "depth " + depths.getFirst());
+  }
+
+  interface Shape {
+    Comp<Final<Integer, Integer>, Pure> handled(Comp<Integer, Eff<Counter, Pure>> p);
+  }
+
+  @Test
+  void tailPositionThroughALocalACastATernaryASwitchsLocal() {
+    Map<String, Shape> shapes = new LinkedHashMap<>();
+    shapes.put("a local", p -> DirectHandlers.generalThroughALocal(0, p));
+    shapes.put("a cast of a local, a ternary", p -> DirectHandlers.generalThroughACastAndATernary(0, p));
+    shapes.put("a switch's local", p -> DirectHandlers.generalThroughASwitchsLocal(0, p));
+    shapes.forEach((name, shape) -> {
+      List<Integer> depths = new ArrayList<>();
+      int tails = Driver.TAILS;
+      // a million operations each, under -Xss512k: nothing kept for each
+      assertEquals(new Final<>(1_000_000, 1_000_000),
+          run(shape.handled(Direct.row(Counter.class).of(() -> depthAt(1_000_000, depths)))), name);
+      assertConstant(depths);
+      assertEquals(2_000_001, Driver.TAILS - tails, name);
+    });
+    // an int unboxed into a local and boxed again
+    List<Integer> depths = new ArrayList<>();
+    int tails = Driver.TAILS;
+    assertEquals(1_000_000, run(DirectHandlers.counting(Direct.row(Counter.class).of(() ->
+        depthAt(1_000_000, depths)))));
+    assertConstant(depths);
+    assertEquals(2_000_001, Driver.TAILS - tails);
+  }
+
+  @Test
+  void aLocalReadForAnythingElseIsNotTailPosition() {
+    // the value is looked at after the rest has run: correct, each clause's frame kept till then
+    List<Object> seen = new ArrayList<>();
+    int tails = Driver.TAILS;
+    assertEquals(new Final<>(3, 3), run(DirectHandlers.generalLookingAtTheLocal(0, seen,
+        Direct.row(Counter.class).of(() -> DirectTest.count(3)))));
+    assertEquals(7, seen.size());
+    assertTrue(seen.stream().allMatch(new Final<>(3, 3)::equals), seen.toString());
+    assertEquals(0, Driver.TAILS - tails);
   }
 }

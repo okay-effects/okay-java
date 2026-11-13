@@ -35,6 +35,8 @@ final class Driver {
    * 1 answered by a clause on the body's stack, 2 yielded, 3 frames saved. Off, the counting is compiled away */
   static final boolean TRACE = Boolean.getBoolean("okay.resumable.trace");
   static final int[] TAKEN = new int[4];
+  /** for the tests: how many times a direct-style clause's k.resume was found in tail position, nothing kept */
+  static int TAILS;
 
   /** {@link Resume#perform}: answered in place, or by the clause of a handler declared {@code Once} on this stack,
    * or yielded; or a capture returned, for the frames to be saved */
@@ -253,7 +255,10 @@ final class Driver {
     if (c.op instanceof Await a) {
       // a clause's k.resume: in tail position, the clause's program is the resumption itself — nothing waits
       // for it, so a handler that resumes so adds nothing for each operation
-      if (rest.tails) return a.rest();
+      if (rest.tails) {
+        if (TRACE) TAILS++;
+        return a.rest();
+      }
       ask = a.rest();
     } else ask = ask(c.op, place(row, c.op));
     if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(row, rest, h)));
