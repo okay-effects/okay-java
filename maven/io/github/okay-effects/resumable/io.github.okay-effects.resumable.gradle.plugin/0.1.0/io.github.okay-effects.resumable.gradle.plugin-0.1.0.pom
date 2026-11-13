@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.github.okay-effects.resumable</groupId>
+  <artifactId>io.github.okay-effects.resumable.gradle.plugin</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <name>okay-java-resumable</name>
+  <description>direct-style methods made resumable by okay-java-resumable's bytecode transformation</description>
+  <url>https://github.com/okay-effects/okay-java</url>
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>sergey-scherbina</id>
+      <name>Sergiy Shcherbyna</name>
+      <email>sergey.scherbina@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/okay-effects/okay-java.git</connection>
+    <url>https://github.com/okay-effects/okay-java</url>
+  </scm>
+  <dependencies>
+    <dependency>
+      <groupId>io.github.okay-effects</groupId>
+      <artifactId>okay-java-resumable-gradle-plugin</artifactId>
+      <version>0.1.0</version>
+    </dependency>
+  </dependencies>
+</project>

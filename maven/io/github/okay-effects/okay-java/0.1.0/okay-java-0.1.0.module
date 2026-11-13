@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.okay-effects",
+    "module": "okay-java",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 25,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-kernel-api",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-java-0.1.0.jar",
+          "url": "okay-java-0.1.0.jar",
+          "size": 261910,
+          "sha512": "18c295cae91b4009ab5e1adf6b2b99ce2301bba2597c502cbb70c410fbed435fee8d71ed72983f6c6905ca0d0a5a80d04a4cd4450b6188a7f2f5c579bdc5aac5",
+          "sha256": "7467c8c138bd3975a7ccbfcf41a5bd83a4f9b223b6a471d2d45e7a40fe288ca8",
+          "sha1": "f2ca2eb013a1271155c8820f0751993b60f08c2a",
+          "md5": "4f457ca27eb0fb09a77a7be1fd161ba3"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 25,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-kernel-api",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-java-0.1.0.jar",
+          "url": "okay-java-0.1.0.jar",
+          "size": 261910,
+          "sha512": "18c295cae91b4009ab5e1adf6b2b99ce2301bba2597c502cbb70c410fbed435fee8d71ed72983f6c6905ca0d0a5a80d04a4cd4450b6188a7f2f5c579bdc5aac5",
+          "sha256": "7467c8c138bd3975a7ccbfcf41a5bd83a4f9b223b6a471d2d45e7a40fe288ca8",
+          "sha1": "f2ca2eb013a1271155c8820f0751993b60f08c2a",
+          "md5": "4f457ca27eb0fb09a77a7be1fd161ba3"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-0.1.0-sources.jar",
+          "url": "okay-java-0.1.0-sources.jar",
+          "size": 72831,
+          "sha512": "2cc8f2060ae8bd2fcbbe1d9ca61e7683610744116ea915c1d9467b238edfc2324c3796773b7bbda87218189d5496882cb5a3f9b32861f898bdd1f7c4559180de",
+          "sha256": "377791528a9bde129366c0f86b97e25ecc8de10f76cce8e6a80de004be7ad808",
+          "sha1": "767bbff5de0df213284864854808d27f4e694d11",
+          "md5": "f25220cfd856df93ee7f22c4ea190d07"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-0.1.0-javadoc.jar",
+          "url": "okay-java-0.1.0-javadoc.jar",
+          "size": 4536856,
+          "sha512": "145bb6193d597ddde1e7be07b1600cdbd004134d7722274a0395f476149867b866b1d2838fb0636c300162ec8ae2cfd309d866eab33f5b1b9d71d64558628ab2",
+          "sha256": "0b77ab191a670d06f62634689ba84ebeecb6b2e22ab281d56e904cf51d0cdb72",
+          "sha1": "3e39f71ae9618a979d78c82736ceb51e9b2f9486",
+          "md5": "d2b4a4dfd9d1a657e2bb9ecd20c37e99"
+        }
+      ]
+    }
+  ]
+}

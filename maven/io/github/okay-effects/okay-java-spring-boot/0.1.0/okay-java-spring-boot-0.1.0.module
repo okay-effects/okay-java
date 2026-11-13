@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.okay-effects",
+    "module": "okay-java-spring-boot",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 25,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-java",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-java-spring-boot-0.1.0.jar",
+          "url": "okay-java-spring-boot-0.1.0.jar",
+          "size": 15132,
+          "sha512": "1d6425feb38f642062ef6a645ceb86d767c6e190d7ae895b8ebf0735745dbfd671848350e878db95a6caaf43564c01b874403c91903afcad60df869481c18392",
+          "sha256": "ee00f7adfa9e6c14208186391b8ac060fbc89d346f15cd84a29787646dfc9eee",
+          "sha1": "1738e360de0e802846c56534efa10744928dd308",
+          "md5": "c0ef81f862cc50ca1b431b22fcadc55a"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 25,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-java",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-java-spring-boot-0.1.0.jar",
+          "url": "okay-java-spring-boot-0.1.0.jar",
+          "size": 15132,
+          "sha512": "1d6425feb38f642062ef6a645ceb86d767c6e190d7ae895b8ebf0735745dbfd671848350e878db95a6caaf43564c01b874403c91903afcad60df869481c18392",
+          "sha256": "ee00f7adfa9e6c14208186391b8ac060fbc89d346f15cd84a29787646dfc9eee",
+          "sha1": "1738e360de0e802846c56534efa10744928dd308",
+          "md5": "c0ef81f862cc50ca1b431b22fcadc55a"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-spring-boot-0.1.0-sources.jar",
+          "url": "okay-java-spring-boot-0.1.0-sources.jar",
+          "size": 9464,
+          "sha512": "bb7a5745c149ea6bc47d565eb980ec0ba3aaa0d29f9687c85bd175aebfd47a5ad361a564517e9e50b2fc15dd0baa17927727d40356984d118688cb9e81c0d7f1",
+          "sha256": "22d76cb882c924684d38e668e76b250a6b5207070082de4d21885a288b458f01",
+          "sha1": "ca2e0282c7a7b44216c20bdaa8163d1d83ca61be",
+          "md5": "3e8a976ecd299ab2eb3b76fea16d967a"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-spring-boot-0.1.0-javadoc.jar",
+          "url": "okay-java-spring-boot-0.1.0-javadoc.jar",
+          "size": 4166435,
+          "sha512": "93521802cdbe3d644c9a6b17ac82082b62f3c9540f7cee6adc918eb5faa9e2c90771fed5cfb2ca1d041092bf7e939b29e3801bc7a07aa40067501e12948c0c49",
+          "sha256": "26056a20deef853400fd86b345230a51fb8d2facfc39d8adcb6f97281a7bde07",
+          "sha1": "307968b28a3464de23576d98a08f1830d6cf247f",
+          "md5": "e26c95acdfd71b987268d90030cf8e32"
+        }
+      ]
+    }
+  ]
+}

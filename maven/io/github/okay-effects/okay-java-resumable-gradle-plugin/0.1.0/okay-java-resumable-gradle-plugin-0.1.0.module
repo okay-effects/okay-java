@@ -1,0 +1,100 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.okay-effects",
+    "module": "okay-java-resumable-gradle-plugin",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "okay-java-resumable-gradle-plugin-0.1.0.jar",
+          "url": "okay-java-resumable-gradle-plugin-0.1.0.jar",
+          "size": 7257,
+          "sha512": "2d32b990607567ce5acf18367dfb7433b739c78debb368dca4fee57f4b6a30bf2e169f2551f844725be5a140a997e51137c67fa04c6e468c5294e52b341d7b2a",
+          "sha256": "616c34af3079ed329ace3429eb05809f950a103aa5baaa30b0664b82f20a0c7a",
+          "sha1": "26479cb76e6d5e4d1dffa72be584042041e0c4e8",
+          "md5": "fa4a94a5106dcf344e861f5db00cc076"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-resumable-gradle-plugin-0.1.0.jar",
+          "url": "okay-java-resumable-gradle-plugin-0.1.0.jar",
+          "size": 7257,
+          "sha512": "2d32b990607567ce5acf18367dfb7433b739c78debb368dca4fee57f4b6a30bf2e169f2551f844725be5a140a997e51137c67fa04c6e468c5294e52b341d7b2a",
+          "sha256": "616c34af3079ed329ace3429eb05809f950a103aa5baaa30b0664b82f20a0c7a",
+          "sha1": "26479cb76e6d5e4d1dffa72be584042041e0c4e8",
+          "md5": "fa4a94a5106dcf344e861f5db00cc076"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-resumable-gradle-plugin-0.1.0-sources.jar",
+          "url": "okay-java-resumable-gradle-plugin-0.1.0-sources.jar",
+          "size": 3174,
+          "sha512": "25238d2fdc873ffd11242c73e69c9e14c86fb7f3e1dd58bc2069eba8259ea2704cb4022ffa8b8d7ecb817ee4795b0ec561ca36cac8c25f6739e8a60bf2871b5f",
+          "sha256": "d855cab9fa10caee1b3673b4c07a11e50bb8ac8fa53c3954f9a0cb6c04814f42",
+          "sha1": "c2528fe61a6a5956d4ff10013ccabffdf426ab4b",
+          "md5": "d7de84cf54c5c1c7101331845a00bdbe"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-java-resumable-gradle-plugin-0.1.0-javadoc.jar",
+          "url": "okay-java-resumable-gradle-plugin-0.1.0-javadoc.jar",
+          "size": 4150790,
+          "sha512": "d6b184590126d95dc871ba5b58aa1ef79fe678018a2e7b0b5d62ac922605b9cb7585b28ac541ea5e31b777970e68c845c493107ea5acea01664522793bc11b0b",
+          "sha256": "704803f68d5b9c619223d6cf5598ce1cc3e814a88a5b209d73b28805b4adb77f",
+          "sha1": "92116cf0be8669f681f4cde1b0d41b02f7b958b6",
+          "md5": "7bd698b9ab0a8665a638fe7520c40fd5"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- okay-java-resumable for Maven: the goals transform (process-classes) and transform-test
+       (process-test-classes) rewrite target/classes and target/test-classes in place, and give surefire the JVM's
+       continuations through the argLine property. Built with ../mvnw (../build.gradle.kts: mavenPlugin, and
+       mavenPluginRelease for the release), against okay-java-resumable from a repository directory under ../build
+       (-Dokay.repo, the profile okay-java-build) — never ~/.m2 -->
+  <groupId>io.github.okay-effects</groupId>
+  <artifactId>okay-java-resumable-maven-plugin</artifactId>
+  <version>0.1.0</version>
+  <packaging>maven-plugin</packaging>
+
+  <name>okay-java-resumable-maven-plugin</name>
+  <description>direct-style methods made resumable by okay-java-resumable's bytecode transformation</description>
+  <url>https://github.com/okay-effects/okay-java</url>
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>sergey-scherbina</id>
+      <name>Sergiy Shcherbyna</name>
+      <email>sergey.scherbina@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/okay-effects/okay-java</url>
+    <connection>scm:git:https://github.com/okay-effects/okay-java.git</connection>
+  </scm>
+
+  <properties>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.version>3.9.11</maven.version>
+  </properties>
+
+  <!-- okay-kernel-api from okay-kernel's Maven repository on GitHub Pages, okay-audit from okay's -->
+  <repositories>
+    <repository>
+      <id>okay-kernel</id>
+      <url>https://okay-effects.github.io/okay-kernel/maven</url>
+    </repository>
+    <repository>
+      <id>okay</id>
+      <url>https://okay-effects.github.io/okay/maven</url>
+    </repository>
+  </repositories>
+
+  <!-- okay-java-resumable: from okay-java's Maven repository on GitHub Pages; in okay-java's own build
+       (-Dokay.repo, ../build.gradle.kts) as that build has just published it -->
+  <profiles>
+    <profile>
+      <id>okay-java</id>
+      <activation>
+        <property>
+          <name>!okay.repo</name>
+        </property>
+      </activation>
+      <repositories>
+        <repository>
+          <id>okay-java</id>
+          <url>https://okay-effects.github.io/okay-java/maven</url>
+        </repository>
+      </repositories>
+    </profile>
+    <profile>
+      <id>okay-java-build</id>
+      <activation>
+        <property>
+          <name>okay.repo</name>
+        </property>
+      </activation>
+      <repositories>
+        <repository>
+          <id>okay-java-build</id>
+          <url>${okay.repo}</url>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.okay-effects</groupId>
+      <artifactId>okay-java-resumable</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- okay-audit checks the APIs effectful code may not use (forbid); released in okay's Maven repository on
+         GitHub Pages -->
+    <dependency>
+      <groupId>io.github.okay-effects</groupId>
+      <artifactId>okay-audit_3</artifactId>
+      <version>0.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugin-tools</groupId>
+      <artifactId>maven-plugin-annotations</artifactId>
+      <version>3.15.1</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- the release's sources and javadoc -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.11.2</version>
+        <configuration>
+          <doclint>none</doclint>
+          <quiet>true</quiet>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.0</version>
+        <configuration>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-plugin-plugin</artifactId>
+        <version>3.15.1</version>
+        <configuration>
+          <goalPrefix>okay-resumable</goalPrefix>
+        </configuration>
+        <!-- an ASM that reads Java 25 classes: the descriptor scan reads the dependencies' -->
+        <dependencies>
+          <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.8</version>
+          </dependency>
+          <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-commons</artifactId>
+            <version>9.8</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+</project>

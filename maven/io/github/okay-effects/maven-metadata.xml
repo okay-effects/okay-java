@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <plugins>
+    <plugin>
+      <name>okay-java-resumable-maven-plugin</name>
+      <prefix>okay-resumable</prefix>
+      <artifactId>okay-java-resumable-maven-plugin</artifactId>
+    </plugin>
+  </plugins>
+</metadata>
