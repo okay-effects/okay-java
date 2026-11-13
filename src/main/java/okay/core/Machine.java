@@ -175,9 +175,51 @@ final class Machine {
   /** the end of a run: its value in {@link Run#result} */
   static final Eff<?, ?> DONE = new Return<>(null);
 
+  /** A RUN, refused ({@link NestedRun}) while a program runs on this thread: from a program's function or a clause, a
+   * run would be a second machine on the stack, under none of the program's handlers */
+  static <A> A run(Eff<?, A> program) {
+    Mark mark = MARKS.get();
+    if (mark.on) throw new NestedRun();
+    mark.on = true;
+    try {
+      return loop(program);
+    } finally {
+      mark.on = false;
+    }
+  }
+
+  /** the same, inside a running program too, on purpose: a closed program run to its end as a run of its own —
+   * {@link Eff#runIsolated}. Inside it, a run of its own is refused again */
+  static <A> A runIsolated(Eff<?, A> program) {
+    Mark mark = MARKS.get();
+    boolean was = mark.on;
+    mark.on = true;
+    try {
+      return loop(program);
+    } finally {
+      mark.on = was;
+    }
+  }
+
+  /** THE MARK OF A THREAD THAT RUNS A PROGRAM: set while the machine loops, so that a run begun meanwhile on the same
+   * thread — nested on its stack: from a program's function, a clause — is told from one begun anywhere else: after
+   * the run returned, on another thread, a virtual one, from a callback called later. A body on the JVM's
+   * continuation (okay-java-resumable) runs on the thread that runs it: its runs are told the same. One thread-local
+   * read and two writes a run; none a step */
+  private static final class Mark {
+    boolean on;
+  }
+
+  private static final ThreadLocal<Mark> MARKS = ThreadLocal.withInitial(Mark::new);
+
+  /** {@link NestedRun} thrown if a program runs on this thread: for a runner whose steps are runs of their own */
+  static void refuseNested() {
+    if (MARKS.get().on) throw new NestedRun();
+  }
+
   /** ONE STEP A NODE: the loop calls the node's own step, a method of its own — so C2 compiles each apart, small, its
    * calls to the program's functions profiled by that kind of node alone; the machine's state in the fields here */
-  static <A> A run(Eff<?, A> program) {
+  private static <A> A loop(Eff<?, A> program) {
     Run m = new Run();
     Eff<?, ?> c = program;
     while (true) {

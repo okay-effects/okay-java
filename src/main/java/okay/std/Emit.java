@@ -67,7 +67,7 @@ public interface Emit<L, X> {
       Eff<Eff.Top, Step<X>> rest = start;
 
       private Step<X> step() {
-        if (step == null) step = Eff.run(rest);
+        if (step == null) step = Eff.runIsolated(rest);
         return step;
       }
 

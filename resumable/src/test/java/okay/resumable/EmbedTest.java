@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import okay.core.NestedRun;
 import okay.rows.Comp;
 import okay.rows.Eff;
 import okay.rows.Effects;
@@ -178,14 +179,15 @@ class EmbedTest {
 
   // ---- a nested run: a body that runs a program by itself
 
-  /** a body that runs a program of its own effect to its end, by a top-level runner: the program's handler is not
-   * inside that run, so its operation reaches no handler there */
+  /** a body that runs a program of its own effect to its end, by a top-level runner: refused at once (NestedRun) — and
+   * run as a run of its own on purpose (isolated), the program's handler is not inside that run, so its operation
+   * reaches no handler there */
   @SuppressWarnings({"unchecked", "rawtypes"}) // the row told a lie, as only a cast can: the nested run takes Pure
-  static int nestedRun(List<String> left) throws Input {
+  static int nestedRun(List<String> left, boolean isolated) throws Input {
     try {
       int a = Input.next();
       Comp lied = Direct.row(Input.class).of(() -> Input.next() + 1);
-      return a + (int) Effects.run(lied);
+      return a + (int) (isolated ? Effects.runIsolated(lied) : Effects.run(lied));
     } finally {
       left.add("finally");
     }
@@ -196,21 +198,27 @@ class EmbedTest {
     for (var how : List.<Function<Comp<Integer, Eff<Input, Pure>>,
         Comp<Integer, ?>>>of(p -> Input.once(ints(), p), p -> Input.deferred(ints(), p), p -> Input.many(ints(), p))) {
       List<String> left = new ArrayList<>();
+      var refused = assertThrows(NestedRun.class,
+          () -> run((Comp<Integer, Pure>) (Comp<?, ?>) how.apply(Direct.row(Input.class)
+              .of(() -> nestedRun(left, false)))));
+      assertTrue(refused.getMessage().contains("runIsolated"), refused.getMessage());
+      assertEquals(List.of("finally"), left);
+      left.clear();
       var e = assertThrows(IllegalStateException.class,
           () -> run((Comp<Integer, Pure>) (Comp<?, ?>) how.apply(Direct.row(Input.class)
-              .of(() -> nestedRun(left)))));
+              .of(() -> nestedRun(left, true)))));
       assertTrue(e.getMessage().contains("ran a program by a top-level runner"), e.getMessage());
       assertEquals(List.of("finally"), left);
     }
   }
 
-  /** a nested run whose program has its handler inside it: a function of the body, as any. The captures inside it,
-   * on each way, stay inside it, the runner's frames on the stack under them; the body's own frames, around it, are
-   * saved and resumed on each way too */
+  /** a nested run whose program has its handler inside it, run on purpose as a run of its own (isolated): a function
+   * of the body, as any. The captures inside it, on each way, stay inside it, the runner's frames on the stack under
+   * them; the body's own frames, around it, are saved and resumed on each way too */
   static int selfContained(Function<Comp<Integer, Eff<Input, Pure>>,
       Comp<Integer, Pure>> inner) throws Input {
     int a = Input.next();
-    int b = Effects.run(inner.apply(Direct.row(Input.class).of(() -> Input.next() * 10 + Input.next())));
+    int b = Effects.runIsolated(inner.apply(Direct.row(Input.class).of(() -> Input.next() * 10 + Input.next())));
     return a * 1000 + b + Input.next() * 100_000;
   }
 

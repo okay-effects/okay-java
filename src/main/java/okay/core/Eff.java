@@ -110,8 +110,16 @@ public sealed interface Eff<L, A> extends okay.kernel.Prog<A>
     return new Nodes.Handle<L, A, A>(Nodes.plain(body), Machine.SAME, Kernel.Mark.UNCANCELABLE);
   }
 
-  /** a program at the top, its value; a failure no guard took, thrown */
+  /** a program at the top, its value; a failure no guard took, thrown. Refused ({@link NestedRun}) while a program
+   * runs on this thread: from a program's function or a clause */
   static <A> A run(Eff<Top, A> p) {
     return Machine.run(p);
+  }
+
+  /** the same, inside a running program too, ON PURPOSE: a closed program run to its end as a run of its own — a
+   * machine of its own on the stack, which sees none of the program's handlers. For a conversion, a pure helper
+   * evaluated whole, a run started by a callback; not at each step of a loop */
+  static <A> A runIsolated(Eff<Top, A> p) {
+    return Machine.runIsolated(p);
   }
 }

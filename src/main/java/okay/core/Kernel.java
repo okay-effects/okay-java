@@ -568,10 +568,12 @@ public final class Kernel implements Effects, okay.kernel.Control {
     };
   }
 
-  /** a run on okay-java's machine, to a step; an exception out of it (the machine's own) a failure */
+  /** a run on okay-java's machine, to a step; an exception out of it (the machine's own) a failure. A run of its own
+   * (isolated): an exported computation is started and resumed by whoever imports it, a step of that one's machine —
+   * this one's too, importing its own ({@code foreignStarted}) */
   private static Step<Object> run(Eff<?, ?> e) {
     try {
-      return trust(Machine.run(e));
+      return trust(Machine.runIsolated(e));
     } catch (Throwable t) {
       return new Step.Failed<>(nonFatal(t));
     }
@@ -593,8 +595,10 @@ public final class Kernel implements Effects, okay.kernel.Control {
     };
   }
 
-  /** a program with nothing left to perform: its value, or its failure thrown */
+  /** a program with nothing left to perform: its value, or its failure thrown. Refused ({@link NestedRun}) while a
+   * program runs on this thread */
   public static <A> A run(Program<A> p) {
+    Machine.refuseNested();
     return switch (EFFECTS.computation(p, Set.of()).start(Answers.NONE)) {
       case Step.Done<A>(var a) -> a;
       case Step.Failed<A>(var e) -> {

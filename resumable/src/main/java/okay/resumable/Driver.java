@@ -251,12 +251,13 @@ final class Driver {
   }
 
   /** what leaves a body: an operation that reached no handler ({@code NoHandler}) came out of a program the body ran
-   * by itself, to its end, by a top-level runner — a nested run, which sees only the handlers inside it. Said so */
+   * by itself, to its end, by a top-level runner on purpose (isolated; a plain one is refused at once, NestedRun) — a
+   * nested run, which sees only the handlers inside it. Said so */
   private static Throwable nested(Throwable t) {
     if (!(t instanceof NoHandler n)) return t;
     return new IllegalStateException("okay.resumable: " + n.op + " reached no handler: the program that asked it was "
-        + "run inside a program's body, which ran a program by a top-level runner (Effects.run, Effects.step, a std "
-        + "effect's runner): a nested run sees only the handlers inside it, not the program's. Run the part with "
+        + "run inside a program's body, which ran a program by a top-level runner (Effects.runIsolated, "
+        + "Effects.stepIsolated): a nested run sees only the handlers inside it, not the program's. Run the part with "
         + "Direct.row(..).embed(..) instead, its handlers inside it, or perform the effect in the body itself", n);
   }
 

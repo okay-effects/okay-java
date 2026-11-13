@@ -101,10 +101,24 @@ public final class Effects {
     }, under(p));
   }
 
-  /** a computation run to its next question that no handler in it answers */
+  /** a computation run to its next question that no handler in it answers. Refused ({@link okay.core.NestedRun})
+   * while a program runs on this thread — from a program's function or a handler's clause: a handler is installed
+   * as a part of the program instead ({@code State.run(s0, p)} is a program), or {@link #stepIsolated} */
   public static <A, R> Step<A, R> step(Comp<A, R> p) {
     try {
       return Handlers.trusted(DOOR.step(p.eff, Step.Done::new, Effects::asked));
+    } catch (RuntimeException e) {
+      if (DOOR.lostUnwinding(e)) throw new NoUnwinding();
+      throw e;
+    }
+  }
+
+  /** the same, inside a running program too, ON PURPOSE: a closed computation run as a run of its own — a machine of
+   * its own on the stack, which sees none of the program's handlers. For a conversion, a pure helper evaluated whole,
+   * a run started by a callback; not at each step of a loop */
+  public static <A, R> Step<A, R> stepIsolated(Comp<A, R> p) {
+    try {
+      return Handlers.trusted(DOOR.stepIsolated(p.eff, Step.Done::new, Effects::asked));
     } catch (RuntimeException e) {
       if (DOOR.lostUnwinding(e)) throw new NoUnwinding();
       throw e;
@@ -118,9 +132,18 @@ public final class Effects {
     return new Step.Asked<>(asked, new Handlers.Stepped<>(rest));
   }
 
-  /** a program with nothing left to ask, run to its value */
+  /** a program with nothing left to ask, run to its value. Refused as {@link #step} is */
   public static <A> A run(Comp<A, ? super Pure> p) {
-    return switch (step(p)) {
+    return done(step(p));
+  }
+
+  /** the same, inside a running program too, on purpose: a run of its own, as {@link #stepIsolated} */
+  public static <A> A runIsolated(Comp<A, ? super Pure> p) {
+    return done(stepIsolated(p));
+  }
+
+  private static <A, R> A done(Step<A, R> s) {
+    return switch (s) {
       case Step.Done<A, ?> done -> done.value();
       case Step.Asked<?, A, ?> asked -> throw new NoHandler(asked.op());
     };

@@ -77,7 +77,7 @@ final class AsyncRun {
   /** the run up to its end or to a wait; a throw in the program's own code its failure */
   private static void go(CompletableFuture<?> done, Eff<Eff.Top, Void> run) {
     try {
-      Eff.run(run);
+      Eff.runIsolated(run);
     } catch (RuntimeException e) {
       done.completeExceptionally(e);
     }

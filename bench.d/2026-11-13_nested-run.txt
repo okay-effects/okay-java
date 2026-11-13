@@ -1,0 +1,58 @@
+NestedRun: the thread mark around Machine.run (one ThreadLocal read, two writes a run). Before = d22c42e (a worktree),
+after = the change. JMH EffectsBenchmark (n = 1: a run of a few steps; n = 1000) and rowsBench (1e6 ops a run), JDK 25,
+interleaved pairs; the machine shared, load averages as printed. Pairs 4-6: n = 1 only, 2 forks, after first.
+
+== before 1 18:31  up 3 days,  1:52, 2 users, load averages: 5.17 4.44 4.29
+EffectsBenchmark.stateGetPut     1  avgt    5     64.616 ±    4.813  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  37243.833 ± 4336.982  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     18.151 ±    0.541  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  13623.789 ±  849.952  ns/op
+state       13.7 ns/op reader3     18.8 ns/op choose      98.5 ns/op binds        6.6 ns/op audited     56.4 ns/op 
+== after 1 18:32  up 3 days,  1:52, 2 users, load averages: 5.06 4.49 4.31
+EffectsBenchmark.stateGetPut     1  avgt    5     64.043 ±   0.591  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  35210.705 ± 939.496  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     18.374 ±   0.632  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  13541.437 ± 569.958  ns/op
+state       13.8 ns/op reader3     18.2 ns/op choose     105.0 ns/op binds        7.0 ns/op audited     53.7 ns/op 
+== before 2 18:32  up 3 days,  1:53, 2 users, load averages: 4.62 4.44 4.30
+EffectsBenchmark.stateGetPut     1  avgt    5     64.303 ±     6.152  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  38879.053 ± 19544.888  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     18.433 ±     2.644  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  15145.533 ±  3368.762  ns/op
+state       14.0 ns/op reader3     19.1 ns/op choose     106.5 ns/op binds        6.9 ns/op audited     58.6 ns/op 
+== after 2 18:33  up 3 days,  1:53, 2 users, load averages: 5.14 4.61 4.36
+EffectsBenchmark.stateGetPut     1  avgt    5     67.058 ±    5.334  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  36990.687 ± 1866.518  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     19.061 ±    2.144  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  13785.707 ±  460.309  ns/op
+state       13.2 ns/op reader3     20.6 ns/op choose     103.9 ns/op binds        7.0 ns/op audited     57.6 ns/op 
+== before 3 18:33  up 3 days,  1:54, 2 users, load averages: 5.18 4.68 4.40
+EffectsBenchmark.stateGetPut     1  avgt    5     66.054 ±     4.961  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  42675.561 ± 25087.581  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     19.460 ±     2.219  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  13984.978 ±   494.091  ns/op
+state       13.6 ns/op reader3     17.9 ns/op choose     100.2 ns/op binds        6.7 ns/op audited     59.0 ns/op 
+== after 3 18:34  up 3 days,  1:55, 2 users, load averages: 5.63 4.87 4.48
+EffectsBenchmark.stateGetPut     1  avgt    5     70.302 ±    8.467  ns/op
+EffectsBenchmark.stateGetPut  1000  avgt    5  37837.143 ± 3951.056  ns/op
+EffectsBenchmark.throwsRaise     1  avgt    5     21.645 ±    4.438  ns/op
+EffectsBenchmark.throwsRaise  1000  avgt    5  14601.627 ±  818.550  ns/op
+state       15.2 ns/op reader3     20.4 ns/op choose     109.9 ns/op binds        7.2 ns/op audited     58.3 ns/op 
+== after 4 load averages: 5.86 5.04 4.56
+EffectsBenchmark.stateGetPut    1  avgt   10  69.561 ± 4.142  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  19.567 ± 0.885  ns/op
+== before 4 load averages: 4.79 4.86 4.51
+EffectsBenchmark.stateGetPut    1  avgt   10  68.868 ± 4.417  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  20.222 ± 3.851  ns/op
+== after 5 load averages: 5.32 4.98 4.57
+EffectsBenchmark.stateGetPut    1  avgt   10  67.525 ± 1.925  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  19.310 ± 1.114  ns/op
+== before 5 load averages: 4.71 4.87 4.55
+EffectsBenchmark.stateGetPut    1  avgt   10  64.478 ± 1.605  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  19.245 ± 1.441  ns/op
+== after 6 load averages: 5.07 4.94 4.58
+EffectsBenchmark.stateGetPut    1  avgt   10  67.702 ± 1.999  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  18.933 ± 0.306  ns/op
+== before 6 load averages: 4.75 4.88 4.58
+EffectsBenchmark.stateGetPut    1  avgt   10  65.112 ± 2.200  ns/op
+EffectsBenchmark.throwsRaise    1  avgt   10  18.056 ± 0.358  ns/op

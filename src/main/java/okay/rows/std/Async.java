@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import okay.core.NestedRun;
 import okay.rows.Comp;
 import okay.rows.Handler;
 import okay.rows.Eff;
@@ -45,11 +46,11 @@ public sealed interface Async {
         };
       }
     }, p);
-    turns.take(() -> run(started));
+    turns.take(() -> runIsolated(started));
   }
 
   private static <X> Comp<Void, Pure> registered(Await<X> await, K<Void, Pure> k, Turns turns) {
-    await.register().accept(x -> turns.take(() -> run(k.resume(await, x))));
+    await.register().accept(x -> turns.take(() -> runIsolated(k.resume(await, x))));
     return pure(null);
   }
 
@@ -104,8 +105,13 @@ public sealed interface Async {
     return future;
   }
 
-  /** the program's value, this thread waiting for it: the edge of a program that is not asynchronous itself */
-  static <A> A runBlocking(Comp<A, ? super Eff<Async, Pure>> p) { return toFuture(p).join(); }
+  /** the program's value, this thread waiting for it: the edge of a program that is not asynchronous itself. A
+   * top-level runner: refused ({@link NestedRun}) while a program runs on this thread — a step that waits so would
+   * also hold the thread its callbacks may need; inside a program a run is started ({@code start}, {@code both}) */
+  static <A> A runBlocking(Comp<A, ? super Eff<Async, Pure>> p) {
+    NestedRun.check();
+    return toFuture(p).join();
+  }
 }
 
 /** The one thread that wakes the sleeping; it runs nothing of a program but the callback. */

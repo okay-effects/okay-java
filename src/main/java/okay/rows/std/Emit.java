@@ -117,11 +117,11 @@ public sealed interface Emit<T> {
    * {@code pull(take(n, p))}. The same holds of {@code zip} and {@code merge}, which pull: of the stream that is
    * not read to its end. */
   static <T, A> Iterator<T> pull(Comp<A, ? super Eff<Emit<T>, Pure>> p) {
-    Lazy<T> values = new Lazy<>(() -> run(handle(Emit.class, new Handler<Emit<T>, A, Lazy.Next<T>, Pure>() {
+    Lazy<T> values = new Lazy<>(() -> runIsolated(handle(Emit.class, new Handler<Emit<T>, A, Lazy.Next<T>, Pure>() {
       public Comp<Lazy.Next<T>, Pure> ret(A a) { return pure(null); }
       public Comp<Lazy.Next<T>, Pure> on(Emit<T> op, K<Lazy.Next<T>, Pure> k) {
         return switch (op) {
-          case Send<T> send -> pure(new Lazy.Next<>(send.value(), new Lazy<>(() -> run(k.resume(send, null)))));
+          case Send<T> send -> pure(new Lazy.Next<>(send.value(), new Lazy<>(() -> runIsolated(k.resume(send, null)))));
         };
       }
     }, p)));

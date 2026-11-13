@@ -19,11 +19,17 @@ class AsyncTest {
 
   /** an async run at the top, its failure the {@code Failed}'s message */
   static <A> Result<String, A> runIO(Async.Body<A> body) {
-    Result<Throwable, A> r = run(Throws.attempt(new Throws.Body<Top, Throwable, A>() {
+    return runIO(body, false);
+  }
+
+  /** the same, a run of its own when {@code isolated}: inside a running program */
+  static <A> Result<String, A> runIO(Async.Body<A> body, boolean isolated) {
+    Eff<Top, Result<Throwable, A>> p = Throws.attempt(new Throws.Body<Top, Throwable, A>() {
       public <M extends Top> Eff<M, A> in(Throws<M, Throwable> t) {
         return Async.run(t, body);
       }
-    }));
+    });
+    Result<Throwable, A> r = isolated ? Eff.runIsolated(p) : run(p);
     return switch (r) {
       case Result.Ok<Throwable, A>(var a) -> new Result.Ok<>(a);
       case Result.Failed<Throwable, A>(var e) -> new Result.Failed<>(e.getMessage());
@@ -132,14 +138,14 @@ class AsyncTest {
   @Test
   void aReaderOutsideTheAsyncRun() {
     // the reader's capability is the body's, at a level under the top: not the async run's, which is at the top on
-    // its own — so its value is asked first, and the run given it
+    // its own — so its value is asked first, and the run given it: a run inside a running program, on purpose
     assertEquals(new Result.Ok<>(42), run(Reader.reader(41, new Reader.Body<Top, Integer, Result<String, Integer>>() {
       public <M extends Top> Eff<M, Result<String, Integer>> in(Reader<M, Integer> r) {
         return r.ask().map(a -> runIO(new Async.Body<Integer>() {
           public <N extends Top> Eff<N, Integer> in(Async<N> as) {
             return as.async(() -> a + 1);
           }
-        }));
+        }, true));
       }
     })));
   }

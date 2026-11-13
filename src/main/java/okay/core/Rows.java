@@ -134,6 +134,12 @@ public final class Rows {
       return Machine.run(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
     }
 
+    /** the same, inside a running program too, on purpose: a run of its own ({@link Eff#runIsolated}) */
+    public Object stepIsolated(Eff<?, ?> body, Function<Object, Object> done, BiFunction<Object, Rest, Object> asked) {
+      Function<Object, Eff<?, ?>> ret = a -> Eff.pure(done.apply(a));
+      return Machine.runIsolated(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
+    }
+
     /** {@code body}, given when it is run a {@link Probe}: what it may ask, while it runs on this Java stack, of the
      * handlers in force there. For direct-style code (okay-java-resumable): an operation a handler in place answers is
      * answered at once, with nothing captured */
