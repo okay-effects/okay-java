@@ -58,6 +58,13 @@ public class ResumableBench {
     return run(Counter.run(0, COUNTER.of(() -> Programs.count(N))));
   }
 
+  /** the same, the operations performed in the program itself, not by the effect's methods */
+  @Benchmark
+  @OperationsPerInvocation(2 * N)
+  public Object stateDirectInPlacePerformedHere() {
+    return run(Counter.run(0, COUNTER.of(() -> Programs.countPerformingHere(N))));
+  }
+
   static Comp<Integer, Eff<Counter, ?>> countRows(int n) {
     if (n == 0) return perform(new Counter.Get());
     return perform(new Counter.Get()).flatMap(s -> perform(new Counter.Put(s + 1)))

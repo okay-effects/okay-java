@@ -1,5 +1,6 @@
 package okay.resumable.bench;
 
+import okay.resumable.Direct;
 import okay.resumable.Counter;
 import okay.resumable.Input;
 import okay.resumable.Pick;
@@ -17,6 +18,16 @@ final class Programs {
     int s = 0;
     for (int i = 0; i < n; i++) s += Input.next();
     return s;
+  }
+
+  /** the same as count, the operations performed here: no call to the effect's own methods, which C2 never inlines
+   * into a caller that is no Throwable — the effect is one */
+  static int countPerformingHere(int n) throws Counter {
+    for (int i = 0; i < n; i++) {
+      int s = Direct.perform(new Counter.Get());
+      Direct.perform(new Counter.Put(s + 1));
+    }
+    return Direct.perform(new Counter.Get());
   }
 
   /** the same, each operation ten calls deep: what a suspension costs by the frames it saves */
