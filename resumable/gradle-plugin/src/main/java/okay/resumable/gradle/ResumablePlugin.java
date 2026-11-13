@@ -12,6 +12,8 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.SourceSet;
@@ -32,6 +34,9 @@ import org.gradle.process.ExecOperations;
  * <li>the jar's manifest gets {@code Add-Exports}, {@code Add-Opens} and {@code Launcher-Agent-Class}: {@code java
  * -jar} has the continuations, and transforms what was not built so (a dependency) as it loads.
  * </ul>
+ * The guard ({@code okayResumable { guard = "warn" }}, or {@code "error"}; off by default): effectful code that reaches
+ * an effect's implementation other than to install it is said, or refused; {@code forbid = "strict"} (or a list of
+ * packages, classes, members): APIs refused in effectful code.
  * Only Java classes: Kotlin's, Scala's and Groovy's compile tasks are not followed. */
 public abstract class ResumablePlugin implements Plugin<Project> {
   static final List<String> JVM_ARGS = List.of("--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
@@ -55,14 +60,21 @@ public abstract class ResumablePlugin implements Plugin<Project> {
     });
     project.getDependencies().add(transformer.getName(), library);
 
+    Extension extension = project.getExtensions().create("okayResumable", Extension.class);
+    extension.getGuard().convention("off");
+    extension.getForbid().convention("");
+    Provider<String> guard = extension.getGuard();
+    Provider<String> forbid = extension.getForbid();
     JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
     var launcher = getToolchains().launcherFor(java.getToolchain());
     ExecOperations exec = getExec();
     java.getSourceSets().all(set -> project.getTasks().named(set.getCompileJavaTaskName(), JavaCompile.class, t -> {
       t.getInputs().files(transformer).withPropertyName("okayResumableTransformer")
           .withNormalizer(ClasspathNormalizer.class);
+      t.getInputs().property("okayResumableGuard", guard);
+      t.getInputs().property("okayResumableForbid", forbid);
       t.doLast("okay-java-resumable: transform", new Transform(exec, transformer, set, t.getDestinationDirectory(),
-          launcher));
+          launcher, guard, forbid));
     }));
 
     project.getTasks().withType(Test.class).configureEach(t -> t.jvmArgs(JVM_ARGS));
@@ -72,16 +84,29 @@ public abstract class ResumablePlugin implements Plugin<Project> {
             "Add-Opens", "java.base/java.lang", "Launcher-Agent-Class", "okay.resumable.transform.Agent")));
   }
 
+  /** {@code okayResumable { guard = "off" | "warn" | "error"; forbid = "strict, java.lang.Thread" }} */
+  public interface Extension {
+    Property<String> getGuard();
+
+    /** the APIs effectful code may not use, comma separated: packages ({@code java.net.*}), classes, members
+     * ({@code java.lang.System.exit}); {@code strict} the preset. Refused, or said if the guard warns */
+    Property<String> getForbid();
+  }
+
   /** the classes of a compilation rewritten where they are: a JVM of the project's toolchain runs the transformer */
   private static final class Transform implements Action<Task> {
     private final ExecOperations exec;
     private final FileCollection transformer;
     private final FileCollection classpath;
     private final DirectoryProperty classes;
-    private final org.gradle.api.provider.Provider<JavaLauncher> launcher;
+    private final Provider<JavaLauncher> launcher;
+    private final Provider<String> guard;
+    private final Provider<String> forbid;
 
     Transform(ExecOperations exec, FileCollection transformer, SourceSet set, DirectoryProperty classes,
-        org.gradle.api.provider.Provider<JavaLauncher> launcher) {
+        Provider<JavaLauncher> launcher, Provider<String> guard, Provider<String> forbid) {
+      this.guard = guard;
+      this.forbid = forbid;
       this.exec = exec;
       this.transformer = transformer;
       this.classpath = set.getCompileClasspath();
@@ -97,7 +122,7 @@ public abstract class ResumablePlugin implements Plugin<Project> {
         spec.setExecutable(launcher.get().getExecutablePath().getAsFile());
         spec.classpath(transformer);
         spec.getMainClass().set("okay.resumable.transform.Main");
-        spec.args(dir, dir, classpath.getAsPath());
+        spec.args(dir, dir, classpath.getAsPath(), "--guard=" + guard.get(), "--forbid=" + forbid.get());
       });
     }
   }

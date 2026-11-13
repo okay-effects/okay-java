@@ -20,6 +20,13 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// effectful code that reaches a handler or an effect's implementation other than to install it, or an API of the
+// strict list (the network, files, processes, reflection, ..): refused at build time
+okayResumable {
+    guard = "error"
+    forbid = "strict"
+}
+
 application {
     mainClass = "sample.Shop"
 }

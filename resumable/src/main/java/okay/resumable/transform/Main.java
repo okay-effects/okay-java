@@ -13,22 +13,41 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /** The transformation of a directory of classes, as a build runs it:
- * {@code Main <classes> <output> <classpath>} — every class of {@code classes} written to {@code output}, rewritten
- * where it may suspend, as it was otherwise; {@code classpath} (the path separator between entries) is what its
- * calls are resolved against. {@code output} may be {@code classes}: rewritten in place, the rest untouched. A
- * refusal fails the build with what to change. */
+ * {@code Main <classes> <output> <classpath> [--guard=off|warn|error] [--forbid=strict,java.net.*,..]} — every
+ * class of {@code classes} written to {@code output}, rewritten where it may suspend, as it was otherwise;
+ * {@code classpath} (the path separator between entries) is what its calls are resolved against. {@code output}
+ * may be {@code classes}: rewritten in place, the rest untouched. A refusal fails the build with what to change.
+ * The guard (off by default) says, or refuses, effectful code that reaches an effect's implementation other than
+ * to install it ({@link Transformer.Guard}); the forbidden APIs, if any are named, are refused in it (said, if the
+ * guard warns). */
 public final class Main {
   private Main() {}
 
   public static void main(String[] args) throws IOException {
     Path in = Path.of(args[0]);
-    int changed = transform(in, Path.of(args[1]), args.length > 2 ? args[2] : "");
+    String classpath = args.length > 2 && !args[2].startsWith("--") ? args[2] : "";
+    Transformer.Guard guard = Transformer.Guard.OFF;
+    for (String a : args) if (a.startsWith("--guard=")) guard = Transformer.Guard.of(a.substring(8));
+    List<String> forbid = List.of();
+    for (String a : args) if (a.startsWith("--forbid=")) forbid = Transformer.forbidden(a.substring(9));
+    int changed = transform(in, Path.of(args[1]), classpath, guard, forbid);
     System.out.println("okay.resumable: " + changed + " class(es) made resumable in " + in);
   }
 
   /** the classes of {@code in} written to {@code out}, rewritten where they may suspend; how many were. Refused:
    * an {@code IllegalStateException} after the reasons are printed on stderr */
   public static int transform(Path in, Path out, String classpath) throws IOException {
+    return transform(in, out, classpath, Transformer.Guard.OFF);
+  }
+
+  /** the same, with the guard: its warnings on stderr, its refusals as the others */
+  public static int transform(Path in, Path out, String classpath, Transformer.Guard guard) throws IOException {
+    return transform(in, out, classpath, guard, List.of());
+  }
+
+  /** the same, with the APIs effectful code may not use ({@link Transformer#forbidden(String)}) */
+  public static int transform(Path in, Path out, String classpath, Transformer.Guard guard, List<String> forbid)
+      throws IOException {
     List<URL> urls = new ArrayList<>();
     urls.add(in.toUri().toURL());
     for (String p : classpath.split(File.pathSeparator)) if (!p.isBlank()) urls.add(Path.of(p).toUri().toURL());
@@ -36,7 +55,7 @@ public final class Main {
     List<String> refused = new ArrayList<>();
     try (URLClassLoader loader = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
         Stream<Path> files = Files.walk(in)) {
-      Transformer t = new Transformer(name -> read(loader, name));
+      Transformer t = new Transformer(name -> read(loader, name), guard, forbid, System.err::println);
       for (Path f : files.filter(Files::isRegularFile).toList()) {
         Path target = out.resolve(in.relativize(f).toString());
         Files.createDirectories(target.getParent());
@@ -55,7 +74,8 @@ public final class Main {
     }
     if (!refused.isEmpty()) {
       refused.forEach(System.err::println);
-      throw new IllegalStateException("okay.resumable: " + refused.size() + " method(s) cannot be made resumable");
+      throw new IllegalStateException("okay.resumable: " + refused.size() + " method(s) cannot be made resumable, "
+          + "or are refused by the guard");
     }
     return changed;
   }

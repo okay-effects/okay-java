@@ -40,7 +40,9 @@ public final class Agent {
       try {
         Transformer t;
         synchronized (transformers) {
-          t = transformers.computeIfAbsent(loader, l -> new Transformer(n -> Main.read(l, n)));
+          t = transformers.computeIfAbsent(loader, l -> new Transformer(n -> Main.read(l, n),
+              Transformer.Guard.of(System.getProperty("okay.resumable.guard", "off")),
+              Transformer.forbidden(System.getProperty("okay.resumable.forbid", "")), System.err::println));
         }
         synchronized (t) {
           return t.transform(bytes);

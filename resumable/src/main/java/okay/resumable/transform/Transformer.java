@@ -99,15 +99,52 @@ public final class Transformer {
   static final MethodTypeDesc RESUME_TYPE =
       MethodTypeDesc.of(ConstantDescs.CD_Object, CD_FRAME, ConstantDescs.CD_Object, ConstantDescs.CD_Throwable);
 
+  /** THE GUARD: what is done with effectful code — a method rewritten here — that reaches an effect's
+   * implementation other than to install it: calls a handler's clause, calls or touches the state of a handler or
+   * of a class marked {@code @Implementation}. Off by default; a warning; or a refusal, as a method that cannot
+   * suspend is refused */
+  public enum Guard {
+    OFF, WARN, ERROR;
+
+    /** {@code off}, {@code warn} or {@code error}, as a build names it */
+    public static Guard of(String name) {
+      return switch (name.strip().toLowerCase(java.util.Locale.ROOT)) {
+        case "", "off", "false" -> OFF;
+        case "warn", "warning" -> WARN;
+        case "error", "true" -> ERROR;
+        default -> throw new IllegalArgumentException("okay.resumable: guard " + name + ": off, warn or error");
+      };
+    }
+  }
+
   private final Function<String, byte[]> bytes;
   private final ClassFile cf;
   private final Map<String, ClassModel> models = new HashMap<>();
   private final Map<String, Boolean> suspendTypes = new HashMap<>();
   private final Map<String, Boolean> suspending = new HashMap<>();
+  private final Guard guard;
+  /** the APIs effectful code may not use, as {@link #forbidden(String)} reads them: checked when not empty */
+  private final List<String> forbidden;
+  private final java.util.function.Consumer<String> warnings;
+  private final Map<String, Boolean> implementations = new HashMap<>();
 
   /** {@code bytes}: a class file by its internal name, or null — the classes being transformed, their classpath, and
    * the JDK */
   public Transformer(Function<String, byte[]> bytes) {
+    this(bytes, Guard.OFF, w -> {});
+  }
+
+  /** the same, with the guard: its warnings given to {@code warnings} */
+  public Transformer(Function<String, byte[]> bytes, Guard guard, java.util.function.Consumer<String> warnings) {
+    this(bytes, guard, List.of(), warnings);
+  }
+
+  /** the same, with the APIs effectful code may not use: refused, or said if the guard warns */
+  public Transformer(Function<String, byte[]> bytes, Guard guard, List<String> forbidden,
+      java.util.function.Consumer<String> warnings) {
+    this.forbidden = forbidden;
+    this.guard = guard;
+    this.warnings = warnings;
     this.bytes = bytes;
     this.cf = ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(
         ClassHierarchyResolver.ofResourceParsing(d -> {
@@ -132,6 +169,7 @@ public final class Transformer {
     if (!plans.isEmpty()) probe(cm, plans);
     List<Plan> unmade = plans.values().stream().filter(Transformer::unmade).toList();
     if (!unmade.isEmpty() && !made(cm)) return transform(made(cm, unmade));
+    if (guard != Guard.OFF || !forbidden.isEmpty()) guard(cm, plans.values());
     return cf.transformClass(cm, new Rewrite(cm, plans, lambdas));
   }
 
@@ -415,6 +453,127 @@ public final class Transformer {
 
   private static String lambdaKey(InvokeDynamicInstruction indy) {
     return indy.name().stringValue() + indy.type().stringValue() + indy.bootstrapArgs();
+  }
+
+  // ---- the guard: effectful code that reaches an effect's implementation
+
+  /** the handler interfaces: a class that implements one is a handler, and their methods are its clauses */
+  static final java.util.Set<String> HANDLERS = java.util.Set.of("okay/resumable/Direct$Handler0",
+      "okay/resumable/Direct$Handler1", "okay/resumable/Direct$Handler2", "okay/resumable/Direct$Handler3",
+      "okay/resumable/Direct$Handler4", "okay/resumable/Direct$InPlace", "okay/rows/Handler", "okay/rows/InPlace",
+      "okay/rows/Interceptor", "okay/rows/Observer");
+  static final String IMPLEMENTATION = "Lokay/resumable/Implementation;";
+
+  /** what the guard finds in the methods rewritten of {@code cm}: said, or refused */
+  private void guard(ClassModel cm, java.util.Collection<Plan> plans) {
+    String self = cm.thisClass().asInternalName();
+    boolean impl = guard != Guard.OFF && implementation(self);
+    List<String> found = new ArrayList<>();
+    List<String> forbade = new ArrayList<>();
+    String reaching = ": effectful code may construct a handler or a class marked @Implementation, to install it, "
+        + "and nothing else — perform the effect instead, so that its handlers, and its audit, answer it";
+    for (Plan p : plans) {
+      String where = self.replace('/', '.') + "." + p.method.methodName().stringValue();
+      int line = 0;
+      for (CodeElement e : p.elements) {
+        if (e instanceof LineNumber ln) line = ln.line();
+        String owner;
+        String name;
+        String what;
+        switch (e) {
+          case InvokeInstruction inv -> {
+            owner = inv.owner().asInternalName();
+            name = inv.name().stringValue();
+            what = name.equals("<init>") ? "constructs" : "calls " + name + " of";
+          }
+          case java.lang.classfile.instruction.FieldInstruction f -> {
+            owner = f.owner().asInternalName();
+            name = f.name().stringValue();
+            boolean put = f.opcode() == Opcode.PUTFIELD || f.opcode() == Opcode.PUTSTATIC;
+            what = (put ? "writes " : "reads ") + name + " of";
+          }
+          default -> {
+            continue;
+          }
+        }
+        String at = where + " (line " + line + ") ";
+        String api = forbidden(owner, name);
+        if (api != null) forbade.add(at + what + " " + owner.replace('/', '.') + ", forbidden here by " + api
+            + ": effectful code reaches the world by its effects, whose handlers answer them");
+        if (guard == Guard.OFF || impl) continue;
+        if (HANDLERS.contains(owner) && e instanceof InvokeInstruction)
+          found.add(at + "calls " + simple(owner) + "." + name + ", a handler's clause, directly" + reaching);
+        else if (!name.equals("<init>") && !owner.equals(self) && implementation(owner))
+          found.add(at + what + " " + owner.replace('/', '.') + ", an effect's implementation" + reaching);
+      }
+    }
+    found.addAll(forbade);
+    if (found.isEmpty()) return;
+    // the forbidden APIs, named with the guard off, are refused
+    if (guard != Guard.WARN) throw new Refused(String.join("\n", found));
+    for (String f : found) warnings.accept("okay.resumable: warning: " + f);
+  }
+
+  /** the entry of the forbidden list that {@code name} of {@code owner} matches, or null: {@code pkg.*} (the package
+   * and those under it), a class (and its nested classes), a class's member ({@code java.lang.System.exit}) */
+  private String forbidden(String owner, String name) {
+    if (forbidden.isEmpty()) return null;
+    String cls = owner.replace('/', '.');
+    String top = cls.contains("$") ? cls.substring(0, cls.indexOf('$')) : cls;
+    for (String f : forbidden) {
+      if (f.endsWith(".*") ? cls.startsWith(f.substring(0, f.length() - 1))
+          : f.equals(cls) || f.equals(top) || f.equals(cls + "." + name) || f.equals(cls.replace('$', '.')))
+        return f;
+    }
+    return null;
+  }
+
+  /** THE STRICT PRESET of forbidden APIs ({@code strict} in the list): the network, files, databases, processes,
+   * reflection and its escapes, the JVM's exit — what reaches the world other than by an effect */
+  public static final List<String> STRICT = List.of("java.net.*", "java.nio.file.*", "java.nio.channels.*",
+      "java.io.File", "java.io.FileInputStream", "java.io.FileOutputStream", "java.io.FileReader",
+      "java.io.FileWriter", "java.io.RandomAccessFile", "java.sql.*", "javax.sql.*", "java.lang.reflect.*",
+      "java.lang.invoke.MethodHandles", "java.lang.invoke.VarHandle", "sun.misc.Unsafe", "jdk.internal.*",
+      "java.lang.ProcessBuilder", "java.lang.Runtime.exec", "java.lang.Runtime.halt", "java.lang.Runtime.exit",
+      "java.lang.System.exit", "java.lang.System.load", "java.lang.System.loadLibrary", "java.lang.Class.forName",
+      "java.lang.Thread", "java.util.concurrent.Executors");
+
+  /** a list as a build gives it — comma or space separated, {@code strict} the preset — made the entries */
+  public static List<String> forbidden(String list) {
+    List<String> all = new ArrayList<>();
+    for (String s : list.split("[,\\s]+")) {
+      if (s.isBlank()) continue;
+      if (s.equals("strict")) all.addAll(STRICT);
+      else all.add(s);
+    }
+    return List.copyOf(all);
+  }
+
+  private static String simple(String internal) {
+    return internal.substring(internal.lastIndexOf('/') + 1).replace('$', '.');
+  }
+
+  /** whether the class is a handler (it implements a handler interface, up its classes and interfaces) or is marked
+   * {@code @Implementation} */
+  boolean implementation(String name) {
+    if (jdk(name)) return false;
+    Boolean known = implementations.get(name);
+    if (known != null) return known;
+    implementations.put(name, false); // a cycle ends here
+    ClassModel c = model(name);
+    boolean r = c != null && (marked(c, IMPLEMENTATION) || HANDLERS.contains(name)
+        || c.interfaces().stream().anyMatch(i -> HANDLERS.contains(i.asInternalName())
+            || implementation(i.asInternalName()))
+        || c.superclass().isPresent() && implementation(c.superclass().get().asInternalName()));
+    implementations.put(name, r);
+    return r;
+  }
+
+  private static boolean marked(ClassModel c, String annotation) {
+    return c.findAttribute(Attributes.runtimeInvisibleAnnotations()).map(a -> a.annotations().stream()
+        .anyMatch(an -> an.className().equalsString(annotation))).orElse(false)
+        || c.findAttribute(Attributes.runtimeVisibleAnnotations()).map(a -> a.annotations().stream()
+            .anyMatch(an -> an.className().equalsString(annotation))).orElse(false);
   }
 
   // ---- the probe: the JDK's stack-map generator tells the types at each call

@@ -16,16 +16,19 @@ final class Transform {
   static final String JVM_ARGS = "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED "
       + "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED";
 
-  static void run(MavenProject project, String classes, List<String> classpath, Log log) throws MojoExecutionException {
+  static void run(MavenProject project, String classes, List<String> classpath, String guard, String forbid,
+      Log log) throws MojoExecutionException {
     if (Runtime.version().feature() < 24)
       throw new MojoExecutionException("okay-java-resumable needs Maven to run on JDK 24 or later "
           + "(java.lang.classfile); this is " + Runtime.version());
     Path dir = Path.of(classes);
     if (Files.isDirectory(dir)) {
       try {
-        int n = okay.resumable.transform.Main.transform(dir, dir, String.join(File.pathSeparator, classpath));
+        int n = okay.resumable.transform.Main.transform(dir, dir, String.join(File.pathSeparator, classpath),
+            okay.resumable.transform.Transformer.Guard.of(guard),
+            okay.resumable.transform.Transformer.forbidden(forbid == null ? "" : forbid));
         log.info("okay.resumable: " + n + " class(es) made resumable in " + dir);
-      } catch (IOException | IllegalStateException e) {
+      } catch (IOException | IllegalStateException | IllegalArgumentException e) {
         throw new MojoExecutionException(e.getMessage(), e);
       }
     }
