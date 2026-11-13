@@ -29,7 +29,9 @@ final class Bindings {
     return LANG.scopedValueBindings();
   }
 
+  /** put back, if they are not what the thread has already: no call into the VM where no scoped value was bound */
   static void restore(Object bindings) {
+    if (LANG.scopedValueBindings() == bindings) return;
     try {
       SET.invokeExact(bindings);
     } catch (Throwable t) {

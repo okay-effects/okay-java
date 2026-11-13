@@ -129,6 +129,21 @@ class TiersTest {
     assertEquals(199, depths.getFirst() - depths.getLast());
   }
 
+  static final ScopedValue<String> WHO = ScopedValue.newInstance();
+
+  static String whoAroundAYield() throws Input {
+    String before = WHO.get();
+    Input.next();
+    return before + "/" + WHO.get();
+  }
+
+  @Test
+  void aScopedValueBoundOutsideIsSeenOnBothSidesOfAYield() {
+    assertEquals(List.of(0, 0, 1, 0), taken(() -> assertEquals("ann/ann", ScopedValue.where(WHO, "ann").call(() ->
+        run(Input.deferred(ints(), Direct.row(Input.class).of(TiersTest::whoAroundAYield)))))));
+    assertTrue(!WHO.isBound());
+  }
+
   @Test
   void aYieldedBodyLeftUnansweredHasItsFinallyBlocksRun() {
     List<String> log = new ArrayList<>();
