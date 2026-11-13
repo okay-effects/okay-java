@@ -32,6 +32,13 @@
       <artifactId>okay-java-resumable</artifactId>
       <version>0.2.0-SNAPSHOT</version>
     </dependency>
+    <!-- okay-audit checks the APIs effectful code may not use (forbid); from the same repository directory, copied
+         there from ~/.m2, where okay's `okayAudit/publishM2` puts it -->
+    <dependency>
+      <groupId>io.github.okay-effects</groupId>
+      <artifactId>okay-audit_3</artifactId>
+      <version>0.2.0-SNAPSHOT</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-plugin-api</artifactId>

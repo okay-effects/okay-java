@@ -35,10 +35,14 @@ import org.gradle.process.ExecOperations;
  * -jar} has the continuations, and transforms what was not built so (a dependency) as it loads.
  * </ul>
  * The guard ({@code okayResumable { guard = "warn" }}, or {@code "error"}; off by default): effectful code that reaches
- * an effect's implementation other than to install it is said, or refused; {@code forbid = "strict"} (or a list of
- * packages, classes, members): APIs refused in effectful code.
+ * an effect's implementation other than to install it is said, or refused; {@code forbid = "strict, pure"} (the
+ * presets named after the effects of okay.rows.std, or packages, classes, members): APIs refused in effectful code,
+ * checked by okay-audit (added to the transformer's class path, resolved from the project's repositories).
  * Only Java classes: Kotlin's, Scala's and Groovy's compile tasks are not followed. */
 public abstract class ResumablePlugin implements Plugin<Project> {
+  /** okay-audit, which checks the APIs effectful code may not use (`forbid`) */
+  static final String AUDIT = "io.github.okay-effects:okay-audit_3:0.2.0-SNAPSHOT";
+
   static final List<String> JVM_ARGS = List.of("--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
       "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.lang=ALL-UNNAMED");
 
@@ -59,6 +63,8 @@ public abstract class ResumablePlugin implements Plugin<Project> {
       c.setDescription("the okay-java-resumable transformation, run after each Java compilation");
     });
     project.getDependencies().add(transformer.getName(), library);
+    // what checks `forbid`: okay-audit, on the transformer's class path only — never the program's
+    project.getDependencies().add(transformer.getName(), AUDIT);
 
     Extension extension = project.getExtensions().create("okayResumable", Extension.class);
     extension.getGuard().convention("off");
@@ -88,8 +94,9 @@ public abstract class ResumablePlugin implements Plugin<Project> {
   public interface Extension {
     Property<String> getGuard();
 
-    /** the APIs effectful code may not use, comma separated: packages ({@code java.net.*}), classes, members
-     * ({@code java.lang.System.exit}); {@code strict} the preset. Refused, or said if the guard warns */
+    /** the APIs effectful code may not use, comma separated: presets ({@code strict}, {@code clock}, {@code pure},
+     * ..), packages ({@code java.net.*}), classes, members ({@code java.lang.System.exit}); checked by okay-audit.
+     * Refused, or said if the guard warns */
     Property<String> getForbid();
   }
 

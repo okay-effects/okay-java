@@ -2,6 +2,7 @@ package okay.resumable.transform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -147,7 +148,7 @@ class GuardTest {
   void forbiddenApisRefusedInEffectfulCodeOnly() throws IOException {
     byte[] world = world();
     Transformer t = new Transformer(GuardTest::bytes, Transformer.Guard.OFF,
-        Transformer.forbidden("strict, World$Client"), w -> {});
+        Transformer.Forbid.of("strict, World$Client", GuardTest::bytes), w -> {});
     var e = assertThrows(Transformer.Refused.class, () -> t.transform(world));
     List<String> lines = e.getMessage().lines().toList();
     lines.forEach(System.out::println);
@@ -169,7 +170,8 @@ class GuardTest {
         e.getMessage());
     // said, not refused, when the guard warns; nothing at all with no list
     List<String> warned = new ArrayList<>();
-    assertNotNull(new Transformer(GuardTest::bytes, Transformer.Guard.WARN, Transformer.forbidden("java.lang.System"),
+    assertNotNull(new Transformer(GuardTest::bytes, Transformer.Guard.WARN,
+        Transformer.Forbid.of("java.lang.System", GuardTest::bytes),
         warned::add).transform(world));
     assertEquals(1, warned.size(), warned.toString());
     assertTrue(warned.getFirst().contains("World.exit (line 14) calls exit of java.lang.System"), warned.toString());
@@ -177,11 +179,12 @@ class GuardTest {
   }
 
   @Test
-  void theStrictPresetAndTheList() {
-    List<String> f = Transformer.forbidden("strict , com.acme.Bank");
-    assertTrue(f.containsAll(Transformer.STRICT));
-    assertEquals("com.acme.Bank", f.getLast());
-    assertTrue(Transformer.forbidden("  ").isEmpty());
+  void theListIsOkayAuditsAndAnEmptyOneIsNone() {
+    assertNull(Transformer.Forbid.of("  ", GuardTest::bytes));
+    assertNull(Transformer.Forbid.of(null, GuardTest::bytes));
+    assertNotNull(Transformer.Forbid.of("strict , com.acme.Bank", GuardTest::bytes));
+    assertEquals("java.net.*", Audited.spelled("java.net."));
+    assertEquals("java.lang.System.exit", Audited.spelled("java.lang.System#exit"));
   }
   static final String AMBIENT = """
       import okay.resumable.Counter;
@@ -277,14 +280,15 @@ class GuardTest {
   static List<String> refused(String list) throws IOException {
     byte[] ambient = ambient();
     var e = assertThrows(Transformer.Refused.class,
-        () -> new Transformer(GuardTest::ambientBytes, Transformer.Guard.OFF, Transformer.forbidden(list), w -> {})
+        () -> new Transformer(GuardTest::ambientBytes, Transformer.Guard.OFF,
+            Transformer.Forbid.of(list, GuardTest::ambientBytes), w -> {})
             .transform(ambient));
     return e.getMessage().lines().toList();
   }
 
   static void has(List<String> lines, String method, String what, String instead) {
     assertTrue(lines.stream().anyMatch(l -> l.startsWith("Ambient." + method + " (line ") && l.contains(what)
-        && l.contains(" — use " + instead)), method + ": " + what + "\n" + String.join("\n", lines));
+        && l.contains(" — use ") && l.contains(instead)), method + ": " + what + "\n" + String.join("\n", lines));
   }
 
   @Test
@@ -299,7 +303,7 @@ class GuardTest {
     assertEquals(2, reader.size(), String.join("\n", reader));
     for (String w : List.of("writer", "trail")) {
       List<String> writer = refused(w);
-      has(writer, "writer", "reads out of java.lang.System", "okay.rows.std.Writer, or okay.rows.std.Trail");
+      has(writer, "writer", "reads out of java.lang.System", "okay.rows.std.Writer or okay.rows.std.Trail");
       has(writer, "writer", "calls getLogger of java.util.logging.Logger, forbidden here by java.util.logging.*",
           "okay.rows.std.Writer");
       has(writer, "writer", "calls info of java.util.logging.Logger", "okay.rows.std.Writer");
@@ -348,7 +352,8 @@ class GuardTest {
     byte[] ambient = ambient();
     List<String> warned = new ArrayList<>();
     var e = assertThrows(Transformer.Refused.class, () -> new Transformer(GuardTest::ambientBytes,
-        Transformer.Guard.OFF, Transformer.forbidden("state"), warned::add).transform(ambient));
+        Transformer.Guard.OFF, Transformer.Forbid.of("state", GuardTest::ambientBytes), warned::add)
+        .transform(ambient));
     assertEquals(1, e.getMessage().lines().count(), e.getMessage());
     // count read, said; NAMES, final, read in state, installs and clean: nothing
     assertEquals(1, warned.size(), String.join("\n", warned));
@@ -356,13 +361,4 @@ class GuardTest {
         + "a static field that is not final"), warned.getFirst());
   }
 
-  @Test
-  void thePresetsInTheList() {
-    assertEquals(List.of("java.util.UUID.randomUUID", "java.util.Random"),
-        Transformer.forbidden("fresh").subList(0, 2));
-    List<String> pure = Transformer.forbidden("pure");
-    for (var p : Transformer.PRESETS.values()) assertTrue(pure.containsAll(p.apis()));
-    assertEquals(pure.size(), new java.util.HashSet<>(pure).size());
-    assertEquals(List.of("okay.rows.Effects.run"), Transformer.forbidden("okay.rows.Effects.run"));
-  }
 }

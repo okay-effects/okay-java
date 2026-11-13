@@ -18,9 +18,14 @@ repositories {
 }
 
 // direct-style programs made resumable (README.md): a bytecode transformation, its runtime, the boundary into
-// okay.rows. Of no dependency but okay-java
+// okay.rows. Of no dependency but okay-java; okay-audit (okay's okay-audit module, published by `okayAudit/publishM2`
+// to ~/.m2) checks what a build forbids effectful code — an optional dependency, needed on the transformer's class
+// path only when a list is named, never by a program at run time
+val okayAudit = "io.github.okay-effects:okay-audit_3:0.2.0-SNAPSHOT"
 dependencies {
     api(rootProject)
+    compileOnly(okayAudit)
+    testImplementation(okayAudit)
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -149,8 +154,9 @@ tasks.register<JavaExec>("bench") {
 }
 
 // THE MAVEN PLUGIN AND THE MAVEN SAMPLE (./gradlew :okay-java-resumable:mavenSample): okay-java and this module
-// published to a repository directory under build/ — not ~/.m2 —, with okay-kernel-api beside them; the plugin built
-// by the Maven wrapper (Maven fetched under build/), deployed to that directory; the sample built against it, each
+// published to a repository directory under build/ — not ~/.m2 —, with okay-kernel-api and okay-audit beside them
+// (copied from ~/.m2); the plugin built by the Maven wrapper (Maven fetched under build/), deployed to that
+// directory; the sample built against it, each
 // Maven build with a local repository of its own under build/
 apply(plugin = "maven-publish")
 val samplesRepo = layout.buildDirectory.dir("maven-repo")
@@ -161,9 +167,15 @@ configure<PublishingExtension> {
 rootProject.configure<PublishingExtension> {
     repositories { maven { name = "resumableSamples"; url = uri(samplesRepo) } }
 }
+// okay-audit, which the Maven plugin puts on the transformer's class path for `forbid`
+val samplesRepoAudit by tasks.registering(Copy::class) {
+    from(File(System.getProperty("user.home"), ".m2/repository/io/github/okay-effects/okay-audit_3"))
+    into(samplesRepo.map { it.dir("io/github/okay-effects/okay-audit_3") })
+}
 val samplesRepoReady by tasks.registering(Copy::class) {
     dependsOn("publishOkayJavaResumablePublicationToSamplesRepository",
         ":publishOkayJavaPublicationToResumableSamplesRepository")
+    dependsOn(samplesRepoAudit)
     from(File(System.getProperty("user.home"), ".m2/repository/dev/okay/okay-kernel-api"))
     into(samplesRepo.map { it.dir("dev/okay/okay-kernel-api") })
 }

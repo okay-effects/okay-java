@@ -25,8 +25,7 @@ final class Transform {
     if (Files.isDirectory(dir)) {
       try {
         int n = okay.resumable.transform.Main.transform(dir, dir, String.join(File.pathSeparator, classpath),
-            okay.resumable.transform.Transformer.Guard.of(guard),
-            okay.resumable.transform.Transformer.forbidden(forbid == null ? "" : forbid));
+            okay.resumable.transform.Transformer.Guard.of(guard), forbid == null ? "" : forbid);
         log.info("okay.resumable: " + n + " class(es) made resumable in " + dir);
       } catch (IOException | IllegalStateException | IllegalArgumentException e) {
         throw new MojoExecutionException(e.getMessage(), e);

@@ -477,9 +477,19 @@ refused (`GuardTest`, over the module's own tests: only `MisuseTest`'s programs 
 method, the line and the entry it matched; said instead, if the guard is `warn`. Methods that perform nothing are
 not looked at: a handler and the clients it calls may use anything.
 
+**The list is checked by okay-audit** (okay's module `okay-audit`, `io.github.okay-effects:okay-audit_3`): its
+rules, its presets and the effect each names, its matching up a class's hierarchy and its state rule are the same
+ones okay-audit holds a business module to in a build of any JVM language, so a Java program's effectful methods and a
+Scala or Kotlin business module answer to one list (okay specs/okay-audit.md, "Consolidation"). Effectful code is
+what okay-audit calls business code, held method by method (`okay.audit.Code`); this module keeps only what is the
+transformation's own — the guard above, and the monitor below. The plugins put okay-audit on the transformer's class
+path only (the Gradle plugin from the project's repositories; okay's `okayAudit/publishM2` puts it in `~/.m2` until
+it is published), never on the program's; with a list named and okay-audit absent, the build is refused by name.
+
 **Presets named after the effects of `okay.rows.std`**, each forbidding the ambient way of doing what the effect
 does, and naming the effect to use instead in its message (`... calls nanoTime of java.lang.System, forbidden here by
-java.lang.System.nanoTime — use okay.rows.std.Clock instead`):
+java.lang.System.nanoTime — use a Clock effect (okay.rows.std.Clock, okay.scala3.std.Clock, okay.safe.std.Clock)
+instead`):
 
 - `state`: writing a static field that is not final (a read of one is said, not refused) — use `State`, or a
   handler in place;

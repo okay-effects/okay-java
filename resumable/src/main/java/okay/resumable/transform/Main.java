@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /** The transformation of a directory of classes, as a build runs it:
- * {@code Main <classes> <output> <classpath> [--guard=off|warn|error] [--forbid=strict,java.net.*,..]} — every
+ * {@code Main <classes> <output> <classpath> [--guard=off|warn|error] [--forbid=strict,clock,java.net.*,..]} — every
  * class of {@code classes} written to {@code output}, rewritten where it may suspend, as it was otherwise;
  * {@code classpath} (the path separator between entries) is what its calls are resolved against. {@code output}
  * may be {@code classes}: rewritten in place, the rest untouched. A refusal fails the build with what to change.
@@ -28,8 +28,8 @@ public final class Main {
     String classpath = args.length > 2 && !args[2].startsWith("--") ? args[2] : "";
     Transformer.Guard guard = Transformer.Guard.OFF;
     for (String a : args) if (a.startsWith("--guard=")) guard = Transformer.Guard.of(a.substring(8));
-    List<String> forbid = List.of();
-    for (String a : args) if (a.startsWith("--forbid=")) forbid = Transformer.forbidden(a.substring(9));
+    String forbid = "";
+    for (String a : args) if (a.startsWith("--forbid=")) forbid = a.substring(9);
     int changed = transform(in, Path.of(args[1]), classpath, guard, forbid);
     System.out.println("okay.resumable: " + changed + " class(es) made resumable in " + in);
   }
@@ -42,11 +42,12 @@ public final class Main {
 
   /** the same, with the guard: its warnings on stderr, its refusals as the others */
   public static int transform(Path in, Path out, String classpath, Transformer.Guard guard) throws IOException {
-    return transform(in, out, classpath, guard, List.of());
+    return transform(in, out, classpath, guard, "");
   }
 
-  /** the same, with the APIs effectful code may not use ({@link Transformer#forbidden(String)}) */
-  public static int transform(Path in, Path out, String classpath, Transformer.Guard guard, List<String> forbid)
+  /** the same, with the APIs effectful code may not use, as a build names them ({@link Transformer.Forbid#of}),
+   * checked by okay-audit */
+  public static int transform(Path in, Path out, String classpath, Transformer.Guard guard, String forbid)
       throws IOException {
     List<URL> urls = new ArrayList<>();
     urls.add(in.toUri().toURL());
@@ -55,7 +56,8 @@ public final class Main {
     List<String> refused = new ArrayList<>();
     try (URLClassLoader loader = new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
         Stream<Path> files = Files.walk(in)) {
-      Transformer t = new Transformer(name -> read(loader, name), guard, forbid, System.err::println);
+      Transformer t = new Transformer(name -> read(loader, name), guard,
+          Transformer.Forbid.of(forbid, name -> read(loader, name)), System.err::println);
       for (Path f : files.filter(Files::isRegularFile).toList()) {
         Path target = out.resolve(in.relativize(f).toString());
         Files.createDirectories(target.getParent());

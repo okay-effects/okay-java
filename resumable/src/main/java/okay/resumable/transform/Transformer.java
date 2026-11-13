@@ -123,8 +123,8 @@ public final class Transformer {
   private final Map<String, Boolean> suspendTypes = new HashMap<>();
   private final Map<String, Boolean> suspending = new HashMap<>();
   private final Guard guard;
-  /** the APIs effectful code may not use, as {@link #forbidden(String)} reads them: checked when not empty */
-  private final List<String> forbidden;
+  /** the APIs effectful code may not use, checked by okay-audit ({@link Forbid#of}): none when null */
+  private final Forbid forbid;
   private final java.util.function.Consumer<String> warnings;
   private final Map<String, Boolean> implementations = new HashMap<>();
 
@@ -136,13 +136,14 @@ public final class Transformer {
 
   /** the same, with the guard: its warnings given to {@code warnings} */
   public Transformer(Function<String, byte[]> bytes, Guard guard, java.util.function.Consumer<String> warnings) {
-    this(bytes, guard, List.of(), warnings);
+    this(bytes, guard, null, warnings);
   }
 
-  /** the same, with the APIs effectful code may not use: refused, or said if the guard warns */
-  public Transformer(Function<String, byte[]> bytes, Guard guard, List<String> forbidden,
+  /** the same, with the APIs effectful code may not use ({@link Forbid#of}, or null): refused, or said if the guard
+   * warns */
+  public Transformer(Function<String, byte[]> bytes, Guard guard, Forbid forbid,
       java.util.function.Consumer<String> warnings) {
-    this.forbidden = forbidden;
+    this.forbid = forbid;
     this.guard = guard;
     this.warnings = warnings;
     this.bytes = bytes;
@@ -169,7 +170,7 @@ public final class Transformer {
     if (!plans.isEmpty()) probe(cm, plans);
     List<Plan> unmade = plans.values().stream().filter(Transformer::unmade).toList();
     if (!unmade.isEmpty() && !made(cm)) return transform(made(cm, unmade));
-    if (guard != Guard.OFF || !forbidden.isEmpty()) guard(cm, plans.values());
+    if (guard != Guard.OFF || forbid != null) guard(cm, in, plans.values());
     return cf.transformClass(cm, new Rewrite(cm, plans, lambdas));
   }
 
@@ -464,16 +465,23 @@ public final class Transformer {
       "okay/rows/Interceptor", "okay/rows/Observer");
   static final String IMPLEMENTATION = "Lokay/resumable/Implementation;";
 
-  /** what the guard finds in the methods rewritten of {@code cm}: said, or refused */
-  private void guard(ClassModel cm, java.util.Collection<Plan> plans) {
+  /** what the guard finds in the methods rewritten of {@code cm}, and what {@link #forbid} finds there: said, or
+   * refused */
+  private void guard(ClassModel cm, byte[] in, java.util.Collection<Plan> plans) {
     String self = cm.thisClass().asInternalName();
     boolean impl = guard != Guard.OFF && implementation(self);
     List<String> found = new ArrayList<>();
     List<String> forbade = new ArrayList<>();
     List<String> flagged = new ArrayList<>();
+    if (forbid != null) {
+      java.util.Set<String> methods = new java.util.HashSet<>();
+      for (Plan p : plans) methods.add(p.method.methodName().stringValue() + p.method.methodType().stringValue());
+      forbid.check(in, methods, forbade, flagged);
+    }
     String reaching = ": effectful code may construct a handler or a class marked @Implementation, to install it, "
         + "and nothing else — perform the effect instead, so that its handlers, and its audit, answer it";
     for (Plan p : plans) {
+      if (guard == Guard.OFF || impl) break;
       String where = self.replace('/', '.') + "." + p.method.methodName().stringValue();
       int line = 0;
       for (CodeElement e : p.elements) {
@@ -498,18 +506,6 @@ public final class Transformer {
           }
         }
         String at = where + " (line " + line + ") ";
-        String api = forbidden(owner, name);
-        if (api != null) forbade.add(at + what + " " + owner.replace('/', '.') + ", forbidden here by " + api
-            + instead(api) + WORLD);
-        else if (e instanceof java.lang.classfile.instruction.FieldInstruction f && forbidden.contains(STATE)) {
-          // a static field written in effectful code is not final: only a class's initializer writes a final one
-          if (f.opcode() == Opcode.PUTSTATIC) forbade.add(at + what + " " + owner.replace('/', '.') + ", a static "
-              + "field that is not final, forbidden here by " + STATE + instead(STATE) + WORLD);
-          else if (f.opcode() == Opcode.GETSTATIC && !finalField(owner, name)) flagged.add(at + what + " "
-              + owner.replace('/', '.') + ", a static field that is not final (" + STATE + instead(STATE)
-              + "; said, not refused: a static field nothing writes may be a constant)");
-        }
-        if (guard == Guard.OFF || impl) continue;
         if (HANDLERS.contains(owner) && e instanceof InvokeInstruction)
           found.add(at + "calls " + simple(owner) + "." + name + ", a handler's clause, directly" + reaching);
         else if (!name.equals("<init>") && !owner.equals(self) && implementation(owner))
@@ -524,141 +520,28 @@ public final class Transformer {
     for (String f : found) warnings.accept("okay.resumable: warning: " + f);
   }
 
-  /** the entry of the forbidden list that {@code name} of {@code owner} matches, or null: {@code pkg.*} (the package
-   * and those under it), a class (and its nested classes), a class's member ({@code java.lang.System.exit}) */
-  private String forbidden(String owner, String name) {
-    if (forbidden.isEmpty()) return null;
-    String cls = owner.replace('/', '.');
-    for (String f : forbidden)
-      if (f.endsWith(".*") && cls.startsWith(f.substring(0, f.length() - 1))) return f;
-    // a class or a member, matched by the owner or by a class or an interface up from it: a Thread's subclass is a
-    // Thread, a String's wait is Object's
-    for (String up : supers(owner)) {
-      String c = up.replace('/', '.');
-      String top = c.contains("$") ? c.substring(0, c.indexOf('$')) : c;
-      for (String f : forbidden)
-        if (f.equals(c) || f.equals(top) || f.equals(c + "." + name) || f.equals(c.replace('$', '.'))) return f;
+  /** THE APIS EFFECTFUL CODE MAY NOT USE — the rules and presets are okay-audit's ({@code Audited}), this module
+   * keeps only what is the transformation's own: the guard above, and a monitor in a method that may suspend */
+  public interface Forbid {
+    /** what the methods {@code methods} (name and descriptor) of the class file {@code bytes} reach that the list
+     * forbids: a refusal each into {@code refused}, what is said and not refused into {@code said} */
+    void check(byte[] bytes, java.util.Set<String> methods, List<String> refused, List<String> said);
+
+    /** the list as a build names it — comma or space separated: {@code strict}, the presets named after the effects
+     * of okay.rows.std ({@code state}, {@code reader}, {@code writer}/{@code trail}, {@code clock}, {@code fresh},
+     * {@code async}, {@code io}, {@code nested-run}), {@code pure} all of them, a package ({@code java.net.*}), a
+     * class or a member ({@code java.lang.System.exit}) — checked by okay-audit; null for an empty list. Refused by
+     * name when okay-audit is not on the transformer's class path. {@code bytes}: a class file by internal name */
+    static Forbid of(String list, Function<String, byte[]> bytes) {
+      if (list == null || list.isBlank()) return null;
+      try {
+        return Audited.of(list, bytes);
+      } catch (LinkageError e) {
+        throw new IllegalStateException("okay.resumable: forbid = \"" + list.strip() + "\" is checked by okay-audit "
+            + "(io.github.okay-effects:okay-audit_3), which is not on the transformer's class path: add it, or name "
+            + "nothing to forbid", e);
+      }
     }
-    return null;
-  }
-
-  private final Map<String, List<String>> supers = new HashMap<>();
-
-  /** {@code owner} and the classes and interfaces up from it, as far as their class files are found */
-  private List<String> supers(String owner) {
-    List<String> known = supers.get(owner);
-    if (known != null) return known;
-    List<String> all = new ArrayList<>();
-    ArrayDeque<String> todo = new ArrayDeque<>(List.of(owner));
-    while (!todo.isEmpty()) {
-      String n = todo.poll();
-      if (all.contains(n)) continue;
-      all.add(n);
-      ClassModel c = model(n);
-      if (c == null) continue;
-      c.superclass().ifPresent(s -> todo.add(s.asInternalName()));
-      c.interfaces().forEach(i -> todo.add(i.asInternalName()));
-    }
-    supers.put(owner, all);
-    return all;
-  }
-
-  /** whether the static field {@code name}, found from {@code owner} up, is final; not, if it is not found */
-  private boolean finalField(String owner, String name) {
-    for (String up : supers(owner)) {
-      ClassModel c = model(up);
-      if (c == null) continue;
-      for (var f : c.fields())
-        if (f.fieldName().equalsString(name)) return f.flags().has(java.lang.reflect.AccessFlag.FINAL);
-    }
-    return false;
-  }
-
-  private static final String WORLD = ": effectful code reaches the world by its effects, whose handlers answer them";
-
-  /** what to use instead of what {@code entry} forbids, as its preset says; nothing for an entry of no preset */
-  private static String instead(String entry) {
-    String e = INSTEAD.get(entry);
-    return e == null ? "" : " — use " + e + " instead";
-  }
-
-  /** THE STRICT PRESET of forbidden APIs ({@code strict} in the list): the network, files, databases, processes,
-   * reflection and its escapes, the JVM's exit — what reaches the world other than by an effect */
-  public static final List<String> STRICT = List.of("java.net.*", "java.nio.file.*", "java.nio.channels.*",
-      "java.io.File", "java.io.FileInputStream", "java.io.FileOutputStream", "java.io.FileReader",
-      "java.io.FileWriter", "java.io.RandomAccessFile", "java.sql.*", "javax.sql.*", "java.lang.reflect.*",
-      "java.lang.invoke.MethodHandles", "java.lang.invoke.VarHandle", "sun.misc.Unsafe", "jdk.internal.*",
-      "java.lang.ProcessBuilder", "java.lang.Runtime.exec", "java.lang.Runtime.halt", "java.lang.Runtime.exit",
-      "java.lang.System.exit", "java.lang.System.load", "java.lang.System.loadLibrary", "java.lang.Class.forName",
-      "java.lang.Thread", "java.util.concurrent.Executors");
-
-  /** the entry of {@code state}: a static field that is not final, written (refused) or read (said) */
-  public static final String STATE = "state (static fields not final)";
-
-  /** a preset named after an effect of okay.rows.std: what it forbids, and what to use instead */
-  public record Preset(String instead, List<String> apis) {}
-
-  private static final String WRITE = "okay.rows.std.Writer, or okay.rows.std.Trail";
-  private static final List<String> WRITING = List.of("java.lang.System.out", "java.lang.System.err",
-      "java.lang.System.getLogger", "java.lang.Throwable.printStackTrace", "java.util.logging.*", "org.slf4j.*",
-      "org.apache.logging.log4j.*", "org.apache.log4j.*");
-
-  /** THE PRESETS NAMED AFTER THE EFFECTS OF okay.rows.std, each forbidding the ambient way of doing what the effect
-   * does, its message naming the effect to use instead; {@code pure} in a list is all of them */
-  public static final Map<String, Preset> PRESETS = presets();
-
-  private static Map<String, Preset> presets() {
-    Map<String, Preset> p = new java.util.LinkedHashMap<>();
-    p.put("state", new Preset("okay.rows.std.State (or a handler in place)", List.of(STATE)));
-    p.put("reader", new Preset("okay.rows.std.Reader", List.of("java.lang.System.getenv",
-        "java.lang.System.getProperty", "java.lang.System.getProperties", "java.lang.System.setProperty",
-        "java.lang.Integer.getInteger", "java.lang.Long.getLong", "java.lang.Boolean.getBoolean")));
-    p.put("writer", new Preset(WRITE, WRITING));
-    p.put("trail", new Preset(WRITE, WRITING));
-    p.put("clock", new Preset("okay.rows.std.Clock", List.of("java.lang.System.currentTimeMillis",
-        "java.lang.System.nanoTime", "java.time.Instant.now", "java.time.LocalDate.now", "java.time.LocalTime.now",
-        "java.time.LocalDateTime.now", "java.time.ZonedDateTime.now", "java.time.OffsetDateTime.now",
-        "java.time.OffsetTime.now", "java.time.Year.now", "java.time.YearMonth.now", "java.time.MonthDay.now",
-        "java.time.Clock.system", "java.time.Clock.systemUTC", "java.time.Clock.systemDefaultZone",
-        "java.time.InstantSource.system")));
-    p.put("fresh", new Preset("okay.rows.std.Fresh", List.of("java.util.UUID.randomUUID", "java.util.Random",
-        "java.util.SplittableRandom", "java.util.concurrent.ThreadLocalRandom", "java.security.SecureRandom",
-        "java.util.random.*", "java.lang.Math.random", "java.lang.StrictMath.random")));
-    p.put("async", new Preset("okay.rows.std.Async", List.of("java.lang.Thread", "java.lang.ThreadGroup",
-        "java.util.concurrent.ExecutorService", "java.util.concurrent.Executors", "java.util.concurrent.ForkJoinPool",
-        "java.util.concurrent.CompletableFuture", "java.util.Timer", "java.lang.Object.wait",
-        "java.lang.Object.notify", "java.lang.Object.notifyAll")));
-    p.put("io", new Preset("an effect of your own, whose handler does it", List.of("java.io.File",
-        "java.io.FileInputStream", "java.io.FileOutputStream", "java.io.FileReader", "java.io.FileWriter",
-        "java.io.RandomAccessFile", "java.nio.file.*", "java.nio.channels.*", "java.net.*", "java.sql.*",
-        "javax.sql.*")));
-    p.put("nested-run", new Preset("Direct.row(..).embed(..), the sub-program's handlers inside it (installing a "
-        + "handler is allowed; running a program to its end, here, is not)", List.of("okay.rows.Effects.run",
-        "okay.rows.Effects.step", "okay.rows.std.Async.start", "okay.rows.std.Async.toFuture",
-        "okay.rows.std.Async.runBlocking", "okay.rows.std.Emit.pull", "okay.core.Eff.run", "okay.core.Kernel.run",
-        "okay.direct.Effects", "okay.direct.MultiEffects")));
-    return java.util.Collections.unmodifiableMap(p);
-  }
-
-  /** what to use instead of each entry of a preset: the first preset's that has it */
-  private static final Map<String, String> INSTEAD = new HashMap<>();
-
-  static {
-    for (Preset p : PRESETS.values()) for (String a : p.apis()) INSTEAD.putIfAbsent(a, p.instead());
-  }
-
-  /** a list as a build gives it — comma or space separated; {@code strict}, a preset named after an effect of
-   * okay.rows.std ({@link #PRESETS}), {@code pure} all of those — made the entries */
-  public static List<String> forbidden(String list) {
-    List<String> all = new ArrayList<>();
-    for (String s : list.split("[,\\s]+")) {
-      if (s.isBlank()) continue;
-      if (s.equals("strict")) all.addAll(STRICT);
-      else if (s.equals("pure")) PRESETS.values().forEach(p -> all.addAll(p.apis()));
-      else if (PRESETS.containsKey(s)) all.addAll(PRESETS.get(s).apis());
-      else all.add(s);
-    }
-    return List.copyOf(new java.util.LinkedHashSet<>(all));
   }
 
   private static String simple(String internal) {
