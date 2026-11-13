@@ -313,7 +313,7 @@ intercept(Counter.class, Direct.row(Counter.class, Log.class).handler(
   suspension of the body (measured below). The clause's own operations of a handler declared `Once` outside it are
   asked from the clause's stack the same way. A clause does not run on a continuation of its own: one made for each
   clause, run inside the body's, measured 20 times slower than its saved frames (8.2 µs against 0.4 µs an operation,
-  `bench.d/2026-11-13_resumable-3.txt`).
+  measured on this branch; that log was lost in a container restart).
 - **Tail position.** The transformation marks a call whose value is only returned: followed on the stack or into one
   local — a cast, an unboxing or a boxing, a jump, a store to a local and that local's load, then a return. So
   `return k.resume(..)`, `var r = k.resume(..); return r;`, a ternary's arms, a switch's value kept in a local and
@@ -566,6 +566,11 @@ the first measurements: `bench.d/2026-11-12_resumable.txt`):
 Before these changes: path 2 cost 226 at one frame and 277 at ten, path 3 249 and 858, the choice 95.9, the state
 loop 8.9.
 
+Against 70c03b7, the branch's base, each run beside one of it (`bench.d/2026-11-13_resumable-3.txt`, medians of
+three, ns): a state written as a direct-style handler 114 → 72, a direct-style interceptor asking a handler declared
+`Once` 259 → 180 (both asked from the body's stack now); the rest within the noise of a loaded machine (okay-direct's
+own lane, the same code on both sides, moved by 19%), path 3 at one frame at its edge (59 → 72).
+
 - **A call that never suspends** costs nothing measurable: 1.25 ns for a transformed method, 1.25 ns for the same
   method untransformed.
 - **Path 2** costs about okay.rows' own operation when the clause resumes at once: nothing yields, at any depth. When
@@ -586,10 +591,11 @@ loop 8.9.
   is no Throwable ("exception method": the effect's own `Counter.get()`, the operation's constructor), and
   `Throwable`'s constructor is too large for its inlining limits, so the operation always escapes and escape analysis
   cannot remove it — not with larger limits (`-XX:MaxInlineSize=200`), not with the operation made in the program
-  itself (`stateDirectInPlacePerformedHere`), not with okay.rows' cell keeping no reference to it (measured,
-  `bench.d/2026-11-13_resumable-3.txt`). Only an operation that is no Throwable would avoid it, and that is the
-  `throws` checking the API is built on. A transformation that shared one object for each operation without fields
-  would save a part of it, at the cost of every perform of `new Get()` being the same object; it is not done.
+  itself (`stateDirectInPlacePerformedHere`), not with okay.rows' cell keeping no reference to it (measured on
+  this branch; that log was lost in a container restart). Only an operation that is no Throwable would avoid it,
+  and that is the `throws` checking the API is built on. A transformation that shared one object for each operation
+  without fields would save a part of it, at the cost of every perform of `new Get()` being the same object; it is
+  not done.
 - A `finally` block that performs while its frames are unwound is refused.
 - A direct-style clause runs on saved frames, never on a continuation of its own (measured 20 times slower): an
   effect of a handler declared `Once` it performs is answered on its stack when that handler resumes at once, and

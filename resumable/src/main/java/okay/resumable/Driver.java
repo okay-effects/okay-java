@@ -159,8 +159,9 @@ final class Driver {
 
   /** A DIRECT-STYLE CLAUSE as a program of the row outside its handler, {@code p}'s: run as a body is, on saved
    * frames — not on the JVM's continuation: one made for each clause, run inside the body's, cost 20 times what
-   * the saved frames do (bench.d/2026-11-13_resumable-3.txt). Its operations of a handler declared Once are asked
-   * from its stack all the same; its {@code k.resume} saves its frames while the rest of the handled program runs */
+   * the saved frames do (measured on this branch; the log was lost). Its operations of a handler declared Once are
+   * asked from its stack all the same; its {@code k.resume} saves its frames while the rest of the handled program
+   * runs */
   @SuppressWarnings("unchecked") // the row is types only: the handler was made for the row its caller named
   static <B, R> Comp<B, R> clause(Prog p, Run body, Entry entry) {
     return (Comp<B, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, entry));
@@ -198,8 +199,8 @@ final class Driver {
 
   /** A SUB-PROGRAM RUN AS A PART OF THE PROGRAM THAT CALLS IT ({@code Direct.row(..).embed}), its handlers inside it:
    * the caller's frames saved, the sub-program run in their place — no nested run: its operations that leave it go
-   * to the program's handlers — and they are resumed with its value. Its row, {@code row}, is the program's or some of
-   * its places in the same order: a place put for each other one. Refused where no program runs */
+   * to the program's handlers — and they are resumed with its value. Its row, {@code row}, is the program's or
+   * some of its places in the same order: a place put for each other one. Refused where no program runs */
   @SuppressWarnings("unchecked") // the value is the sub-program's A, as the caller's embed says
   static <T> T embed(Class<?>[] row, Comp<?, ?> sub) {
     Ctx c = CTX.get();
