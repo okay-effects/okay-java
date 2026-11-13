@@ -183,4 +183,185 @@ class GuardTest {
     assertEquals("com.acme.Bank", f.getLast());
     assertTrue(Transformer.forbidden("  ").isEmpty());
   }
+  static final String AMBIENT = """
+      import okay.resumable.Counter;
+      import okay.resumable.Direct;
+
+      class Ambient {
+        static int count;
+        static final java.util.List<String> NAMES = java.util.List.of("a");
+        static final Object LOCK = new Object();
+        static final class Worker extends Thread {}
+
+        static int state() throws Counter {
+          count = Counter.get();
+          return count + NAMES.size();
+        }
+        static String reader() throws Counter {
+          Counter.get();
+          return System.getenv("HOME") + System.getProperty("user.dir");
+        }
+        static void writer() throws Counter {
+          System.out.println(Counter.get());
+          java.util.logging.Logger.getLogger("x").info("y");
+        }
+        static long clock() throws Counter {
+          Counter.get();
+          return System.nanoTime() + java.time.Instant.now().getNano() + java.time.LocalDate.now().getDayOfMonth();
+        }
+        static long fresh() throws Counter {
+          Counter.get();
+          return java.util.UUID.randomUUID().hashCode() + new java.util.Random().nextInt()
+              + java.util.concurrent.ThreadLocalRandom.current().nextInt();
+        }
+        static void async() throws Exception, Counter {
+          Counter.get();
+          Thread.sleep(1);
+          new Worker().start();
+          java.util.concurrent.CompletableFuture.runAsync(() -> {});
+          LOCK.notify();
+          String s = "s";
+          s.wait(1);
+        }
+        static Object io() throws Exception, Counter {
+          Counter.get();
+          java.nio.file.Files.readString(java.nio.file.Path.of("x"));
+          return new java.io.FileInputStream("x");
+        }
+        static int nested() throws Counter {
+          return okay.rows.Effects.run(okay.rows.Effects.pure(Counter.get()));
+        }
+        static int installs() throws Counter {
+          return Direct.row(Counter.class).embed(Counter.run(Counter.get(),
+              Direct.row(Counter.class, Counter.class).of(() -> 1))).value() + NAMES.size();
+        }
+        static int clean() throws Counter {
+          java.util.List<Integer> l = new java.util.ArrayList<>(NAMES.size());
+          l.add(Counter.get());
+          return Math.max(l.size(), 2);
+        }
+        static void notEffectful() throws Exception {
+          count = 1;
+          System.out.println(System.nanoTime() + " " + java.util.UUID.randomUUID());
+          new java.io.FileInputStream("x").close();
+          okay.rows.Effects.run(okay.rows.Effects.pure(1));
+        }
+      }
+      """;
+
+  static Path ambientDir;
+
+  /** Ambient compiled, once: its classes beside the module's */
+  static byte[] ambient() throws IOException {
+    if (ambientDir == null) {
+      Path dir = Files.createTempDirectory("ambient");
+      Path src = dir.resolve("Ambient.java");
+      Files.writeString(src, AMBIENT);
+      assertEquals(0, javax.tools.ToolProvider.getSystemJavaCompiler().run(null, null, null, "-cp",
+          System.getProperty("java.class.path"), "-d", dir.toString(), src.toString()));
+      ambientDir = dir;
+    }
+    return Files.readAllBytes(ambientDir.resolve("Ambient.class"));
+  }
+
+  static byte[] ambientBytes(String name) {
+    try {
+      Path f = ambientDir.resolve(name + ".class");
+      return Files.exists(f) ? Files.readAllBytes(f) : bytes(name);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /** what {@code list} refuses in Ambient, the guard off: one line each */
+  static List<String> refused(String list) throws IOException {
+    byte[] ambient = ambient();
+    var e = assertThrows(Transformer.Refused.class,
+        () -> new Transformer(GuardTest::ambientBytes, Transformer.Guard.OFF, Transformer.forbidden(list), w -> {})
+            .transform(ambient));
+    return e.getMessage().lines().toList();
+  }
+
+  static void has(List<String> lines, String method, String what, String instead) {
+    assertTrue(lines.stream().anyMatch(l -> l.startsWith("Ambient." + method + " (line ") && l.contains(what)
+        && l.contains(" — use " + instead)), method + ": " + what + "\n" + String.join("\n", lines));
+  }
+
+  @Test
+  void eachPresetNamedAfterAnEffectRefusesItsAmbientWayAndNamesTheEffect() throws IOException {
+    List<String> state = refused("state");
+    has(state, "state", "writes count of Ambient, a static field that is not final", "okay.rows.std.State");
+    assertEquals(1, state.size(), String.join("\n", state));
+    List<String> reader = refused("reader");
+    has(reader, "reader", "calls getenv of java.lang.System, forbidden here by java.lang.System.getenv",
+        "okay.rows.std.Reader");
+    has(reader, "reader", "calls getProperty of java.lang.System", "okay.rows.std.Reader");
+    assertEquals(2, reader.size(), String.join("\n", reader));
+    for (String w : List.of("writer", "trail")) {
+      List<String> writer = refused(w);
+      has(writer, "writer", "reads out of java.lang.System", "okay.rows.std.Writer, or okay.rows.std.Trail");
+      has(writer, "writer", "calls getLogger of java.util.logging.Logger, forbidden here by java.util.logging.*",
+          "okay.rows.std.Writer");
+      has(writer, "writer", "calls info of java.util.logging.Logger", "okay.rows.std.Writer");
+      assertEquals(3, writer.size(), String.join("\n", writer));
+    }
+    List<String> clock = refused("clock");
+    has(clock, "clock", "calls nanoTime of java.lang.System, forbidden here by java.lang.System.nanoTime",
+        "okay.rows.std.Clock");
+    has(clock, "clock", "calls now of java.time.Instant", "okay.rows.std.Clock");
+    has(clock, "clock", "calls now of java.time.LocalDate", "okay.rows.std.Clock");
+    assertEquals(3, clock.size(), String.join("\n", clock));
+    List<String> fresh = refused("fresh");
+    has(fresh, "fresh", "calls randomUUID of java.util.UUID", "okay.rows.std.Fresh");
+    has(fresh, "fresh", "constructs java.util.Random", "okay.rows.std.Fresh");
+    // a subclass: ThreadLocalRandom is a Random
+    has(fresh, "fresh", "calls current of java.util.concurrent.ThreadLocalRandom", "okay.rows.std.Fresh");
+    List<String> async = refused("async");
+    has(async, "async", "calls sleep of java.lang.Thread", "okay.rows.std.Async");
+    // a subclass of Thread, constructed and started
+    has(async, "async", "constructs Ambient$Worker, forbidden here by java.lang.Thread", "okay.rows.std.Async");
+    has(async, "async", "calls start of Ambient$Worker", "okay.rows.std.Async");
+    has(async, "async", "calls runAsync of java.util.concurrent.CompletableFuture", "okay.rows.std.Async");
+    has(async, "async", "calls notify of java.lang.Object", "okay.rows.std.Async");
+    // Object's wait, called on a String
+    has(async, "async", "calls wait of java.lang.Object, forbidden here by java.lang.Object.wait",
+        "okay.rows.std.Async");
+    List<String> io = refused("io");
+    has(io, "io", "calls readString of java.nio.file.Files, forbidden here by java.nio.file.*", "an effect of your own");
+    has(io, "io", "constructs java.io.FileInputStream", "an effect of your own");
+    List<String> nested = refused("nested-run");
+    has(nested, "nested", "calls run of okay.rows.Effects, forbidden here by okay.rows.Effects.run",
+        "Direct.row(..).embed(..)");
+    assertEquals(1, nested.size(), String.join("\n", nested));
+    // pure: all of them; and nothing of a method that installs a handler, one that is clean, one that performs
+    // nothing
+    List<String> pure = refused("pure");
+    for (String m : List.of("state", "reader", "writer", "clock", "fresh", "async", "io", "nested"))
+      assertTrue(pure.stream().anyMatch(l -> l.startsWith("Ambient." + m + " (line ")), m + "\n" + pure);
+    assertTrue(pure.stream().noneMatch(l -> l.startsWith("Ambient.installs") || l.startsWith("Ambient.clean")
+        || l.startsWith("Ambient.notEffectful")), String.join("\n", pure));
+  }
+
+  @Test
+  void aStaticFieldNotFinalReadIsSaidNotRefused() throws IOException {
+    byte[] ambient = ambient();
+    List<String> warned = new ArrayList<>();
+    var e = assertThrows(Transformer.Refused.class, () -> new Transformer(GuardTest::ambientBytes,
+        Transformer.Guard.OFF, Transformer.forbidden("state"), warned::add).transform(ambient));
+    assertEquals(1, e.getMessage().lines().count(), e.getMessage());
+    // count read, said; NAMES, final, read in state, installs and clean: nothing
+    assertEquals(1, warned.size(), String.join("\n", warned));
+    assertTrue(warned.getFirst().startsWith("okay.resumable: warning: Ambient.state (line 12) reads count of Ambient, "
+        + "a static field that is not final"), warned.getFirst());
+  }
+
+  @Test
+  void thePresetsInTheList() {
+    assertEquals(List.of("java.util.UUID.randomUUID", "java.util.Random"),
+        Transformer.forbidden("fresh").subList(0, 2));
+    List<String> pure = Transformer.forbidden("pure");
+    for (var p : Transformer.PRESETS.values()) assertTrue(pure.containsAll(p.apis()));
+    assertEquals(pure.size(), new java.util.HashSet<>(pure).size());
+    assertEquals(List.of("okay.rows.Effects.run"), Transformer.forbidden("okay.rows.Effects.run"));
+  }
 }

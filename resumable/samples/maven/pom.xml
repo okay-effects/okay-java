@@ -52,10 +52,12 @@
         <artifactId>okay-java-resumable-maven-plugin</artifactId>
         <version>0.2.0-SNAPSHOT</version>
         <!-- effectful code that reaches a handler or an effect's implementation other than to install it, or an API
-             of the strict list (the network, files, processes, reflection, ..): refused at build time -->
+             of the strict list (the network, files, processes, reflection, ..), or the ambient way of doing what an
+             effect of okay.rows.std does (pure: state, reader, writer, clock, fresh, async, io, a nested run):
+             refused at build time -->
         <configuration>
           <guard>error</guard>
-          <forbid>strict</forbid>
+          <forbid>strict, pure</forbid>
         </configuration>
         <executions>
           <execution>
