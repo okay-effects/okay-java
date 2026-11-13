@@ -327,7 +327,8 @@ class GuardTest {
     has(async, "async", "calls wait of java.lang.Object, forbidden here by java.lang.Object.wait",
         "okay.rows.std.Async");
     List<String> io = refused("io");
-    has(io, "io", "calls readString of java.nio.file.Files, forbidden here by java.nio.file.*", "an effect of your own");
+    has(io, "io", "calls readString of java.nio.file.Files, forbidden here by java.nio.file.*",
+        "an effect of your own");
     has(io, "io", "constructs java.io.FileInputStream", "an effect of your own");
     List<String> nested = refused("nested-run");
     has(nested, "nested", "calls run of okay.rows.Effects, forbidden here by okay.rows.Effects.run",
