@@ -12,6 +12,7 @@ java {
 repositories {
     mavenLocal() // okay-kernel-api, okay-java's one dependency, as okay-java's build finds it
     mavenCentral()
+    maven("https://okay-effects.github.io/okay/maven") // okay-audit, the check of forbid
 }
 
 dependencies {

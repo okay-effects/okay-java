@@ -26,6 +26,11 @@
       <id>okay-java-resumable-build</id>
       <url>${okay.repo}</url>
     </pluginRepository>
+    <!-- okay-audit, the plugin's check of forbid: okay's Maven repository on GitHub Pages -->
+    <pluginRepository>
+      <id>okay</id>
+      <url>https://okay-effects.github.io/okay/maven</url>
+    </pluginRepository>
   </pluginRepositories>
 
   <dependencies>

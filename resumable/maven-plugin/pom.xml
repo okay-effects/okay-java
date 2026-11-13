@@ -24,6 +24,11 @@
       <id>okay-java-resumable-build</id>
       <url>${okay.repo}</url>
     </repository>
+    <!-- okay-audit: okay's Maven repository on GitHub Pages -->
+    <repository>
+      <id>okay</id>
+      <url>https://okay-effects.github.io/okay/maven</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -32,12 +37,12 @@
       <artifactId>okay-java-resumable</artifactId>
       <version>0.2.0-SNAPSHOT</version>
     </dependency>
-    <!-- okay-audit checks the APIs effectful code may not use (forbid); from the same repository directory, copied
-         there from ~/.m2, where okay's `okayAudit/publishM2` puts it -->
+    <!-- okay-audit checks the APIs effectful code may not use (forbid); released in okay's Maven repository on
+         GitHub Pages -->
     <dependency>
       <groupId>io.github.okay-effects</groupId>
       <artifactId>okay-audit_3</artifactId>
-      <version>0.2.0-SNAPSHOT</version>
+      <version>0.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
