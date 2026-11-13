@@ -262,6 +262,210 @@ public final class Direct {
     }
   }
 
+  // ---- sensitive places anywhere in a row, any number of them: Direct.row(Log.class, Direct.sensitive(Pay.class)),
+  // Direct.row(Direct.sensitive(Pay.class), Log.class, Direct.sensitive(Mail.class)). Each sensitive place is
+  // Sensitive<S, ..> in the row's type — taken by its audit only, once the places before it are handled — and the
+  // row is open after it, for its interceptor's effects
+
+  /** the row's classes, of plain places (a Class, checked) and sensitive ones */
+  private static Class<?>[] places(Object... places) {
+    Class<?>[] all = new Class<?>[places.length];
+    for (int i = 0; i < places.length; i++)
+      all[i] = places[i] instanceof SensitivePlace<?> s ? s.effect : plain((Class<?>) places[i])[0];
+    return all;
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend>
+      Places2<E1, E2, Eff<E1, Sensitive<E2, ?>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2) {
+    return new Places2<>(places(e1, e2));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend>
+      Places2<E1, E2, Sensitive<E1, ? extends Sensitive<E2, ?>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2) {
+    return new Places2<>(places(e1, e2));
+  }
+
+  /** a row of 2 places, one or more of them sensitive, its type {@code R} */
+  public static final class Places2<E1 extends Exception, E2 extends Exception,
+      R> {
+    private final Class<?>[] row;
+
+    private Places2(Class<?>[] row) { this.row = row; }
+
+    public <A> Comp<A, R> of(Body2<A, E1, E2> body) {
+      return Driver.program(row, body::run);
+    }
+  }
+
+  public static <E1 extends Suspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend>
+      Places3<E1, E2, E3, Eff<E1, Eff<E2, Sensitive<E3, ?>>>> row(
+      Class<E1> e1, Class<E2> e2, SensitivePlace<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend>
+      Places3<E1, E2, E3, Eff<E1, Sensitive<E2, ? extends Eff<E3, ?>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, Class<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend>
+      Places3<E1, E2, E3, Eff<E1, Sensitive<E2, ? extends Sensitive<E3, ?>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend>
+      Places3<E1, E2, E3, Sensitive<E1, ? extends Eff<E2, Sensitive<E3, ?>>>> row(
+      SensitivePlace<E1> e1, Class<E2> e2, SensitivePlace<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend>
+      Places3<E1, E2, E3, Sensitive<E1, ? extends Sensitive<E2, ? extends Eff<E3, ?>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, Class<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend>
+      Places3<E1, E2, E3, Sensitive<E1, ? extends Sensitive<E2, ? extends Sensitive<E3, ?>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3) {
+    return new Places3<>(places(e1, e2, e3));
+  }
+
+  /** a row of 3 places, one or more of them sensitive, its type {@code R} */
+  public static final class Places3<E1 extends Exception, E2 extends Exception, E3 extends Exception,
+      R> {
+    private final Class<?>[] row;
+
+    private Places3(Class<?>[] row) { this.row = row; }
+
+    public <A> Comp<A, R> of(Body3<A, E1, E2, E3> body) {
+      return Driver.program(row, body::run);
+    }
+  }
+
+  public static <E1 extends Suspend, E2 extends Suspend,
+      E3 extends Suspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Eff<E2, Eff<E3, Sensitive<E4, ?>>>>> row(
+      Class<E1> e1, Class<E2> e2, Class<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Eff<E2, Sensitive<E3, ? extends Eff<E4, ?>>>>> row(
+      Class<E1> e1, Class<E2> e2, SensitivePlace<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Eff<E2, Sensitive<E3, ? extends Sensitive<E4, ?>>>>> row(
+      Class<E1> e1, Class<E2> e2, SensitivePlace<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Sensitive<E2, ? extends Eff<E3, Eff<E4, ?>>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, Class<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Sensitive<E2, ? extends Eff<E3, Sensitive<E4, ?>>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, Class<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Sensitive<E2, ? extends Sensitive<E3, ? extends Eff<E4, ?>>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends Suspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Eff<E1, Sensitive<E2, ? extends Sensitive<E3, ? extends Sensitive<E4, ?>>>>> row(
+      Class<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends Suspend,
+      E3 extends Suspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Sensitive<E1, ? extends Eff<E2, Eff<E3, Sensitive<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, Class<E2> e2, Class<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4, Sensitive<E1, ? extends Eff<E2, Sensitive<E3, ? extends Eff<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, Class<E2> e2, SensitivePlace<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends Suspend,
+      E3 extends SensitiveSuspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Sensitive<E1, ? extends Eff<E2, Sensitive<E3, ? extends Sensitive<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, Class<E2> e2, SensitivePlace<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4, Sensitive<E1, ? extends Sensitive<E2, ? extends Eff<E3, Eff<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, Class<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends Suspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4, Sensitive<E1, ? extends Sensitive<E2, ? extends Eff<E3, Sensitive<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, Class<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend, E4 extends Suspend>
+      Places4<E1, E2, E3, E4,
+          Sensitive<E1, ? extends Sensitive<E2, ? extends Sensitive<E3, ? extends Eff<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3, Class<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  public static <E1 extends SensitiveSuspend, E2 extends SensitiveSuspend,
+      E3 extends SensitiveSuspend, E4 extends SensitiveSuspend>
+      Places4<E1, E2, E3, E4,
+          Sensitive<E1, ? extends Sensitive<E2, ? extends Sensitive<E3, ? extends Sensitive<E4, ?>>>>> row(
+      SensitivePlace<E1> e1, SensitivePlace<E2> e2, SensitivePlace<E3> e3, SensitivePlace<E4> e4) {
+    return new Places4<>(places(e1, e2, e3, e4));
+  }
+
+  /** a row of 4 places, one or more of them sensitive, its type {@code R} */
+  public static final class Places4<E1 extends Exception, E2 extends Exception, E3 extends Exception,
+      E4 extends Exception,
+      R> {
+    private final Class<?>[] row;
+
+    private Places4(Class<?>[] row) { this.row = row; }
+
+    public <A> Comp<A, R> of(Body4<A, E1, E2, E3, E4> body) {
+      return Driver.program(row, body::run);
+    }
+  }
+
   // ---- handlers in direct style
 
   /** What a clause that resumes the rest declares, beside the effects it performs: {@code k.resume} suspends the

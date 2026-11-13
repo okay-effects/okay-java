@@ -123,4 +123,73 @@ class SensitiveTest {
     Class<Suspend> raw = (Class) Pay.class;
     assertThrows(IllegalArgumentException.class, () -> Direct.row(raw));
   }
+
+  /** an audit that records each operation it passes, for any row outside */
+  static <A, R> Interceptor<Pay, A, R> payAudit(List<String> seen) {
+    return (op, pass, k) -> {
+      seen.add("pay " + op);
+      return switch (op) {
+        case Pay.Transfer t -> k.after(t, pass.pass(t));
+        case Pay.Balance b -> k.after(b, pass.pass(b));
+      };
+    };
+  }
+
+  static <A, R> Interceptor<Mail, A, R> mailAudit(List<String> seen) {
+    return (op, pass, k) -> {
+      seen.add("mail " + op);
+      return switch (op) {
+        case Mail.Send s -> k.after(s, pass.pass(s));
+      };
+    };
+  }
+
+  static int logThenPay() throws Log, Pay {
+    Log.tell("paying");
+    Log.tell(Pay.transfer("a", 10));
+    return Pay.balance();
+  }
+
+  @Test
+  void aSensitivePlaceAfterAPlainOne() {
+    List<String> seen = new ArrayList<>();
+    // the row Eff<Log, Sensitive<Pay, ?>>: the log handled first, then the payments under their audit
+    Comp<Integer, Eff<Log, Sensitive<Pay, ?>>> p =
+        Direct.row(Log.class, Direct.sensitive(Pay.class)).of(SensitiveTest::logThenPay);
+    // the log's operations in place; the payments never, though their bank is in place too
+    assertEquals(List.of(2, 0, 0, 2), TiersTest.taken(() -> assertEquals(
+        new Pair<>(90, new Writer.Logged<>(List.of("paying", "ok:a:10"), 90)),
+        run(Pay.bank(100, Audit.audit(SensitiveTest.<Writer.Logged<String, Integer>, Pure>payAudit(seen),
+            Log.run(p)))))));
+    assertEquals(List.of("pay Transfer(a, 10)", "pay Balance"), seen);
+  }
+
+  static String payLogMail() throws Pay, Log, Mail {
+    String paid = Pay.transfer("a", 10);
+    Log.tell(paid);
+    return Mail.send("ann") + "/" + Pay.balance();
+  }
+
+  @Test
+  void twoSensitivePlacesEachUnderItsOwnAudit() {
+    List<String> seen = new ArrayList<>();
+    List<String> sent = new ArrayList<>();
+    Comp<String, Sensitive<Pay, ? extends Eff<Log, Sensitive<Mail, ?>>>> p =
+        Direct.row(Direct.sensitive(Pay.class), Log.class, Direct.sensitive(Mail.class))
+            .of(SensitiveTest::payLogMail);
+    var r = run(Mail.outbox(sent, Audit.audit(SensitiveTest.<Writer.Logged<String, Pair<Integer, String>>, Pure>
+        mailAudit(seen), Log.run(Pay.bank(100, Audit.audit(SensitiveTest.<String, Eff<Log,
+        Sensitive<Mail, ?>>>payAudit(seen), p))))));
+    assertEquals(new Writer.Logged<>(List.of("ok:a:10"), new Pair<>(90, "sent:ann/90")), r);
+    assertEquals(List.of("pay Transfer(a, 10)", "mail Send(ann)", "pay Balance"), seen);
+    assertEquals(List.of("ann"), sent);
+  }
+
+  @Test
+  void aRawClassCannotPutASensitiveEffectAtAPlainPlaceOfAMixedRow() {
+    @SuppressWarnings({"unchecked", "rawtypes"}) // the hole the test is about: a raw Class passes javac
+    Class<Suspend> raw = (Class) Mail.class;
+    assertThrows(IllegalArgumentException.class, () -> Direct.row(Direct.sensitive(Pay.class), raw));
+    assertThrows(IllegalArgumentException.class, () -> Direct.row(raw, Direct.sensitive(Pay.class)));
+  }
 }
