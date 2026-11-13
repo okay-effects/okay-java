@@ -117,6 +117,14 @@ public final class Direct {
       return Driver.program(row, body::run);
     }
 
+    /** A SUB-PROGRAM OF THIS ROW, ITS HANDLERS INSIDE IT, run as a part of the program that calls this — no nested
+     * run: its operations that leave it go to the program's handlers, and its value is returned. A handler installed
+     * around a part of a body: {@code Direct.row(Log.class).embed(Counter.run(0, Direct.row(Counter.class, Log.class)
+     * .of(() -> ..)))}. The program's row has these effects, in this order, and may have more */
+    public <A> A embed(Comp<A, ? super Eff<E1, Pure>> sub) throws E1 {
+      return Driver.embed(row, sub);
+    }
+
     /** a handler written in direct style, its clauses performing this row's effects, outside the handler */
     public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, R>> handler(Handler1<F, A, B, E1> h) {
       return adapt(row, h, h::ret, h::on, h::mine);
@@ -130,6 +138,10 @@ public final class Direct {
 
     public <A> Comp<A, Eff<E1, Eff<E2, Pure>>> of(Body2<A, E1, E2> body) {
       return Driver.program(row, body::run);
+    }
+
+    public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Pure>>> sub) throws E1, E2 {
+      return Driver.embed(row, sub);
     }
 
     public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, R>>> handler(Handler2<F, A, B, E1, E2> h) {
@@ -146,6 +158,10 @@ public final class Direct {
       return Driver.program(row, body::run);
     }
 
+    public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Eff<E3, Pure>>>> sub) throws E1, E2, E3 {
+      return Driver.embed(row, sub);
+    }
+
     public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, Eff<E3, R>>>> handler(
         Handler3<F, A, B, E1, E2, E3> h) {
       return adapt(row, h, h::ret, h::on, h::mine);
@@ -159,6 +175,10 @@ public final class Direct {
 
     public <A> Comp<A, Eff<E1, Eff<E2, Eff<E3, Eff<E4, Pure>>>>> of(Body4<A, E1, E2, E3, E4> body) {
       return Driver.program(row, body::run);
+    }
+
+    public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Eff<E3, Eff<E4, Pure>>>>> sub) throws E1, E2, E3, E4 {
+      return Driver.embed(row, sub);
     }
 
     public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, Eff<E3, Eff<E4, R>>>>> handler(

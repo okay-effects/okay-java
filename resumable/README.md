@@ -147,15 +147,24 @@ operation goes. The probe keeps what it found for each place while the body runs
    at once, on the body's stack, by the same handler, cell and walk that an `okay.rows` operation would get. Nothing
    is thrown or captured. If anything that must see the operation stands nearer, the operation does not take this
    path: a general interceptor, an observer, an audit, or an unwinding's mark. A sensitive operation never takes it.
-2. **The handler is general and declares `okay.rows.Once`, and the JVM's continuations are exported.** The body
-   runs in a `jdk.internal.vm.Continuation`. `perform` calls the handler's clause from the body's own stack
-   (`Here.resumeHere`): the handler takes the rest, and if its clause resumes it at once (`k.resume(op, x)`, bound or
-   mapped or not), the machine puts the rest back as it was and `perform` returns `x`. Nothing yields and nothing is
-   frozen; most handlers that resume once resume so. If the clause does something first (asks an effect of its own,
-   defers, keeps `k`), the body yields with the clause's program, and the JVM freezes and thaws its frames.
-   Untransformed frames survive too. If a handler declared `Once` resumes twice, it is refused with a clear message;
-   nothing is replayed. A handler that resumes more than once must not declare `Once`. If a yield is pinned, the
-   frames are saved as in path 3.
+2. **The handler is general and declares `okay.rows.Once`, or is written in direct style.** `perform` calls the
+   handler's clause from the body's own stack (`Here.resumeHere`): the handler takes the rest, and if its clause
+   resumes it at once (`k.resume(op, x)`, bound or mapped or not), the machine puts the rest back as it was and
+   `perform` returns `x`. Nothing yields and nothing is frozen; most handlers that resume once resume so. A clause
+   written in direct style is made there too, on the body's stack, and its answer taken at once when it resumes in
+   tail position (`return k.resume(..)`): nothing of the clause is left that could resume the rest again, so this
+   holds for a handler that may resume many times. If the clause does something first (asks an effect of its own
+   that is not answered at once, defers, keeps `k`, resumes not in tail position):
+   - a body running in a `jdk.internal.vm.Continuation` (the JVM's continuations exported) under a handler declared
+     `Once` yields with the clause's program, and the JVM freezes and thaws its frames. Untransformed frames survive
+     too. If a handler declared `Once` resumes twice, it is refused with a clear message; nothing is replayed. A
+     handler that resumes more than once must not declare `Once`. If a yield is pinned, the frames are saved;
+   - otherwise (a direct-style handler, a direct-style clause asking a `Once` handler outside it, no exports) the
+     frames are saved as in path 3, and the clause's answer resumes them, as many times as it is given. If the rest
+     is unwound instead, their `finally` blocks run first.
+
+   A direct-style handler whose clauses resume otherwise more often than in tail position (a choice, a log written
+   after the rest) is no longer asked so: its operations take path 3 at once, as they would gain nothing here.
 3. **Any other handler** (general, possibly multi-shot). The frames are saved as data and re-entered.
 
 The module's tests count which way each operation went (`-Dokay.resumable.trace=true`; off, the count is compiled
@@ -198,14 +207,31 @@ or by path 2 when the interceptor declares `Once` (`Audit.audit` then declares i
 open after its effects, `Sensitive<Pay, ? extends Eff<Log, ?>>`, because an interceptor asks effects of its own
 outside the program: the trail, a failure. A plain row stays closed (`Pure`).
 
-What javac refuses (`src/test/negative/SensitiveDirect.java`, `SensitiveUndeclared.java`):
+**Any place, more than one.** A sensitive place may stand anywhere in a row, and a row may have several:
 
-- a sensitive effect at a plain place: `Direct.row(Pay.class)`, or after the sensitive one;
+```java
+// Eff<Log, Sensitive<Pay, ?>>: the log handled first, then the payments under their audit
+var p = Direct.row(Log.class, Direct.sensitive(Pay.class)).of(SensitiveTest::logThenPay);
+run(Pay.bank(100, Audit.audit(payAudit, Log.run(p))));
+
+// Sensitive<Pay, ? extends Eff<Log, Sensitive<Mail, ?>>>: each sensitive place under its own audit
+var q = Direct.row(Direct.sensitive(Pay.class), Log.class, Direct.sensitive(Mail.class)).of(..);
+run(Mail.outbox(sent, Audit.audit(mailAudit, Log.run(Pay.bank(100, Audit.audit(payAudit, q))))));
+```
+
+Each sensitive place is `Sensitive<S, ..>` in the row's type, taken by its audit once the places before it are
+handled, the row open after it; its operations are never answered in place, at any place (`SensitiveTest`). The
+overloads of `Direct.row` cover every mix of plain and sensitive places up to four.
+
+What javac refuses (`src/test/negative/SensitiveDirect.java`, `SensitivePlaces.java`, `SensitiveUndeclared.java`):
+
+- a sensitive effect at a plain place, any place: `Direct.row(Pay.class)`, `Direct.row(Log.class, Pay.class)`;
 - a plain effect as a sensitive one: `Direct.sensitive(Note.class)`;
 - a sensitive operation of a plain effect: `Direct.perform` takes a `Sensitive.Op` of a `SensitiveSuspend` only;
 - a method that performs `Pay`, or calls one that does, without declaring it;
 - the program run (`run`), handled (`handle`, `Audit.handle` without the audit), moved (`under`) or retyped to a plain
-  place (`fit`) anywhere but under its audit — the rules of `okay.rows`' `Sensitive`.
+  place (`fit`) anywhere but under its audit — the rules of `okay.rows`' `Sensitive`; at a later place, the same
+  once the places before it are handled; with two, each needs its own audit.
 
 What could still defeat it: an unchecked cast or a raw type, as in `okay.rows` itself. A raw `Comp` can be run or
 handled plainly, and the machine then gives the operation to whatever handler stands at its place. Two such holes
@@ -281,13 +307,70 @@ intercept(Counter.class, Direct.row(Counter.class, Log.class).handler(
   saved as data, the rest runs on the machine, and the frames are resumed with its result. So a clause performs and
   resumes with the Java stack of one frame at a time, and resuming twice (a choice) re-enters the clause's frames
   twice, with locals copied and objects shared, as path 3. Nothing is replayed.
-- **Tail position.** The transformation marks a call whose method only returns its value: a cast, an unboxing, a
-  jump, then a return. When every frame saved at `k.resume` is so, the clause's program is the resumption itself, and
-  nothing waits for it: nothing is kept for each operation. A general handler that resumes in tail position (the
-  state above, a stream's consumer) runs a million operations at a constant Java stack
-  (`constantStackAMillionOperationsResumedInTailPosition`). A clause that does something after `k.resume` holds its
+- **Asked from the body's stack.** A direct-style handler is asked as a handler declared `Once` is (path 2): its
+  clause is made on the body's stack, and when it resumes in tail position its answer is the operation's, the body
+  going on where it is. A state written generally costs about what the machine's own operation does, not a
+  suspension of the body (measured below). The clause's own operations of a handler declared `Once` outside it are
+  asked from the clause's stack the same way. A clause does not run on a continuation of its own: one made for each
+  clause, run inside the body's, measured 20 times slower than its saved frames (8.2 µs against 0.4 µs an operation,
+  `bench.d/2026-11-13_resumable-3.txt`).
+- **Tail position.** The transformation marks a call whose value is only returned: followed on the stack or into one
+  local — a cast, an unboxing or a boxing, a jump, a store to a local and that local's load, then a return. So
+  `return k.resume(..)`, `var r = k.resume(..); return r;`, a ternary's arms, a switch's value kept in a local and
+  returned all are; a local read for anything else first, a test, any other instruction is not (`TailTest`). When
+  every frame saved at `k.resume` is so, the clause's program is the resumption itself, and nothing waits for it:
+  nothing is kept for each operation. A general handler that resumes in tail position (the state above, a stream's
+  consumer) runs a million operations at a constant Java stack, in each of these shapes
+  (`tailPositionThroughALocalACastATernaryASwitchsLocal`). A clause that does something after `k.resume` holds its
   frames until the rest has run, as any deep handler holds its stack.
-- `k` belongs to its handler's clauses: called anywhere else, it is refused at run time.
+- **`k` is its clause's.** It is valid in its own clause, while that clause runs (resumed by a choice outside, as
+  many times as it is), on the thread that runs it. Used anywhere else it is refused at run time, saying what was
+  done: by a program's body, by a later clause of its handler (a `k` kept in a field), by a clause of another
+  handler, on another thread, after its program ended (`MisuseTest`). No program can make one.
+
+## A handler around a part of a body
+
+A body installs a handler around a part of itself with `Direct.row(..).embed(sub)`: `sub` is an `okay.rows`
+program, its handlers inside it; it runs as a part of the program that calls `embed` — not a nested run: its
+operations that leave it go to the program's handlers, and the body goes on with its value.
+
+```java
+static List<Integer> scoped() throws Counter, Log {
+  Counter.put(10);
+  Final<Integer, Integer> local = Direct.row(Log.class).embed(Counter.run(100,
+      Direct.row(Counter.class, Log.class).of(() -> {
+        Log.tell("inside, the local counter at " + Counter.get());   // 100; the log is the program's
+        Counter.put(Counter.get() + 1);
+        return Counter.get() * 2;
+      })));
+  return List.of(local.state(), local.value(), Counter.get());       // [101, 202, 10]
+}
+```
+
+- **How it runs.** The body's frames are saved at `embed`, as at a `k.resume` (path 3), the sub-program runs in
+  their place on the machine, and they are resumed with its value — once for each value a choice outside gives,
+  re-entered, not replayed. In tail position (`return Direct.row(..).embed(..)`) nothing waits: the body's program
+  is the sub-program. Overloads for rows of one to four plain effects.
+- **The row.** The row named at `embed` is the sub-program's after its handlers: the program's places, or some of
+  them in the same order. A place is put for each of the program's other places (`Here.lifted`), so each operation
+  goes to its own effect's place: `Direct.row(Input.class).embed(..)` called by a program of `Log, Counter, Input`.
+  Effects out of order, or not the program's, are refused at run time, naming both rows; `embed` where no program
+  runs is refused too (`EmbedTest`).
+- **A handler around the rest at every step.** 100 000 steps, each a counter of its own around the rest of the
+  steps, the program's own effect asked through all of them at the end: no stack overflow (the Java stack holds one
+  restored frame at a time), about 0.25 s and 95 MB of heap, against 7 ms for the same steps under one counter
+  outside them (`aHandlerReinstalledAroundTheRestAtEveryStep`). What it holds is a deep handler's: each step's
+  handler and the frame waiting for its value, until the rest has run.
+
+**A nested run is not this.** A body that runs a program itself, by a top-level runner (`Effects.run`, `step`, a std
+effect's runner), runs a separate machine: it sees only the handlers inside that run, none of the program's. A
+nested run whose program has all its handlers inside it is an ordinary function of the body: its captures, on
+every path, stay inside it, the runner's frames under them, each of three ways inside each of three outside
+(`aNestedRunWithItsHandlersInsideItIsAFunctionOfTheBody`). One whose program asks an effect only the body's program
+handles is refused, with the operation and what to do instead, whichever way the outer handler answers — from the
+body's stack, after a yield, on saved frames — and the body's `finally` blocks run; no frame is lost
+silently (`aNestedRunOfTheProgramsEffectIsRefusedOnEveryTier`). The `nested-run` preset refuses such calls at build
+time.
 
 ## The transformation
 
@@ -331,8 +414,10 @@ Felleisen, ICFP 2005), with the exception-handler capture of Sekiguchi, Sakamoto
   directly; across classes through `Resume.twin`'s call site, which falls back to the method itself where its class
   has no twin. The method itself still throws, for any other caller, so an untransformed caller still loses no frame
   silently.
-- **Tail position.** A call is marked when its method only returns its value (a cast, an unboxing, a jump, then a
-  return). A handler's clause whose saved frames are all so adds nothing to its `k.resume`.
+- **Tail position.** A call is marked when its value is only returned (a cast, an unboxing or a boxing, a jump, a
+  local stored and loaded, then a return). A handler's clause whose saved frames are all so adds nothing to its
+  `k.resume`.
+- **The guard** (off by default): see Misuse.
 - **The mark.** A transformed class is marked `@Transformed`, so it is never rewritten twice.
 
 **Refused at build time**, with the method, the line and what to change:
@@ -347,11 +432,115 @@ The agent prints these refusals on stderr and loads the class as it is.
 - `Direct.perform` called by an untransformed method. The message names the method and says how to fix the build.
 - A saved frame whose call did not call the next saved frame, directly or through a lambda: a frame in between was
   not transformed. The message names both frames.
-- A direct-style `k.resume` called outside its handler's clauses.
+- A direct-style `k.resume` or `k.unwind` called anywhere but in its own clause while that clause runs.
 - A sensitive effect's class at a plain place of a row, passed as a raw `Class`.
+- An operation that reached no handler in a program a body ran by a top-level runner (a nested run); a
+  `Direct.row(..).embed` whose effects are not the program's in order, or called where no program runs.
 
 One hole remains. An untransformed method with the same name and descriptor as the transformed method it calls is
 not detected.
+
+## Misuse: a program that reaches a handler, or the world, directly
+
+A program is meant to reach the world by performing effects, so that its handlers, interceptors and audits see
+every operation. Java does not make it: any code can call any object it can reach, and a static field is reachable
+from anywhere. What happens when a program goes around its effects (`MisuseTest`), and what guards it:
+
+- **It calls a handler's clause itself** (`handler.on(op, k)`, the handler in a static field). A program cannot make
+  a `Direct.K` (its constructor is the boundary's), so it can only pass `null` — the clause fails on it — or a `k`
+  it found. **A `k` used outside its own clause is refused at run time**, saying how: by a program's body, by a
+  later clause of its handler (a `k` kept in a field), by a clause of another handler, on another thread, after its
+  program ended. Multi-shot from a live clause stays allowed: a choice outside that resumes the clause twice
+  resumes the same `k` in each path. Before this check, a `k` kept from an earlier clause was resumed again,
+  silently, by a later one; and one resumed by a body built from the same `Direct.row(..)` object as its
+  interceptor re-entered the body without end, until the heap ran out. An `okay.rows` handler's `k` (an `okay.rows.K`)
+  has no such check: it is a value, resumable from anywhere, as `okay.rows` defines it.
+- **It changes a handler's state itself** (`handler.s = 42`). Nothing stops it at run time: no operation is
+  performed, so nothing on the way sees it — an interceptor, an observer, an audit — and a handler's fields are
+  shared by every path of a choice outside, so each path sees the others' changes. (A handler in place keeps its
+  state in its cell, per path; a cell kept in a field can be changed the same way.)
+- **It calls the effect's real implementation itself** (the bank behind the payments, reached statically). The
+  audit never sees it: its trail shows the transfers performed, and the money moved by the direct call is not on it.
+
+**At build time, the guard** (off by default) looks at every method the transformation rewrites — effectful code —
+for such calls: a handler's clause called (`on`, `ret`, `answer`, `mine` of `Direct.Handler0..4`, `Direct.InPlace`,
+okay.rows' `Handler`, `InPlace`, `Interceptor`, `Observer`), and any call to, or field of, a class that implements
+one of them or is marked `@okay.resumable.Implementation` (mark the bank so), other than to construct it — to
+install it. `warn` says each, by method and line; `error` refuses the build, as a method that cannot suspend is
+refused (`GuardTest`, over the module's own tests: only `MisuseTest`'s programs are found).
+
+**Forbidden APIs.** The same check takes a list of APIs effectful code may not use: a package and those under it
+(`java.net.*`), a class (`java.lang.ProcessBuilder`, or the bank's client), a member (`java.lang.System.exit`,
+`java.lang.Runtime.exec`). `strict` is a preset: the network, files (`java.nio.file.*`, `java.io.File*`), databases
+(`java.sql.*`), processes, reflection (`java.lang.reflect.*`, `MethodHandles`, `VarHandle`, `Class.forName`,
+`sun.misc.Unsafe`, `jdk.internal.*`), the JVM's exit and native loading, threads. Each use is refused with the
+method, the line and the entry it matched; said instead, if the guard is `warn`. Methods that perform nothing are
+not looked at: a handler and the clients it calls may use anything.
+
+**Presets named after the effects of `okay.rows.std`**, each forbidding the ambient way of doing what the effect
+does, and naming the effect to use instead in its message (`... calls nanoTime of java.lang.System, forbidden here by
+java.lang.System.nanoTime — use okay.rows.std.Clock instead`):
+
+- `state`: writing a static field that is not final (a read of one is said, not refused) — use `State`, or a
+  handler in place;
+- `reader`: `System.getenv`, `System.getProperty`/`getProperties`/`setProperty`, `Integer.getInteger` and the
+  like — use `Reader`;
+- `writer`, `trail`: `System.out`, `System.err`, `System.getLogger`, `printStackTrace`, `java.util.logging`, SLF4J,
+  Log4j — use `Writer` or `Trail`;
+- `clock`: `System.currentTimeMillis`, `nanoTime`, `Instant.now` and the other `now`s, `Clock.system*` — use
+  `Clock`;
+- `fresh`: `UUID.randomUUID`, `Random`, `SplittableRandom`, `ThreadLocalRandom`, `SecureRandom`, `Math.random` —
+  use `Fresh`;
+- `async`: `Thread`, `ExecutorService`, `Executors`, `ForkJoinPool`, `CompletableFuture`, `Timer`, `Object.wait`,
+  `notify` — use `Async`;
+- `io`: `java.io`'s file streams, `java.nio.file`, `.channels`, `java.net`, `java.sql` — an effect of your own;
+- `nested-run`: running a program to its end — `Effects.run`, `Effects.step`, `Async.runBlocking`/`toFuture`/
+  `start`, `Emit.pull`, okay.core's `run`, okay-direct's `Effects` — use `Direct.row(..).embed(..)` (below);
+- `pure`: all of them.
+
+A class or a member is matched up the owner's classes and interfaces: a subclass of `Thread` is a `Thread`,
+`ThreadLocalRandom` is a `Random`, a `wait` on any object is `Object.wait` (`GuardTest`, positive and negative for
+each preset: a method that installs a handler, a clean one, one that performs nothing are not refused). Installing a
+handler (`handle`, `intercept`, `Counter.run(..)`) stays allowed under `nested-run`. A monitor (`synchronized`) needs
+no preset: a method that may suspend is refused one by the transformation, as a monitor cannot be saved. Each
+instruction is looked at alone, in the method that performs: a method that performs nothing, called by one that
+does, is not followed. A check over the call graph would take the same entries; it is not built.
+
+
+```kotlin
+okayResumable { guard = "error"; forbid = "strict, pure, com.acme.bank.Client" }   // Gradle
+```
+```xml
+<configuration><guard>error</guard><forbid>strict, pure, com.acme.bank.Client</forbid></configuration>  <!-- Maven -->
+```
+
+(`-Dokay.resumable.guard` and `-Dokay.resumable.forbid` for the agent of `java -jar`.) The samples build so.
+
+**The strongest prevention is the module system.** Put the effect, its operations and the way to install its
+handler in an exported package, and the handler and the real client in one that is neither exported nor opened to
+the modules of programs (`src/test/jpms`):
+
+```java
+module payments {
+  requires transitive okay.java;
+  requires transitive okay.java.resumable;
+  exports payments;            // Pay, its operations, Pay.banked(..) that installs the bank's handler
+}                              // payments.bank — Bank, Banking — not exported, not opened
+module shop { requires payments; }
+```
+
+A program in `shop` that names `payments.bank.Bank` does not compile ("package payments.bank is not visible"), and
+reflection from outside cannot reach it either: no call, no field, no `setAccessible`, no private lookup
+(`JpmsTest`).
+
+**What Java cannot prevent.** Java has ambient authority: any code may call any static method, read any static
+field, open a socket or a file, start a thread, unless something outside the code forbids it. The run-time check
+covers what this library hands out (`k`); the build-time guard is a check of the bytecode of effectful methods, not a
+proof: a method that performs nothing may do the forbidden thing for it, as may a lambda run by a JDK method, an
+object handed to the program as a plain interface, reflection by a name built at run time, or a class built without
+the plugin. A program can also simply be given a reference to the bank. Only the module system draws a line javac
+and the JVM both hold — and then only around what is not exported or opened, and not for code on the class path,
+where everything is one unnamed module. The Security Manager, which once could, is gone from the JDK.
 
 ## Multi-shot: what is shared and what is copied
 
@@ -392,12 +581,23 @@ loop 8.9.
 ## Limits
 
 - Effects without type arguments.
-- A sensitive effect is the first place of its row, and one only: `Direct.row(Direct.sensitive(Pay.class), ..)`.
+- Every operation is an object of a Throwable subclass: about 40 bytes (47 a state loop's operation, its boxed
+  answers included; okay-direct's records 23). C2 never inlines a method of a Throwable subclass into a caller that
+  is no Throwable ("exception method": the effect's own `Counter.get()`, the operation's constructor), and
+  `Throwable`'s constructor is too large for its inlining limits, so the operation always escapes and escape analysis
+  cannot remove it — not with larger limits (`-XX:MaxInlineSize=200`), not with the operation made in the program
+  itself (`stateDirectInPlacePerformedHere`), not with okay.rows' cell keeping no reference to it (measured,
+  `bench.d/2026-11-13_resumable-3.txt`). Only an operation that is no Throwable would avoid it, and that is the
+  `throws` checking the API is built on. A transformation that shared one object for each operation without fields
+  would save a part of it, at the cost of every perform of `new Get()` being the same object; it is not done.
 - A `finally` block that performs while its frames are unwound is refused.
-- A direct-style clause runs on saved frames (path 3): an effect it performs of a handler declared `Once` is not
-  answered on its stack, as a body's would be. An operation of a direct-style general handler suspends the body.
-- A direct-style handler's clause is recognized as resuming in tail position only by `return k.resume(..)` (or
-  `yield` in a switch that is returned), not through a local.
+- A direct-style clause runs on saved frames, never on a continuation of its own (measured 20 times slower): an
+  effect of a handler declared `Once` it performs is answered on its stack when that handler resumes at once, and
+  its frames are saved when it does not.
+- A yield on the JVM's continuation is mostly the JVM's freezing and thawing; on this machine about half of it is
+  `pthread_jit_write_protect_np`. Beside okay-direct's lane, ours also runs the okay.rows machine for a clause that
+  defers, which okay-direct's handler does not do.
+- The guards: see Misuse — what Java cannot prevent there.
 - Java classes only.
 - Locals are copied per path; the objects they refer to are shared.
 - Constructors, static initializers and `synchronized` cannot suspend.

@@ -6,6 +6,7 @@ import okay.rows.Audit;
 import okay.rows.Comp;
 import okay.rows.Effects;
 import okay.rows.Here;
+import okay.rows.NoHandler;
 import okay.rows.Op;
 import okay.rows.Sensitive;
 
@@ -167,7 +168,7 @@ final class Driver {
 
   /** what a clause's {@code k.resume} or {@code k.unwind} asks: the rest of the handled program, as okay.rows gives
    * it, run outside the handler — its value the clause's answer */
-  record Await(Comp<Object, Object> rest) {}
+  record Await(Comp<Object, Object> rest, boolean resumes) {}
 
   /** whether {@code k} may be used here: by its own clause only, while it runs, on its thread — refused otherwise,
    * with what was done */
@@ -192,7 +193,40 @@ final class Driver {
    * run, they are resumed with its value */
   @SuppressWarnings("unchecked") // the rest's value is the clause's B, its row the handler's: rows are types only
   static <T> T await(Comp<?, ?> rest) {
-    throw new Capture(new Await((Comp<Object, Object>) rest));
+    throw new Capture(new Await((Comp<Object, Object>) rest, true));
+  }
+
+  /** A SUB-PROGRAM RUN AS A PART OF THE PROGRAM THAT CALLS IT ({@code Direct.row(..).embed}), its handlers inside it:
+   * the caller's frames saved, the sub-program run in their place — no nested run: its operations that leave it go
+   * to the program's handlers — and they are resumed with its value. Its row, {@code row}, is the program's or some of
+   * its places in the same order: a place put for each other one. Refused where no program runs */
+  @SuppressWarnings("unchecked") // the value is the sub-program's A, as the caller's embed says
+  static <T> T embed(Class<?>[] row, Comp<?, ?> sub) {
+    Ctx c = CTX.get();
+    if (c == null) throw new IllegalStateException("okay.resumable: Direct.row(..).embed was called where no program "
+        + "runs: it runs a sub-program as a part of the program that calls it — call it from a program's body or a "
+        + "direct-style clause; a program by itself is run by Effects.run");
+    throw new Capture(new Await(fitted(row, c.prog().row, (Comp<Object, Object>) sub), false));
+  }
+
+  /** {@code sub}, of the places {@code row}, made a program of {@code in}: a place put for each place of {@code in}
+   * that {@code row} has not, so that each of its operations goes to its own effect's place */
+  private static Comp<Object, Object> fitted(Class<?>[] row, Class<?>[] in, Comp<Object, Object> sub) {
+    int j = 0;
+    for (int i = 0; i < in.length && j < row.length; i++) {
+      if (in[i] == row[j]) j++;
+      else sub = Here.lifted(sub, i);
+    }
+    if (j < row.length) throw new IllegalStateException("okay.resumable: Direct.row(" + names(row) + ").embed was "
+        + "called by a program of the row (" + names(in) + "): the sub-program's effects must be the program's, in "
+        + "the same order");
+    return sub;
+  }
+
+  private static String names(Class<?>[] row) {
+    StringBuilder s = new StringBuilder();
+    for (Class<?> c : row) s.append(s.isEmpty() ? "" : ", ").append(c.getSimpleName()).append(".class");
+    return s.toString();
   }
 
   private static Comp<Object, Object> start(Prog p, Run body, Here h, Entry entry) {
@@ -208,11 +242,21 @@ final class Driver {
     } catch (Suspend | SensitiveSuspend s) {
       throw thrown(s);
     } catch (Exception e) {
-      throw sneaky(e);
+      throw sneaky(nested(e));
     } finally {
       CTX.set(outer);
     }
     return Effects.pure(a);
+  }
+
+  /** what leaves a body: an operation that reached no handler ({@code NoHandler}) came out of a program the body ran
+   * by itself, to its end, by a top-level runner — a nested run, which sees only the handlers inside it. Said so */
+  private static Throwable nested(Throwable t) {
+    if (!(t instanceof NoHandler n)) return t;
+    return new IllegalStateException("okay.resumable: " + n.op + " reached no handler: the program that asked it was "
+        + "run inside a program's body, which ran a program by a top-level runner (Effects.run, Effects.step, a std "
+        + "effect's runner): a nested run sees only the handlers inside it, not the program's. Run the part with "
+        + "Direct.row(..).embed(..) instead, its handlers inside it, or perform the effect in the body itself", n);
   }
 
   private static IllegalStateException thrown(Throwable s) {
@@ -231,7 +275,7 @@ final class Driver {
         return suspended(p, c, null, r);
       }
       if (r.failure instanceof Suspend || r.failure instanceof SensitiveSuspend) throw thrown(r.failure);
-      if (r.failure != null) throw sneaky(r.failure);
+      if (r.failure != null) throw sneaky(nested(r.failure));
       return Effects.pure(r.value);
     }
     Comp<Object, Object> next = r.pending;
@@ -352,7 +396,7 @@ final class Driver {
       // a clause's k.resume: in tail position, the clause's program is the resumption itself — nothing waits
       // for it, so a handler that resumes so adds nothing for each operation
       boolean tails = rest.tails;
-      if (p instanceof Direct.K<?> k) k.handler.resumed(tails);
+      if (a.resumes() && p instanceof Direct.K<?> k) k.handler.resumed(tails);
       if (tails) {
         if (TRACE) TAILS++;
         return a.rest();
@@ -400,7 +444,7 @@ final class Driver {
         }
         if (v instanceof Capture cap) return suspended(p, cap, f.next, null);
       }
-      if (t != null) throw Driver.<RuntimeException>sneaky(t);
+      if (t != null) throw Driver.<RuntimeException>sneaky(nested(t));
       return Effects.pure(v);
     } finally {
       CTX.set(outer);

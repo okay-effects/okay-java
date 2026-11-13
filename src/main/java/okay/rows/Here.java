@@ -34,6 +34,13 @@ public final class Here {
     return new Comp<>(Comp.DOOR.here(p -> body.apply(new Here(p)).eff));
   }
 
+  /** {@code c} with one more place put at {@code place} of its row: its operations at that place or further go one
+   * handler further out, the others where they would — {@link Effects#up} at 0, {@link Effects#under} at 1. For
+   * okay-java-resumable: a sub-program of a shorter row run as a part of a program of a longer one */
+  public static <A> Comp<A, Object> lifted(Comp<A, ?> c, int place) {
+    return new Comp<>(Comp.DOOR.lift(c.eff, place));
+  }
+
   /** the answer to {@code op}, an operation of the effect {@code place} places along the row, if its handler is in
    * place; else {@link #ONCE} or {@link #ELSEWHERE}. A sensitive operation is never answered here: it is not an
    * {@code Op} */
