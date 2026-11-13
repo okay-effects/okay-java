@@ -363,14 +363,16 @@ static List<Integer> scoped() throws Counter, Log {
   handler and the frame waiting for its value, until the rest has run.
 
 **A nested run is not this.** A body that runs a program itself, by a top-level runner (`Effects.run`, `step`, a std
-effect's runner), runs a separate machine: it sees only the handlers inside that run, none of the program's. A
-nested run whose program has all its handlers inside it is an ordinary function of the body: its captures, on
-every path, stay inside it, the runner's frames under them, each of three ways inside each of three outside
-(`aNestedRunWithItsHandlersInsideItIsAFunctionOfTheBody`). One whose program asks an effect only the body's program
-handles is refused, with the operation and what to do instead, whichever way the outer handler answers — from the
-body's stack, after a yield, on saved frames — and the body's `finally` blocks run; no frame is lost
-silently (`aNestedRunOfTheProgramsEffectIsRefusedOnEveryTier`). The `nested-run` preset refuses such calls at build
-time.
+effect's runner), would run a separate machine on its stack: one that sees only the handlers inside it, none of the
+program's. It is refused at once, before its first step (`NestedRun`, okay-java's, on every tier, after a
+resumption on another thread too — [the README](../README.md#one-run-a-thread-nestedrun), `NestedRunLoomTest`). Run
+on purpose as a run of its own (`Effects.runIsolated`), a nested run whose program has all its handlers inside it is an
+ordinary function of the body: its captures, on every path, stay inside it, the runner's frames under them, each of
+three ways inside each of three outside (`aNestedRunWithItsHandlersInsideItIsAFunctionOfTheBody`). One whose program
+asks an effect only the body's program handles is refused, with the operation and what to do instead, whichever way
+the outer handler answers — from the body's stack, after a yield, on saved frames — and the body's `finally` blocks
+run; no frame is lost silently (`aNestedRunOfTheProgramsEffectIsRefusedOnEveryTier`). The `nested-run` preset
+refuses such calls at build time.
 
 ## The transformation
 
@@ -434,7 +436,8 @@ The agent prints these refusals on stderr and loads the class as it is.
   not transformed. The message names both frames.
 - A direct-style `k.resume` or `k.unwind` called anywhere but in its own clause while that clause runs.
 - A sensitive effect's class at a plain place of a row, passed as a raw `Class`.
-- An operation that reached no handler in a program a body ran by a top-level runner (a nested run); a
+- A program run by a body by a top-level runner (`NestedRun`, at once); an operation that reached no handler in a
+  program a body ran on purpose as a run of its own (`Effects.runIsolated`); a
   `Direct.row(..).embed` whose effects are not the program's in order, or called where no program runs.
 
 One hole remains. An untransformed method with the same name and descriptor as the transformed method it calls is

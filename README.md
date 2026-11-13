@@ -203,6 +203,41 @@ Moving anything outward does not compile.
 The types already caught one leak in the old tests: a Reader's capability used inside a separate async run, at the
 top, outside the reader. With an answering capability there was no prompt to notice it.
 
+## One run a thread: `NestedRun`
+
+A top-level runner — `okay.rows.Effects.run` and `step`, `okay.core.Eff.run`, `Kernel.run`,
+`okay.rows.std.Async.runBlocking` — is for the host: `main`, a test, a request handler that runs a program to its
+end. Called INSIDE a running program — from a `flatMap`, a `map`, a `defer`, a handler's clause — it would start a
+second machine on the Java stack: that run sees none of the program's handlers, a capture cannot cross it, and done at
+each step of a loop it overflows the stack (1000 steps under `-Xss512k`). So it is refused, at once, before its first
+step: `okay.core.NestedRun`, with what to do instead.
+
+```java
+// refused: a run of its own at each step
+static Comp<Integer, Pure> sum(int i) {
+  return i == 0 ? pure(0) : Effects.<Integer, Pure>pure(1).flatMap(x -> pure(x + run(sum(i - 1))));
+}
+// the handler installed as a part of the program: State.run(s0, p) is a program — flatMap it
+static Comp<Integer, Pure> each(int i, int acc) {
+  return i == 0 ? pure(acc) : State.run(0, counting(3)).flatMap(f -> each(i - 1, acc + f.state()));
+}
+```
+
+What is a run of its own on purpose — a conversion, a pure helper evaluated whole — says so:
+`Effects.runIsolated(p)`, `Effects.stepIsolated(p)`, `Eff.runIsolated(p)` run it inside a running program too, a
+plain run inside it refused again. The library's own runs of their own do: `Async.start` and `toFuture` (a run started
+by a step — `both`, `race` start theirs inside a wait's registration — and resumed by a callback, wherever it is
+called), `Emit.pull` (`zip`, `merge` pull inside a program), okay.std's `runAsync` and `Emit.iterator`, and the
+kernel's export and import (an imported computation steps inside the importing machine). In okay-java-resumable a
+part of a body with its handlers inside it is `Direct.row(..).embed(..)`, no nested run
+([resumable/README.md](resumable/README.md)).
+
+The mark is the thread's (a `ThreadLocal`, read once and written twice a run, never a step: no cost measured). A run
+on another thread — a platform one, a virtual one, a pool's, a program resumed there by a callback — is a run of its
+own and goes on. A body on the JVM's continuation (okay-java-resumable's second tier) runs on the thread that runs
+its program: a run it begins is refused there, after a resumption on another thread too. `NestedRunTest`,
+`NestedRunLoomTest`.
+
 ## Failures
 
 A function of the program's that throws — a bind's, a map's, a clause, a handler's return — is a failure of the
