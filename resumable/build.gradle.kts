@@ -20,10 +20,10 @@ repositories {
 }
 
 // direct-style programs made resumable (README.md): a bytecode transformation, its runtime, the boundary into
-// okay.rows. Of no dependency but okay-java; okay-audit (okay's okay-audit module, released 0.1.2 in okay's Maven
+// okay.rows. Of no dependency but okay-java; okay-audit (okay's okay-audit module, released 0.1.3 in okay's Maven
 // repository on GitHub Pages) checks what a build forbids effectful code — an optional dependency, needed on the
 // transformer's class path only when a list is named, never by a program at run time
-val okayAudit = "io.github.okay-effects:okay-audit_3:0.1.2"
+val okayAudit = "io.github.okay-effects:okay-audit_3:0.1.3"
 dependencies {
     api(rootProject)
     compileOnly(okayAudit)

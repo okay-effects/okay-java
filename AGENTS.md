@@ -156,7 +156,7 @@ plugins check effectful (transformed) methods at build time: `guard` (a handler'
 - README and docs: https://github.com/okay-effects/okay-java (docs/guide.md, docs/rows.md, resumable/README.md).
 - Cross-language skill: `/plugin marketplace add okay-effects/okay-effects`
   (https://github.com/okay-effects/okay-effects).
-- Build-time boundary checks for any JVM module: okay-audit, `io.github.okay-effects:okay-audit_3:0.1.2` from
+- Build-time boundary checks for any JVM module: okay-audit, `io.github.okay-effects:okay-audit_3:0.1.3` from
   https://okay-effects.github.io/okay/maven — business code references no network, files, time, random, threads,
   reflection; presets include `nested-run`.
 

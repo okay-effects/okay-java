@@ -502,7 +502,7 @@ ones okay-audit holds a business module to in a build of any JVM language, so a 
 Scala or Kotlin business module answer to one list (okay specs/okay-audit.md, "Consolidation"). Effectful code is
 what okay-audit calls business code, held method by method (`okay.audit.Code`); this module keeps only what is the
 transformation's own — the guard above, and the monitor below. The plugins put okay-audit on the transformer's class
-path only (resolved from the project's repositories; released as `io.github.okay-effects:okay-audit_3:0.1.2` in
+path only (resolved from the project's repositories; released as `io.github.okay-effects:okay-audit_3:0.1.3` in
 okay's Maven repository on GitHub Pages, `https://okay-effects.github.io/okay/maven`), never on the program's;
 with a list named and okay-audit absent, the build is refused by name.
 
