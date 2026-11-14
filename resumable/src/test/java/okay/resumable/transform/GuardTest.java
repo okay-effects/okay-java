@@ -243,6 +243,10 @@ class GuardTest {
           l.add(Counter.get());
           return Math.max(l.size(), 2);
         }
+        static final java.util.List<Integer> SEEN = new java.util.ArrayList<>();
+        static void held() throws Counter {
+          SEEN.add(Counter.get());
+        }
         static void notEffectful() throws Exception {
           count = 1;
           System.out.println(System.nanoTime() + " " + java.util.UUID.randomUUID());
@@ -295,7 +299,10 @@ class GuardTest {
   void eachPresetNamedAfterAnEffectRefusesItsAmbientWayAndNamesTheEffect() throws IOException {
     List<String> state = refused("state");
     has(state, "state", "writes count of Ambient, a static field that is not final", "okay.rows.std.State");
-    assertEquals(1, state.size(), String.join("\n", state));
+    // a static final list changed in place is state; clean's local list beside a read of NAMES is not (0.1.2)
+    has(state, "held", "calls add of java.util.List, Ambient.SEEN, a static field holding a mutable collection, "
+        + "forbidden here by state", "okay.rows.std.State");
+    assertEquals(2, state.size(), String.join("\n", state));
     List<String> reader = refused("reader");
     has(reader, "reader", "calls getenv of java.lang.System, forbidden here by java.lang.System.getenv",
         "okay.rows.std.Reader");
@@ -338,13 +345,18 @@ class GuardTest {
     has(nested, "nested", "calls run of okay.rows.Effects, forbidden here by okay.rows.Effects.run",
         "Direct.row(..).embed(..)");
     assertEquals(1, nested.size(), String.join("\n", nested));
-    // pure: all of them; and nothing of a method that installs a handler, one that is clean, one that performs
-    // nothing
+    // pure: all of them but nested-run (okay-audit 0.1.1: named on its own); and nothing of a method that installs a
+    // handler, one that is clean, one that performs nothing
     List<String> pure = refused("pure");
-    for (String m : List.of("state", "reader", "writer", "clock", "fresh", "async", "io", "nested"))
+    for (String m : List.of("state", "held", "reader", "writer", "clock", "fresh", "async", "io"))
       assertTrue(pure.stream().anyMatch(l -> l.startsWith("Ambient." + m + " (line ")), m + "\n" + pure);
+    assertTrue(pure.stream().noneMatch(l -> l.startsWith("Ambient.nested")), String.join("\n", pure));
     assertTrue(pure.stream().noneMatch(l -> l.startsWith("Ambient.installs") || l.startsWith("Ambient.clean")
         || l.startsWith("Ambient.notEffectful")), String.join("\n", pure));
+    // with nested-run named beside it, the nested run too
+    List<String> both = refused("pure, nested-run");
+    assertTrue(both.stream().anyMatch(l -> l.startsWith("Ambient.nested (line ")), String.join("\n", both));
+    assertEquals(pure.size() + 1, both.size(), String.join("\n", both));
   }
 
   @Test
@@ -354,7 +366,7 @@ class GuardTest {
     var e = assertThrows(Transformer.Refused.class, () -> new Transformer(GuardTest::ambientBytes,
         Transformer.Guard.OFF, Transformer.Forbid.of("state", GuardTest::ambientBytes), warned::add)
         .transform(ambient));
-    assertEquals(1, e.getMessage().lines().count(), e.getMessage());
+    assertEquals(2, e.getMessage().lines().count(), e.getMessage());   // count written, SEEN changed
     // count read, said; NAMES, final, read in state, installs and clean: nothing
     assertEquals(1, warned.size(), String.join("\n", warned));
     assertTrue(warned.getFirst().startsWith("okay.resumable: warning: Ambient.state (line 12) reads count of Ambient, "

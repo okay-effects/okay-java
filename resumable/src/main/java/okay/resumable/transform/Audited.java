@@ -39,10 +39,13 @@ final class Audited implements Transformer.Forbid {
       String api = h.rule().api();
       String use = h.rule().use().isEmpty() ? "" : " — use " + h.rule().use() + " instead";
       if (api.equals("state")) {
-        String what = h.site().op() == Site.GetField() || h.site().op() == Site.PutField()
+        // a held collection (okay-audit 0.1.2) names its field and what holds it: final or not, it is changed in place
+        boolean held = !h.holder().isEmpty();
+        String what = held ? ", " + h.holder()
+            : h.site().op() == Site.GetField() || h.site().op() == Site.PutField()
             ? ", a field of a Scala object" : ", a static field that is not final";
-        if (h.said()) said.add(h.where() + what + " (state" + use
-            + "; said, not refused: a static field nothing writes may be a constant)");
+        if (h.said()) said.add(h.where() + what + " (state" + use + "; said, not refused: "
+            + (held ? "an instance's own state" : "a static field nothing writes may be a constant") + ")");
         else refused.add(h.where() + what + ", forbidden here by state" + use + WORLD);
       } else refused.add(h.where() + ", forbidden here by " + spelled(api) + use + WORLD);
     }

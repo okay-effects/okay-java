@@ -42,7 +42,7 @@ import org.gradle.process.ExecOperations;
  * Only Java classes: Kotlin's, Scala's and Groovy's compile tasks are not followed. */
 public abstract class ResumablePlugin implements Plugin<Project> {
   /** okay-audit, which checks the APIs effectful code may not use (`forbid`) */
-  static final String AUDIT = "io.github.okay-effects:okay-audit_3:0.1.0";
+  static final String AUDIT = "io.github.okay-effects:okay-audit_3:0.1.2";
 
   static final List<String> JVM_ARGS = List.of("--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
       "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.lang=ALL-UNNAMED");

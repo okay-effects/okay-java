@@ -529,9 +529,10 @@ public final class Transformer {
 
     /** the list as a build names it — comma or space separated: {@code strict}, the presets named after the effects
      * of okay.rows.std ({@code state}, {@code reader}, {@code writer}/{@code trail}, {@code clock}, {@code fresh},
-     * {@code async}, {@code io}, {@code nested-run}), {@code pure} all of them, a package ({@code java.net.*}), a
-     * class or a member ({@code java.lang.System.exit}) — checked by okay-audit; null for an empty list. Refused by
-     * name when okay-audit is not on the transformer's class path. {@code bytes}: a class file by internal name */
+     * {@code async}, {@code io}), {@code pure} all of them, {@code nested-run} (not in {@code pure}), a package
+     * ({@code java.net.*}), a class or a member ({@code java.lang.System.exit}) — checked by okay-audit; null for an
+     * empty list. Refused by name when okay-audit is not on the transformer's class path. {@code bytes}: a class
+     * file by internal name */
     static Forbid of(String list, Function<String, byte[]> bytes) {
       if (list == null || list.isBlank()) return null;
       try {

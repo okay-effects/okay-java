@@ -502,7 +502,7 @@ ones okay-audit holds a business module to in a build of any JVM language, so a 
 Scala or Kotlin business module answer to one list (okay specs/okay-audit.md, "Consolidation"). Effectful code is
 what okay-audit calls business code, held method by method (`okay.audit.Code`); this module keeps only what is the
 transformation's own — the guard above, and the monitor below. The plugins put okay-audit on the transformer's class
-path only (resolved from the project's repositories; released as `io.github.okay-effects:okay-audit_3:0.1.0` in
+path only (resolved from the project's repositories; released as `io.github.okay-effects:okay-audit_3:0.1.2` in
 okay's Maven repository on GitHub Pages, `https://okay-effects.github.io/okay/maven`), never on the program's;
 with a list named and okay-audit absent, the build is refused by name.
 
@@ -526,7 +526,8 @@ instead`):
 - `io`: `java.io`'s file streams, `java.nio.file`, `.channels`, `java.net`, `java.sql` — an effect of your own;
 - `nested-run`: running a program to its end — `Effects.run`, `Effects.step`, `Async.runBlocking`/`toFuture`/
   `start`, `Emit.pull`, okay.core's `run`, okay-direct's `Effects` — use `Direct.row(..).embed(..)` (below);
-- `pure`: all of them.
+- `pure`: all of them but `nested-run`, which is named on its own (since okay-audit 0.1.1: whether a run's program
+  is closed cannot be told from bytecode, so a nested run is not part of `pure`).
 
 A class or a member is matched up the owner's classes and interfaces: a subclass of `Thread` is a `Thread`,
 `ThreadLocalRandom` is a `Random`, a `wait` on any object is `Object.wait` (`GuardTest`, positive and negative for
