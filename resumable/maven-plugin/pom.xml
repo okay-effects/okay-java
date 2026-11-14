@@ -96,7 +96,7 @@
     <dependency>
       <groupId>io.github.okay-effects</groupId>
       <artifactId>okay-audit_3</artifactId>
-      <version>0.1.3</version>
+      <version>0.1.4</version>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
