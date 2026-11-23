@@ -1,13 +1,13 @@
 import static okay.rows.Effects.*;
 
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Comp;
-import okay.rows.Eff;
-import okay.rows.Op;
+import okay.effect.Eff;
+import okay.effect.Op;
 import okay.rows.Pass;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** A sensitive operation asked past its audit: by {@code perform}, which takes no sensitive operation; at the
  * audited place, which only an audit's {@code Pass} asks at, and only an audit makes one. */

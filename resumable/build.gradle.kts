@@ -173,9 +173,13 @@ configure<PublishingExtension> {
 rootProject.configure<PublishingExtension> {
     repositories { maven { name = "resumableSamples"; url = uri(samplesRepo) } }
 }
+project(":okay-java-api").configure<PublishingExtension> {
+    repositories { maven { name = "resumableSamples"; url = uri(samplesRepo) } }
+}
 val samplesRepoReady by tasks.registering {
     dependsOn("publishOkayJavaResumablePublicationToSamplesRepository",
-        ":publishOkayJavaPublicationToResumableSamplesRepository")
+        ":publishOkayJavaPublicationToResumableSamplesRepository",
+        ":okay-java-api:publishOkayJavaApiPublicationToResumableSamplesRepository")
 }
 fun mvnw(task: Exec, vararg args: String) {
     task.workingDir = projectDir
@@ -215,6 +219,7 @@ val gradlePluginRelease by tasks.registering(GradleBuild::class) {
 }
 rootProject.tasks.register("release") {
     dependsOn(gradlePluginRelease, ":publishAllPublicationsToPagesRepository",
+        ":okay-java-api:publishAllPublicationsToPagesRepository",
         ":okay-java-resumable:publishAllPublicationsToPagesRepository",
         ":okay-java-spring-boot:publishAllPublicationsToPagesRepository", mavenPluginRelease)
 }

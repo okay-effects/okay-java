@@ -1,15 +1,15 @@
 import static okay.rows.Effects.*;
 
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.Interceptor;
 import okay.rows.K;
 import okay.rows.Pass;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** A sensitive effect handled, or a program that asks it run, anywhere but under its audit: its place in the row is
  * {@code Sensitive}, below {@code Eff}, which no {@code handle}, {@code under}, {@code fit} to a plain place or

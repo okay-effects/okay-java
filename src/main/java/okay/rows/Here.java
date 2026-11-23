@@ -1,5 +1,7 @@
 package okay.rows;
 
+import okay.effect.Op;
+import okay.effect.Sensitive;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import okay.core.Rows;

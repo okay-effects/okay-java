@@ -3,8 +3,8 @@ import static okay.rows.Effects.*;
 import okay.rows.Audit;
 import okay.rows.Comp;
 import okay.rows.Interceptor;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** Outside its audit no program asks a sensitive operation: there the place is {@code Audited}, and
  * {@code Audit.perform} asks at a {@code Sensitive} one. Only the audit's {@code Pass} asks there. */

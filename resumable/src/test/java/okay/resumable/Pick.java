@@ -6,10 +6,10 @@ import static okay.rows.Effects.pure;
 import java.util.ArrayList;
 import java.util.List;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** A CHOICE in direct style: the rest of the program resumed once for every value */
 public abstract sealed class Pick extends Suspend {

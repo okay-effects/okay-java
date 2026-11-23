@@ -1,5 +1,6 @@
 package okay.rows;
 
+import okay.effect.Op;
 import java.util.function.Function;
 
 /** Where a computation came to: its value, or an operation it asks and the rest of it. */

@@ -11,10 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
 import okay.rows.std.Pair;
 import okay.rows.std.Trail;
@@ -98,7 +98,7 @@ class MisuseTest {
 
   @Test
   void aKResumedByAProgramOfTheSameRowObjectIsRefused() {
-    var interceptor = ROW.<Counter, Integer, Integer, okay.rows.Pure>handler(new Direct.Handler1<>() {
+    var interceptor = ROW.<Counter, Integer, Integer, okay.effect.Pure>handler(new Direct.Handler1<>() {
       public Integer ret(Integer a) { return a; }
       public Integer on(Counter op, Direct.K<Integer> k) throws Counter, Direct.Resumes {
         keptByTheInterceptor = k;

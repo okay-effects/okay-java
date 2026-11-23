@@ -2,9 +2,9 @@ package payments;
 
 import okay.resumable.Direct;
 import okay.resumable.SensitiveSuspend;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Comp;
-import okay.rows.Sensitive;
+import okay.effect.Sensitive;
 import okay.rows.std.Pair;
 import payments.bank.Banking;
 

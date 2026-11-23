@@ -7,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 import okay.rows.std.Writer;
 
 /** A LOG in direct style, answered in place */

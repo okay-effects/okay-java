@@ -5,9 +5,9 @@ import static okay.rows.Effects.*;
 import java.util.function.LongSupplier;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** CLOCK: the time, in milliseconds — the system's, or one a test sets. */
 public sealed interface Clock {

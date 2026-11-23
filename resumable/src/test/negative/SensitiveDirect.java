@@ -4,14 +4,14 @@ import okay.resumable.Direct;
 import okay.resumable.SensitiveSuspend;
 import okay.resumable.Suspend;
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.Interceptor;
 import okay.rows.K;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** A sensitive effect in direct style is placed by Direct.sensitive only: its program's row begins with a
  * Sensitive place, which only an audit takes. javac refuses it at a plain place, its program run or handled outside

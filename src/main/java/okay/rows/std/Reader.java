@@ -5,11 +5,11 @@ import static okay.rows.Effects.*;
 import java.util.function.Function;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.InPlace;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** READER: a value of the surroundings. */
 public sealed interface Reader<V> {

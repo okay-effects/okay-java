@@ -1,4 +1,4 @@
-package okay.rows;
+package okay.effect;
 
 /** THE ROW of a computation — the effects it may ask — is a list in its type, in the order of the handlers, the
  * nearest first: {@code Eff<State<Integer>, Eff<Choose, ?>>} is a state, a choice under it, and anything under

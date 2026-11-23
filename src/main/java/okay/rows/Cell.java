@@ -1,5 +1,7 @@
 package okay.rows;
 
+import okay.effect.Op;
+import okay.effect.Sensitive;
 /** A handler's state, while a clause answers; and where the clause leaves the answer. One for each entry of a
  * handler in place: its state there. */
 public final class Cell<S> {

@@ -6,7 +6,7 @@ okay-java's one dependency, `io.github.okay-effects:okay-kernel-api`, is release
 (https://okay-effects.github.io/okay-kernel/maven, okay-kernel's `RELEASING.md`); okay-audit, which the plugins use
 for `forbid`, in okay's (https://okay-effects.github.io/okay/maven).
 
-Released, group `io.github.okay-effects`: `okay-java`, `okay-java-resumable`, `okay-java-spring-boot`, the Gradle
+Released, group `io.github.okay-effects`: `okay-java-api` (the vocabulary, `okay.effect`), `okay-java`, `okay-java-resumable`, `okay-java-spring-boot`, the Gradle
 plugin `io.github.okay-effects.resumable` (`okay-java-resumable-gradle-plugin` and its marker
 `io.github.okay-effects.resumable:io.github.okay-effects.resumable.gradle.plugin`), and
 `okay-java-resumable-maven-plugin`; each with its sources and javadoc. How to use them: the README's Install and

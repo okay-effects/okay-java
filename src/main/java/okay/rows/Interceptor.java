@@ -1,5 +1,6 @@
 package okay.rows;
 
+import okay.effect.Audited;
 /** AN INTERCEPTOR of the sensitive effect {@code E}, in a program of an {@code A}: each operation, the way on past
  * it, and the rest. It may tell (record, to a trail outside), pass the operation on ({@code pass.pass(op)}) as it is
  * or another one, change the answer, or refuse — fail by an effect outside, or end the program with an {@code A}

@@ -112,7 +112,7 @@ Kotlin, Scala and Groovy classes are not transformed by the plugins: only the Ja
 ## Effects are checked exceptions
 
 An effect is a sealed abstract subclass of `Suspend`. Its operations are its final subclasses, and each operation is
-also an `okay.rows.Op`:
+also an `okay.effect.Op`:
 
 ```java
 public abstract sealed class Counter extends Suspend {
@@ -189,7 +189,7 @@ away): `TiersTest`, `SensitiveTest`.
 ## Sensitive effects
 
 `okay.rows`' control and audit holds in direct style. A sensitive effect is a subclass of `SensitiveSuspend`, not
-of `Suspend`, and its operations are `okay.rows.Sensitive.Op`s:
+of `Suspend`, and its operations are `okay.effect.Sensitive.Op`s:
 
 ```java
 public abstract sealed class Pay extends SensitiveSuspend {

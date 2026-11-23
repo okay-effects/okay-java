@@ -17,6 +17,7 @@ https://okay-effects.github.io/okay-kernel/maven. Java 25.
 
 | artifact | what |
 |---|---|
+| `okay-java-api` | the vocabulary of effects, no dependency: `okay.effect` (`Op`, `Eff`, `Pure`, `Sensitive`, `Audited`), shared with okay-direct ([CONCEPT](https://github.com/okay-effects/okay-effects/blob/master/CONCEPT.md)); brought by `okay-java` |
 | `okay-java` | the library: `okay.core`, `okay.std`, `okay.rows` |
 | `okay-java-resumable` | direct-style programs made resumable ([`resumable/README.md`](resumable/README.md)) |
 | `okay-java-spring-boot` | Spring Boot 4 support ([`docs/spring-boot.md`](docs/spring-boot.md)) |

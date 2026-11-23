@@ -6,10 +6,10 @@ import okay.resumable.Mail;
 import okay.resumable.Pay;
 import okay.rows.Audit;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Interceptor;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** Sensitive places anywhere in a row, more than one: each is Sensitive<S, ..> in the row's type, which only its
  * audit takes once the places before it are handled. javac refuses the rest: run or handled plainly, a sensitive

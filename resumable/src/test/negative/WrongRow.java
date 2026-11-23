@@ -2,8 +2,8 @@ import okay.resumable.Counter;
 import okay.resumable.Direct;
 import okay.resumable.Pick;
 import okay.rows.Comp;
-import okay.rows.Eff;
-import okay.rows.Pure;
+import okay.effect.Eff;
+import okay.effect.Pure;
 
 /** a row at the boundary that leaves out an effect the body throws, or is not the row the program is given */
 class WrongRow {

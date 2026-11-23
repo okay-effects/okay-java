@@ -11,8 +11,8 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import okay.rows.Op;
-import okay.rows.Sensitive;
+import okay.effect.Op;
+import okay.effect.Sensitive;
 
 /** What transformed code calls. Public because the transformed classes are anywhere; not an API: the transformation
  * writes these calls, a program never does. */

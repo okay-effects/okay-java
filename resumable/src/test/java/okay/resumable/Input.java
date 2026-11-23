@@ -6,11 +6,11 @@ import static okay.rows.Effects.pure;
 
 import java.util.Iterator;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
 import okay.rows.Once;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** INPUT in direct style, answered by general handlers: one that declares it resumes once, one that does not */
 public abstract sealed class Input extends Suspend {

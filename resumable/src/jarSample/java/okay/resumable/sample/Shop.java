@@ -9,10 +9,10 @@ import java.util.List;
 import okay.resumable.Direct;
 import okay.resumable.Suspend;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** A direct-style program in a jar built WITHOUT the transformation: {@code java -jar} transforms it as it loads,
  * through the manifest's Launcher-Agent-Class */

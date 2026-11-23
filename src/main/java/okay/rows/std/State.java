@@ -5,9 +5,9 @@ import static okay.rows.Effects.*;
 import java.util.function.Function;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** STATE. An effect is a sealed family of operations — data; each says what answers it. */
 public sealed interface State<S> {

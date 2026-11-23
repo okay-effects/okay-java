@@ -4,9 +4,9 @@ import static okay.rows.Effects.*;
 
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** FRESH: a number never given before, in this run. */
 public sealed interface Fresh {

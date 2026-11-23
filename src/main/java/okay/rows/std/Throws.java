@@ -4,10 +4,10 @@ import static okay.rows.Effects.*;
 
 import java.util.function.Function;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** THROWS: the rest of the program is left — unwound, its finalizers run — before the failure is answered. */
 public sealed interface Throws<E> {

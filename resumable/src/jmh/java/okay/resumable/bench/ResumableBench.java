@@ -20,7 +20,7 @@ import okay.resumable.DirectHandlers;
 import okay.resumable.Input;
 import okay.resumable.Pick;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

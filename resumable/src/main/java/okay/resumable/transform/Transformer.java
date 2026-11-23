@@ -92,8 +92,8 @@ public final class Transformer {
   static final ClassDesc CD_FRAME = ClassDesc.of("okay.resumable.Frame");
   static final ClassDesc CD_RESUMER = ClassDesc.of("okay.resumable.Resumer");
   static final ClassDesc CD_TRANSFORMED = ClassDesc.of("okay.resumable.Transformed");
-  static final ClassDesc CD_OP = ClassDesc.of("okay.rows.Op");
-  static final ClassDesc CD_SENSITIVE_OP = ClassDesc.of("okay.rows.Sensitive$Op");
+  static final ClassDesc CD_OP = ClassDesc.of("okay.effect.Op");
+  static final ClassDesc CD_SENSITIVE_OP = ClassDesc.of("okay.effect.Sensitive$Op");
   static final ClassDesc CD_OBJECTS = ConstantDescs.CD_Object.arrayType();
   static final ClassDesc CD_LONGS = ConstantDescs.CD_long.arrayType();
   static final MethodTypeDesc RESUME_TYPE =

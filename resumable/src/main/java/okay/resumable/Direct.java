@@ -3,13 +3,13 @@ package okay.resumable;
 import java.util.function.Predicate;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Effects;
 import okay.rows.Here;
 import okay.rows.Once;
-import okay.rows.Op;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Op;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** DIRECT STYLE: a plain Java method performs operations and gets their answers as values; the effects it uses are
  * its {@code throws}. {@link #row}{@code (..).of} makes it an {@code okay.rows} program, whose row is those

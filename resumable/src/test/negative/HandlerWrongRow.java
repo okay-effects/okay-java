@@ -5,9 +5,9 @@ import okay.resumable.Direct;
 import okay.resumable.Log;
 import okay.resumable.Pick;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
-import okay.rows.Pure;
+import okay.effect.Pure;
 
 /** a direct-style clause that declares an effect outside its row; a handler whose clauses perform an effect,
  * installed where the row outside it does not have that effect next */

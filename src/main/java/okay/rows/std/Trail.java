@@ -5,9 +5,9 @@ import static okay.rows.Effects.*;
 import java.util.List;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** AN AUDIT TRAIL: lines recorded in order. An ordinary effect, handled outside the interceptors that record to
  * it: the lines are a value beside the program's, and another handler may send them anywhere. */

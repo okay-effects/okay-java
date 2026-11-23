@@ -7,8 +7,8 @@ import okay.rows.Comp;
 import okay.rows.Effects;
 import okay.rows.Here;
 import okay.rows.NoHandler;
-import okay.rows.Op;
-import okay.rows.Sensitive;
+import okay.effect.Op;
+import okay.effect.Sensitive;
 
 /** The boundary: runs a direct-style body; where it suspends, asks the operation at its place in the row, and
  * resumes the body with the answer. Three ways, by the handler the operation goes to, found when it is performed:

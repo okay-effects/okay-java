@@ -1,4 +1,4 @@
-package okay.rows;
+package okay.effect;
 
 /** An operation of the effect {@code E}: a question as data, answered by an {@code X}. An effect is a sealed
  * family of them.

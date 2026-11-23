@@ -2,7 +2,7 @@ import static okay.rows.Effects.*;
 
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.InPlace;
 import okay.rows.K;

@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** CHOOSE: the rest of the program is resumed once for every value — a continuation taken many times. With no
  * value it is left: unwound. */

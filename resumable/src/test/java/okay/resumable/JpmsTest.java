@@ -71,7 +71,8 @@ class JpmsTest {
     return diagnostics.getDiagnostics();
   }
 
-  /** okay-java, this module's classes and okay-kernel-api, each a jar named for its automatic module */
+  /** okay-java, its vocabulary okay-java-api, this module's classes and okay-kernel-api, each a jar named for its
+   * automatic module */
   static String modulePath() throws IOException {
     Path dir = Files.createTempDirectory("modules");
     List<String> path = new ArrayList<>();
@@ -79,13 +80,16 @@ class JpmsTest {
       Path p = Path.of(e);
       String name = p.toString();
       if (p.getFileName().toString().startsWith("okay-kernel-api")) path.add(name);
+      else if (p.endsWith(Path.of("api/build/classes/java/main"))) path.add(jar(p, dir.resolve("okay-java-api.jar")));
       else if (p.endsWith(Path.of("resumable/build/classes/java/main")))
         path.add(jar(p, dir.resolve("okay-java-resumable.jar")));
       else if (p.endsWith(Path.of("build/classes/java/main"))) path.add(jar(p, dir.resolve("okay-java.jar")));
       else if (p.getFileName().toString().matches("okay-java-[0-9].*\\.jar"))
         path.add(copy(p, dir.resolve("okay-java.jar")));
+      else if (p.getFileName().toString().matches("okay-java-api-[0-9].*\\.jar"))
+        path.add(copy(p, dir.resolve("okay-java-api.jar")));
     }
-    assertEquals(3, path.size(), path.toString());
+    assertEquals(4, path.size(), path.toString());
     return String.join(File.pathSeparator, path);
   }
 

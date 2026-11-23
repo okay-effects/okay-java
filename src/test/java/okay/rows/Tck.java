@@ -1,5 +1,8 @@
 package okay.rows;
 
+import okay.effect.Pure;
+import okay.effect.Op;
+import okay.effect.Eff;
 import static okay.rows.Effects.*;
 
 import java.util.ArrayList;
@@ -62,7 +65,7 @@ final class Tck {
   /** THE ROW of every program: the four effects stay in it whatever handlers the program is under — a handler
    * here is an interceptor: it answers its own operations, found by their class, and lets the others pass. Named,
    * so that it is written out once; the empty row by its full name, for `Pure` is here a term of the TCK. */
-  interface Row extends Eff<Log, Eff<Store, Eff<Fail, Eff<Choose, okay.rows.Pure>>>> {}
+  interface Row extends Eff<Log, Eff<Store, Eff<Fail, Eff<Choose, okay.effect.Pure>>>> {}
 
   record Summed(int sum, int value) {}
 

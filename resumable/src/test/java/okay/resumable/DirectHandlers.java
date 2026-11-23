@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.std.State.Final;
 import okay.rows.std.Throws;
 import okay.rows.std.Writer;

@@ -19,7 +19,8 @@ repositories {
 dependencies { implementation("io.github.okay-effects:okay-java:0.1.0") }
 ```
 
-Also `okay-java-spring-boot` (docs/spring-boot.md). Direct-style methods: `okay-java-resumable` with the Gradle
+The vocabulary — `Op`, `Eff`, `Pure`, `Sensitive`, `Audited` — is the package `okay.effect`, artifact `okay-java-api` (no
+dependency, brought by `okay-java`), shared with okay-direct; the family's names: okay-effects' CONCEPT.md. Also `okay-java-spring-boot` (docs/spring-boot.md). Direct-style methods: `okay-java-resumable` with the Gradle
 plugin `id("io.github.okay-effects.resumable") version "0.1.0"` (in `settings.gradle.kts`:
 `pluginManagement { repositories { gradlePluginPortal(); maven("https://okay-effects.github.io/okay-java/maven") } }`;
 it adds the library) or the Maven plugin `io.github.okay-effects:okay-java-resumable-maven-plugin:0.1.0` (the three
@@ -30,6 +31,7 @@ repositories as `<pluginRepositories>` too); `forbid` needs okay's repository, h
 
 ```java
 import static okay.rows.Effects.*;
+import okay.effect.*;          // Op, Eff, Pure, Sensitive, Audited: the vocabulary (okay-java-api)
 import okay.rows.*;
 import okay.rows.std.*;          // State, Reader, Writer, Throws, Choose, Fresh, Clock, Emit, Async, Trail
 

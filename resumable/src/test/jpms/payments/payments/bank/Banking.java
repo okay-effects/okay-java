@@ -3,7 +3,7 @@ package payments.bank;
 import static okay.rows.Effects.pure;
 
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.rows.InPlace;

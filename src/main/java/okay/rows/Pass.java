@@ -1,5 +1,7 @@
 package okay.rows;
 
+import okay.effect.Sensitive;
+import okay.effect.Audited;
 /** THE WAY ON past an audit of {@code E}: the operation asked outside it, of the handler {@link Audit#handle} put.
  * Only {@link Audit#audit} makes one. */
 public final class Pass<E, R> {

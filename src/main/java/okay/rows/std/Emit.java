@@ -10,12 +10,12 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.InPlace;
 import okay.rows.K;
-import okay.rows.Pure;
-import okay.rows.Op;
+import okay.effect.Pure;
+import okay.effect.Op;
 
 /** EMIT: a stream of values, possibly endless. The producer is a program that sends; what a stream is made into —
  * a list, a loop, another stream, a lazy sequence pulled a value at a time — is the handler's choice. A handler

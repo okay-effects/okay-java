@@ -11,11 +11,11 @@ import okay.resumable.Direct;
 import okay.resumable.Suspend;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.InPlace;
 import okay.rows.K;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** A shop in direct style: plain methods, their effects in throws, answered by okay.rows handlers */
 public final class Shop {

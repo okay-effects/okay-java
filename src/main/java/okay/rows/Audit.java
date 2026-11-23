@@ -1,5 +1,7 @@
 package okay.rows;
 
+import okay.effect.Sensitive;
+import okay.effect.Audited;
 import static okay.rows.Comp.DOOR;
 import static okay.rows.Effects.pure;
 

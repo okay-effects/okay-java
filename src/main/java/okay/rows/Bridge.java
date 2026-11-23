@@ -1,5 +1,8 @@
 package okay.rows;
 
+import okay.effect.Pure;
+import okay.effect.Op;
+import okay.effect.Eff;
 import static okay.rows.Comp.DOOR;
 
 import okay.core.Eff.Top;

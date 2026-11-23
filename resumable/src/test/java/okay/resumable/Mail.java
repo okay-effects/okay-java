@@ -4,11 +4,11 @@ import static okay.rows.Effects.pure;
 
 import java.util.List;
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.rows.InPlace;
-import okay.rows.Sensitive;
+import okay.effect.Sensitive;
 
 /** MAIL, a second sensitive effect: answered only under its own audit */
 public abstract sealed class Mail extends SensitiveSuspend {

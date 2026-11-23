@@ -1,8 +1,8 @@
 import static okay.rows.Effects.*;
 
 import okay.rows.Comp;
-import okay.rows.Eff;
-import okay.rows.Op;
+import okay.effect.Eff;
+import okay.effect.Op;
 import okay.rows.std.State;
 
 /** An operation that is not of the effect it names: its handler would be given what is not its effect. A class that

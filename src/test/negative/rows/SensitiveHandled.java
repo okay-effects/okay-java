@@ -2,12 +2,12 @@ import static okay.rows.Effects.*;
 
 import okay.rows.Audit;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Handler;
 import okay.rows.Interceptor;
 import okay.rows.K;
-import okay.rows.Pure;
-import okay.rows.Sensitive;
+import okay.effect.Pure;
+import okay.effect.Sensitive;
 
 /** A sensitive effect is handled under its audit only. Its operations are asked at a {@code Sensitive} place, which
  * is below {@code Eff<Pay, R>}: {@code handle}, {@code under} and {@code run} want a row above, and

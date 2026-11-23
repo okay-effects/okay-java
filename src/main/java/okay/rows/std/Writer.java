@@ -5,9 +5,9 @@ import static okay.rows.Effects.*;
 import java.util.List;
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 
 /** WRITER: values told, collected in order. */
 public sealed interface Writer<W> {

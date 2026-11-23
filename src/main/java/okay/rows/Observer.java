@@ -1,5 +1,6 @@
 package okay.rows;
 
+import okay.effect.Sensitive;
 import okay.core.Rows;
 
 /**

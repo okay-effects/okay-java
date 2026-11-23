@@ -1,7 +1,7 @@
 package okay.resumable;
 
 /** AN EFFECT IN DIRECT STYLE is a sealed abstract subclass of this, and its operations are its final subclasses, each
- * an {@code okay.rows.Op} of it:
+ * an {@code okay.effect.Op} of it:
  *
  * <pre>{@code
  * public abstract static sealed class Cart extends Suspend {

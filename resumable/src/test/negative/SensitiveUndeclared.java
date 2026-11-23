@@ -1,6 +1,6 @@
 import okay.resumable.Direct;
 import okay.resumable.SensitiveSuspend;
-import okay.rows.Sensitive;
+import okay.effect.Sensitive;
 
 /** a sensitive operation performed by a method that does not declare its effect; or that declares it and calls one
  * that performs it without declaring it either. Apart from SensitiveDirect.java: javac checks what a method throws

@@ -1,5 +1,8 @@
 package okay.rows;
 
+import okay.effect.Op;
+import okay.effect.Eff;
+import okay.effect.Sensitive;
 import okay.core.Rows;
 
 /** The rest of a handled program, waiting for the answer of the operation it asked. A value, never changed:

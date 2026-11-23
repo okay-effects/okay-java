@@ -14,10 +14,10 @@ import java.util.function.Supplier;
 import okay.core.NestedRun;
 import okay.rows.Comp;
 import okay.rows.Handler;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.K;
-import okay.rows.Pure;
-import okay.rows.Op;
+import okay.effect.Pure;
+import okay.effect.Op;
 
 /** ASYNC: an answer that comes later. An operation gives a callback to whoever will have the answer; the handler
  * keeps the rest of the program and returns. The callback, whenever and on whatever thread it is called, resumes

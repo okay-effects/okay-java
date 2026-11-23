@@ -1,7 +1,7 @@
 import static okay.rows.Effects.*;
 
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.std.State;
 import okay.rows.std.Writer;
 

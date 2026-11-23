@@ -3,11 +3,11 @@ package okay.resumable;
 import static okay.rows.Effects.pure;
 
 import okay.rows.Audit;
-import okay.rows.Audited;
+import okay.effect.Audited;
 import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.rows.InPlace;
-import okay.rows.Sensitive;
+import okay.effect.Sensitive;
 import okay.rows.std.Pair;
 
 /** PAYMENTS in direct style, a sensitive effect: performed by plain methods that declare it, answered only under

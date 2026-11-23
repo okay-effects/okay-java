@@ -78,6 +78,7 @@ fun MavenPom.okayPom(artifact: String) {
 }
 
 dependencies {
+    api(project(":okay-java-api"))
     api("io.github.okay-effects:okay-kernel-api:0.1.0")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")

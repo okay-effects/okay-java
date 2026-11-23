@@ -6,9 +6,9 @@ import static okay.rows.Effects.pure;
 
 import okay.rows.Cell;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.InPlace;
-import okay.rows.Op;
+import okay.effect.Op;
 import okay.rows.std.State.Final;
 
 /** A STATE OF AN INT in direct style: the effect is a sealed exception class, its operations its final subclasses */

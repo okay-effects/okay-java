@@ -17,12 +17,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import okay.core.NestedRun;
 import okay.rows.Comp;
-import okay.rows.Eff;
+import okay.effect.Eff;
 import okay.rows.Effects;
 import okay.rows.Handler;
 import okay.rows.K;
 import okay.rows.Once;
-import okay.rows.Pure;
+import okay.effect.Pure;
 import okay.rows.std.Async;
 import org.junit.jupiter.api.Test;
 

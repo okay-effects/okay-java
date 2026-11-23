@@ -1,5 +1,9 @@
 package okay.rows;
 
+import okay.effect.Pure;
+import okay.effect.Eff;
+import okay.effect.Sensitive;
+import okay.effect.Audited;
 import static okay.rows.Effects.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
