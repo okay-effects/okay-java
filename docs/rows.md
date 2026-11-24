@@ -147,6 +147,12 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   stream, a list — and its elements ask the effects. `sequence(xs)` runs them in order and gives their values,
   `reduce(xs, zero, (acc, x) -> ..)` combines the values, and a stream collects into one:
   `cart.stream().map(item -> perform(new Prices.Price(item))).collect(sequencing())`.
+- `gather(Prices.Price.class, () -> { for (String item : cart) perform(new Prices.Price(item)); })` is a plain
+  `for` with `perform` in it: the list of the computations `perform` made while the body ran, in their order. The
+  class gives them their type, `List<Comp<Long, Eff<Prices<?>, ?>>>`; an operation of another class asked in the
+  body is refused there. Nothing runs in the body, so it cannot use an answer, and what is gathered is what
+  `perform` returned, not what the body made of it after (`perform(op).map(f)`: the operation, without the `map`).
+  Only the thread that gathers; gathers nest.
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the
