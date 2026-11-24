@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -95,6 +96,16 @@ public final class Effects {
       Iterable<? extends X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
     return Effects.<X, Chain<Y>, R>fold(xs, null, (made, x) ->
         Effects.<Y, R>fit(f.apply(x)).map(y -> new Chain<>(y, made))).map(Chain::list);
+  }
+
+  /** PERFORM WRITTEN IN A PLAIN LOOP, as a lambda: the body is given the gather, and asks through it —
+   * {@code gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })}. The computations made, in
+   * their order: an {@code Iterable<Comp<X, Eff<E, ?>>>}, its type the target's, the body checked against it
+   * ({@link Gather}, which is the same with {@code perform} unqualified, as an anonymous class). */
+  public static <X, E> Gather<X, E> gather(Consumer<? super Gather<X, E>> body) {
+    Gather<X, E> g = new Gather.Given<>();
+    body.accept(g);
+    return g;
   }
 
   // -- a source of computations: each element is a program, run when the loop gets to it

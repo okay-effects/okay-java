@@ -22,6 +22,15 @@ import okay.effect.Op;
  * {@code Effects.perform} reads — and the compiler checks the body: {@code X} and {@code E} are the answer and the
  * effect of what is gathered, and an operation of another effect or another answer does not compile.
  *
+ * <p>The same as a lambda, the gather its parameter ({@code Effects.gather}): no anonymous class, {@code perform}
+ * said of the gather —
+ *
+ * <pre>{@code
+ * Iterable<Comp<Long, Eff<Prices<?>, ?>>> asked = gather(g -> {
+ *   for (String item : cart) g.perform(new Prices.Price(item));
+ * });
+ * }</pre>
+ *
  * <p>Nothing runs in the body: {@code perform} makes a computation, it does not answer, so the body cannot use an
  * answer — a loop that goes by the answers is {@code Effects.fold}. What is gathered is what {@code perform}
  * returned, not what the body made of it after: to gather a computation made of it, {@link #add}.
@@ -31,20 +40,23 @@ public abstract class Gather<X, E> implements Iterable<Comp<X, Eff<E, ?>>> {
 
   protected Gather() {}
 
+  /** the gather a lambda is given ({@code Effects.gather}) */
+  static final class Given<X, E> extends Gather<X, E> {}
+
   /** the operation asked: its computation, gathered */
-  protected final <O extends Op<E, X, ? super O>> Comp<X, Eff<E, ?>> perform(O op) {
+  public final <O extends Op<E, X, ? super O>> Comp<X, Eff<E, ?>> perform(O op) {
     Comp<X, Eff<E, ?>> made = Effects.perform(op);
     asked.add(made);
     return made;
   }
 
   /** a computation gathered as it is: one made of operations, {@code add(ask(op).map(f))} */
-  protected final void add(Comp<X, ? super Eff<E, ?>> made) {
+  public final void add(Comp<X, ? super Eff<E, ?>> made) {
     asked.add(Effects.fit(made));
   }
 
   /** an operation's computation, NOT gathered: a part of one that {@link #add} takes */
-  protected final <Y, O extends Op<E, Y, ? super O>> Comp<Y, Eff<E, ?>> ask(O op) {
+  public final <Y, O extends Op<E, Y, ? super O>> Comp<Y, Eff<E, ?>> ask(O op) {
     return Effects.perform(op);
   }
 

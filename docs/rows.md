@@ -152,7 +152,9 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   The body is the initializer of an anonymous `Gather`, so `perform` there is the gather's own method: no state of
   the thread, nothing `Effects.perform` reads, and the compiler checks the body — an operation of another effect
   or another answer does not compile (`GatherWrongOperation.java`). Nothing runs in the body, so it cannot use an
-  answer. A computation made of operations is gathered by `add(ask(op).map(f))`.
+  answer. A computation made of operations is gathered by `add(ask(op).map(f))`. The same as a lambda, the gather
+  its parameter and no anonymous class: `gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })`,
+  or a method that takes a `Gather<Long, Prices<?>>`, passed by its name (`GatherLambdaWrongOperation.java`).
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the

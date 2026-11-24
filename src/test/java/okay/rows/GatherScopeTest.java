@@ -71,6 +71,27 @@ class GatherScopeTest {
     assertEquals(3, run(State.run(0, all)).state());
   }
 
+  /** as a lambda: the gather its parameter */
+  @Test
+  void asALambda() {
+    Iterable<Comp<Long, Eff<Prices<?>, ?>>> asked = gather(g -> {
+      for (String item : CART) g.perform(new Prices.Price(item));
+    });
+    Comp<Long, Eff<Prices<?>, ?>> total = reduce(asked, 0L, Long::sum);
+    assertEquals(12L, run(priced(total)));
+  }
+
+  static void doubled(Gather<Long, Prices<?>> g) {
+    for (String item : CART) g.add(g.ask(new Prices.Price(item)).map(p -> p * 2));
+  }
+
+  /** a method that takes the gather: passed by its name */
+  @Test
+  void asAMethodReference() {
+    Comp<List<Long>, Eff<Prices<?>, ?>> all = sequence(gather(GatherScopeTest::doubled));
+    assertEquals(List.of(6L, 6L, 12L), run(priced(all)));
+  }
+
   @Test
   void theListOfWhatWasGathered() {
     Gather<Boolean, Prices<?>> asked = new Gather<>() {{
