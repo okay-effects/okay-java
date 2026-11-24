@@ -161,6 +161,11 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   `Batch`: one query for all, a cache, each repeated one once, each answer typed by its operation. A handler
   without that clause, and any handler with an interceptor or an observer on the way, is asked them one by one:
   the program is the same under either, and what changes is the handler (`BatchTest`: four prices, one query).
+- How a set is answered is the handler's choice. `Batch.concurrently((op, k) -> { switch (op) { case Price p ->
+  k.answer(p, lookup(p.item())); } })` answers each operation of a set on a virtual thread, at the same time, and
+  the program goes on when all are answered; `Batch.inTurn(..)` is the same clause one after another. The
+  operations of a set are independent, so the program says no order between them (`ConcurrentlyTest`: a block of
+  eight calls of 150 ms — 1.2 s in turn, about 0.16 s at the same time, the program the same).
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the

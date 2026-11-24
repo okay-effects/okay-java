@@ -16,14 +16,15 @@ public final class KAll<B, R> {
     this.ops = ops;
   }
 
-  /** the answer to one operation of the set: {@code case Price p -> k.answer(p, 4L)} */
-  public <X> KAll<B, R> answer(Op<?, X, ?> op, X answer) {
+  /** the answer to one operation of the set: {@code case Price p -> k.answer(p, 4L)}. From any thread: the
+   * operations of a set may be answered at the same time ({@link Batch#concurrently}) */
+  public synchronized <X> KAll<B, R> answer(Op<?, X, ?> op, X answer) {
     answers.put(op, answer);
     return this;
   }
 
   /** the rest resumed with the answers: every operation of the set must have one */
-  public Comp<B, R> resume() {
+  public synchronized Comp<B, R> resume() {
     Object[] out = new Object[ops.size()];
     for (int i = 0; i < out.length; i++) {
       Object op = ops.get(i);

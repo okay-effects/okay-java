@@ -134,7 +134,8 @@ source of computations, `Iterable<Comp<X, R>>`, is built by plain Java (a `for`,
 the list of the answers, checked by the compiler; `first(xs, wanted)`, `any`, `all` ask one after another and no
 further than the answer that decides. A set is asked AT ONCE (`performAll(ops)`, a `gather`, a round of a block):
 a handler with a clause for sets, `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`,
-answers them by one query; any other handler answers them one by one, the program the same
+answers them by one query — or all at the same time, `Batch.concurrently((op, k) -> { .. k.answer(p, x) .. })`, each
+on a virtual thread; any other handler answers them one by one, the program the same
 (no answer is there in the body: a loop that goes by the answers is
 `fold`).
 Other words: `under`,

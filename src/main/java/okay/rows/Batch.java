@@ -22,4 +22,60 @@ import java.util.List;
 @FunctionalInterface
 public interface Batch<F, A, R> {
   Comp<A, R> on(List<F> ops, KAll<A, R> k);
+
+  /** How one operation of a set is answered, for a set answered operation by operation: it answers through the
+   * continuation, {@code (op, k) -> { switch (op) { case Price p -> k.answer(p, lookup(p.item())); } }}. What it
+   * does may wait — a query, a call: it is a handler's, and runs outside the program. */
+  @FunctionalInterface
+  interface One<F, A, R> {
+    void answer(F op, KAll<A, R> k);
+  }
+
+  /** THE OPERATIONS OF A SET ANSWERED AT THE SAME TIME: {@code one} for each, each on a virtual thread; the
+   * program goes on when all are answered. The operations of a set are independent, so nothing in the program
+   * says an order between them — the handler chooses, and the program is the same. A failure of {@code one}, the
+   * first, is the clause's, when all have ended. */
+  static <F, A, R> Batch<F, A, R> concurrently(One<F, A, R> one) {
+    return (ops, k) -> {
+      Throwable[] failed = new Throwable[1];
+      List<Thread> threads = new java.util.ArrayList<>(ops.size());
+      for (F op : ops) {
+        threads.add(Thread.ofVirtual().start(() -> {
+          try {
+            one.answer(op, k);
+          } catch (Throwable t) {
+            synchronized (failed) {
+              if (failed[0] == null) failed[0] = t;
+            }
+          }
+        }));
+      }
+      boolean interrupted = false;
+      for (Thread t : threads) {
+        while (true) {
+          try {
+            t.join();
+            break;
+          } catch (InterruptedException e) {
+            interrupted = true;
+          }
+        }
+      }
+      if (interrupted) Thread.currentThread().interrupt();
+      synchronized (failed) {
+        if (failed[0] instanceof RuntimeException e) throw e;
+        if (failed[0] instanceof Error e) throw e;
+        if (failed[0] != null) throw new IllegalStateException(failed[0]);
+      }
+      return k.resume();
+    };
+  }
+
+  /** the same clause, the operations answered one after another, on the program's thread */
+  static <F, A, R> Batch<F, A, R> inTurn(One<F, A, R> one) {
+    return (ops, k) -> {
+      for (F op : ops) one.answer(op, k);
+      return k.resume();
+    };
+  }
 }
