@@ -103,6 +103,22 @@ static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter<?>, R>> 
 An effect with
 type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot tell `Get<S>` by an index.
 
+A comprehension, as Scala's `for`: `together` — questions one after another, each answer a name, the block going on
+once with `yield` (a value) or `then` (a computation, which may be another block). Code nests only where a question
+depends on an answer; the questions of one block are independent, and its operations are asked at once, as a set:
+
+```java
+static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
+  return together(t -> {
+    Var<Long> price = t.ask(perform(new Prices.Price(item)));
+    Var<Boolean> stock = t.ask(perform(new Prices.InStock(item)));
+    return t.yield(() -> stock.get() ? item + " " + price.get() : item + " is out");
+  });
+}
+```
+
+A `Var` is read in its block's `then`/`yield` only (take it into a local for a function run later).
+
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
 value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Loops take an `Iterable`,

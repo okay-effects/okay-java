@@ -32,6 +32,18 @@ public final class Effects {
     return new Comp<>(DOOR.ask(op, 0));
   }
 
+  /** A BLOCK OF QUESTIONS AND WHAT FOLLOWS FROM THEIR ANSWERS ({@link Together}) — a comprehension:
+   * {@code together(t -> { Var<Long> price = t.ask(perform(new Price(item))); Var<Boolean> stock =
+   * t.ask(perform(new InStock(item))); return t.yield(() -> stock.get() ? price.get() : 0L); })}. The questions
+   * of a block are independent: operations of one handler are asked at once, as a set. The block is written again
+   * each time the program gets to it. */
+  public static <A, R> Comp<A, R> together(Function<? super Together<R>, ? extends Comp<A, R>> block) {
+    return new Comp<>(okay.core.Comp.delay(() -> {
+      Together<R> t = new Together<>();
+      return Handlers.trusted(t.program(block.apply(t)));
+    }));
+  }
+
   /** A SET OF OPERATIONS ASKED AT ONCE: independent of each other, known before any is answered. Their answers,
    * in their order. A handler with a clause for sets ({@link Batch}) is given them together; any other handler —
    * and any handler with an interceptor or an observer on the way — is asked them one by one, so the program is

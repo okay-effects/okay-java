@@ -52,6 +52,21 @@ public final class Rows {
   public static final class Door {
     private Door() {}
 
+    /** the operation {@code c} is, and nothing else; else {@code null}: a computation made of more */
+    public Object operation(Comp<?, ?> c) {
+      return c instanceof Ask<?, ?> a && !(a.op instanceof Many) ? a.op : null;
+    }
+
+    /** the row places an operation alone ({@link #operation}) has to skip */
+    public int skip(Comp<?, ?> c) {
+      return ((Ask<?, ?>) c).skip;
+    }
+
+    /** the same set, to the handler {@code skip} row places past the nearest */
+    public Comp<?, ?> askAll(Object[] ops, int skip) {
+      return new Ask<>(new Many(ops), skip);
+    }
+
     /** the operations {@code ops} asked at once, as a set: to the nearest handler, which takes them together if it
      * takes sets ({@link Spec#takesMany}); else, or with an interceptor on the way, each is asked as one */
     public Comp<?, ?> askAll(Object[] ops) {

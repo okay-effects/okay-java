@@ -172,6 +172,37 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   loop and resumed twice goes through the same elements twice, each asked of the iterator once. Each run of the
   program takes a new iterator.
 
+### A comprehension: `together`
+
+A block of questions and what follows from their answers, as Scala's `for`, in plain Java:
+
+```java
+static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
+  return together(t -> {
+    Var<Long> a = t.ask(perform(new Prices.Price(first)));
+    Var<Long> b = t.ask(perform(new Prices.Price(second)));
+    return t.then(() -> {
+      long sum = a.get() + b.get();
+      return together(u -> {
+        Var<Long> off = u.ask(perform(new Prices.Discount(sum)));   // depends on the answers: a block inside
+        return u.yield(() -> sum - off.get());
+      });
+    });
+  });
+}
+```
+
+- The questions are written one after another, each answer a name (`Var<T>`) of its own type; the block goes on
+  once — `yield` for a value, `then` for a computation — where all the names are read. Code nests where a
+  question DEPENDS on an answer, and nowhere else. A plain `for` in the block asks in a loop, the names in a list.
+- The questions of one block are independent: nothing is answered while it is written. Those that are operations
+  of one handler are asked at once, as a set (`performAll`), whatever their types: a handler with a clause for
+  sets answers the block by one query (`TogetherTest`: a price and a stock, one query; two blocks, two). A question
+  may be any computation of the row — another effect's with `up`, another block, a program: run in its turn.
+- A `Var` is read in its block's `then` or `yield`; before, or later from a function made there and run after, it
+  is refused: take the value into a local there (`long sum = a.get() + b.get()`). Each path of a continuation
+  resumed twice has its own answers.
+
 Other words, all as in the reference:
 - `under(c)` adds a place under the first effect.
 - `fit(c)` names a row.
