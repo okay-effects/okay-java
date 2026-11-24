@@ -28,10 +28,10 @@
           "name": "okay-java-resumable-gradle-plugin-0.1.0.jar",
           "url": "okay-java-resumable-gradle-plugin-0.1.0.jar",
           "size": 7257,
-          "sha512": "2d32b990607567ce5acf18367dfb7433b739c78debb368dca4fee57f4b6a30bf2e169f2551f844725be5a140a997e51137c67fa04c6e468c5294e52b341d7b2a",
-          "sha256": "616c34af3079ed329ace3429eb05809f950a103aa5baaa30b0664b82f20a0c7a",
-          "sha1": "26479cb76e6d5e4d1dffa72be584042041e0c4e8",
-          "md5": "fa4a94a5106dcf344e861f5db00cc076"
+          "sha512": "1e9d30b02be9f74a71737057c361dbf7c9151c2ea4032e54e0cea76ce3ab86587e701b7b96e8f6822fe44f950b5675d8a4550517f124bf2b22d9a8d7ed091841",
+          "sha256": "2a5702e6d8b7ccb4b0afb46b00d3d2caa6408672b94be46e3357a6578cda120b",
+          "sha1": "6b827e33375c49ecb63ee8108fea7dc678026a8d",
+          "md5": "f0872a84057fc3e9d57f68ea1eda8241"
         }
       ]
     },
@@ -49,10 +49,10 @@
           "name": "okay-java-resumable-gradle-plugin-0.1.0.jar",
           "url": "okay-java-resumable-gradle-plugin-0.1.0.jar",
           "size": 7257,
-          "sha512": "2d32b990607567ce5acf18367dfb7433b739c78debb368dca4fee57f4b6a30bf2e169f2551f844725be5a140a997e51137c67fa04c6e468c5294e52b341d7b2a",
-          "sha256": "616c34af3079ed329ace3429eb05809f950a103aa5baaa30b0664b82f20a0c7a",
-          "sha1": "26479cb76e6d5e4d1dffa72be584042041e0c4e8",
-          "md5": "fa4a94a5106dcf344e861f5db00cc076"
+          "sha512": "1e9d30b02be9f74a71737057c361dbf7c9151c2ea4032e54e0cea76ce3ab86587e701b7b96e8f6822fe44f950b5675d8a4550517f124bf2b22d9a8d7ed091841",
+          "sha256": "2a5702e6d8b7ccb4b0afb46b00d3d2caa6408672b94be46e3357a6578cda120b",
+          "sha1": "6b827e33375c49ecb63ee8108fea7dc678026a8d",
+          "md5": "f0872a84057fc3e9d57f68ea1eda8241"
         }
       ]
     },
@@ -68,11 +68,11 @@
         {
           "name": "okay-java-resumable-gradle-plugin-0.1.0-sources.jar",
           "url": "okay-java-resumable-gradle-plugin-0.1.0-sources.jar",
-          "size": 3174,
-          "sha512": "25238d2fdc873ffd11242c73e69c9e14c86fb7f3e1dd58bc2069eba8259ea2704cb4022ffa8b8d7ecb817ee4795b0ec561ca36cac8c25f6739e8a60bf2871b5f",
-          "sha256": "d855cab9fa10caee1b3673b4c07a11e50bb8ac8fa53c3954f9a0cb6c04814f42",
-          "sha1": "c2528fe61a6a5956d4ff10013ccabffdf426ab4b",
-          "md5": "d7de84cf54c5c1c7101331845a00bdbe"
+          "size": 3176,
+          "sha512": "c6e48fa29dabc5529123739edbcf1b37a5341c0473a671259496a044c1e4867c4024fe17d239d6bde9ffbfdbfea57eeed75e47b23b0f98b87c6896d7ad1dfed5",
+          "sha256": "83dd1b7e61d632859aeb0112f4099712c760a7369551dcfa59eb19137c738929",
+          "sha1": "d4667d5226b1fc8c1c1f136da65b89bc4215237e",
+          "md5": "20967a906a70623cde42fcf0109ba6cb"
         }
       ]
     },

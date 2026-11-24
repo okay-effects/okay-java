@@ -36,11 +36,11 @@
         {
           "name": "okay-java-spring-boot-0.1.0.jar",
           "url": "okay-java-spring-boot-0.1.0.jar",
-          "size": 15132,
-          "sha512": "1d6425feb38f642062ef6a645ceb86d767c6e190d7ae895b8ebf0735745dbfd671848350e878db95a6caaf43564c01b874403c91903afcad60df869481c18392",
-          "sha256": "ee00f7adfa9e6c14208186391b8ac060fbc89d346f15cd84a29787646dfc9eee",
-          "sha1": "1738e360de0e802846c56534efa10744928dd308",
-          "md5": "c0ef81f862cc50ca1b431b22fcadc55a"
+          "size": 15135,
+          "sha512": "86795bfb107a80d3c9a3bd201da210dc7a21834f7f1baa3e0fc7c45a1a109d952ef42b530e64f429e1fc12550e97b04d3d1e062492300c61925e953194f24ee7",
+          "sha256": "66765ab473decca6be2d31e2758af3104478d831a484fc8eb403e1ee9b61a934",
+          "sha1": "8e74e0950622d6cf759f70b4af79e31a8c6992ee",
+          "md5": "7fa0afbb5872a601aa8fb18f0b3ff16d"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "okay-java-spring-boot-0.1.0.jar",
           "url": "okay-java-spring-boot-0.1.0.jar",
-          "size": 15132,
-          "sha512": "1d6425feb38f642062ef6a645ceb86d767c6e190d7ae895b8ebf0735745dbfd671848350e878db95a6caaf43564c01b874403c91903afcad60df869481c18392",
-          "sha256": "ee00f7adfa9e6c14208186391b8ac060fbc89d346f15cd84a29787646dfc9eee",
-          "sha1": "1738e360de0e802846c56534efa10744928dd308",
-          "md5": "c0ef81f862cc50ca1b431b22fcadc55a"
+          "size": 15135,
+          "sha512": "86795bfb107a80d3c9a3bd201da210dc7a21834f7f1baa3e0fc7c45a1a109d952ef42b530e64f429e1fc12550e97b04d3d1e062492300c61925e953194f24ee7",
+          "sha256": "66765ab473decca6be2d31e2758af3104478d831a484fc8eb403e1ee9b61a934",
+          "sha1": "8e74e0950622d6cf759f70b4af79e31a8c6992ee",
+          "md5": "7fa0afbb5872a601aa8fb18f0b3ff16d"
         }
       ]
     },
@@ -86,11 +86,11 @@
         {
           "name": "okay-java-spring-boot-0.1.0-sources.jar",
           "url": "okay-java-spring-boot-0.1.0-sources.jar",
-          "size": 9464,
-          "sha512": "bb7a5745c149ea6bc47d565eb980ec0ba3aaa0d29f9687c85bd175aebfd47a5ad361a564517e9e50b2fc15dd0baa17927727d40356984d118688cb9e81c0d7f1",
-          "sha256": "22d76cb882c924684d38e668e76b250a6b5207070082de4d21885a288b458f01",
-          "sha1": "ca2e0282c7a7b44216c20bdaa8163d1d83ca61be",
-          "md5": "3e8a976ecd299ab2eb3b76fea16d967a"
+          "size": 9479,
+          "sha512": "2c3e72c6121e4588e4245473a711c39b858d2ba5fb9e3dd3e249d74992c49886e9e3a33781e93970a4815c12c17737ce625d544307432566b8e211f00d892751",
+          "sha256": "b96c878b9cf98d3c864d5bc6b3affd62bbf25dce2991ac070d134fa30f66e379",
+          "sha1": "1221eb1052f31d40459c40d099d6b784c035a27e",
+          "md5": "9fb1ac9fab74215cf5b830bdcd3560af"
         }
       ]
     },
@@ -106,11 +106,11 @@
         {
           "name": "okay-java-spring-boot-0.1.0-javadoc.jar",
           "url": "okay-java-spring-boot-0.1.0-javadoc.jar",
-          "size": 4166435,
-          "sha512": "93521802cdbe3d644c9a6b17ac82082b62f3c9540f7cee6adc918eb5faa9e2c90771fed5cfb2ca1d041092bf7e939b29e3801bc7a07aa40067501e12948c0c49",
-          "sha256": "26056a20deef853400fd86b345230a51fb8d2facfc39d8adcb6f97281a7bde07",
-          "sha1": "307968b28a3464de23576d98a08f1830d6cf247f",
-          "md5": "e26c95acdfd71b987268d90030cf8e32"
+          "size": 4166451,
+          "sha512": "cb65f1a8badf108d77494d6b5638a3d487377029e366ebdf79abeae595710a4af4412072459ac554257da31ff77c20a9fb467ae0f41adf8cf5d7a2eaa7ead9a4",
+          "sha256": "fb82e6fcdc7253300dd7ef7f8eab97719881edf9c0e78d0b3ed8bc2837c3b542",
+          "sha1": "5f680cb138cd8f5d659db262c8d8412b839b8d03",
+          "md5": "3995c91ac805c99f113498ec0cb3756d"
         }
       ]
     }

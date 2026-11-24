@@ -33,6 +33,12 @@
   <dependencies>
     <dependency>
       <groupId>io.github.okay-effects</groupId>
+      <artifactId>okay-java-api</artifactId>
+      <version>0.1.0</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.github.okay-effects</groupId>
       <artifactId>okay-kernel-api</artifactId>
       <version>0.1.0</version>
       <scope>compile</scope>

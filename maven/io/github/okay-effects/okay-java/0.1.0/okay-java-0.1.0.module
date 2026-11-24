@@ -26,6 +26,13 @@
       "dependencies": [
         {
           "group": "io.github.okay-effects",
+          "module": "okay-java-api",
+          "version": {
+            "requires": "0.1.0"
+          }
+        },
+        {
+          "group": "io.github.okay-effects",
           "module": "okay-kernel-api",
           "version": {
             "requires": "0.1.0"
@@ -36,11 +43,11 @@
         {
           "name": "okay-java-0.1.0.jar",
           "url": "okay-java-0.1.0.jar",
-          "size": 261910,
-          "sha512": "18c295cae91b4009ab5e1adf6b2b99ce2301bba2597c502cbb70c410fbed435fee8d71ed72983f6c6905ca0d0a5a80d04a4cd4450b6188a7f2f5c579bdc5aac5",
-          "sha256": "7467c8c138bd3975a7ccbfcf41a5bd83a4f9b223b6a471d2d45e7a40fe288ca8",
-          "sha1": "f2ca2eb013a1271155c8820f0751993b60f08c2a",
-          "md5": "4f457ca27eb0fb09a77a7be1fd161ba3"
+          "size": 260634,
+          "sha512": "b8d6819c701998be5b7ca25a869bc102daf29304da2a6800c982fac1f517153e0546d78275fb29f4ec18b7285bede726ddda01bf141be2bd342f723e3e739569",
+          "sha256": "c8d44ed1077f146f808330ee5624aceedd1b6f30451e6efe4c1e772a11af693b",
+          "sha1": "f71e7378e88f4d245527135e2ba1e975e2cddf0c",
+          "md5": "cccf839b544cf62b58b4b227751cd9fb"
         }
       ]
     },
@@ -56,6 +63,13 @@
       "dependencies": [
         {
           "group": "io.github.okay-effects",
+          "module": "okay-java-api",
+          "version": {
+            "requires": "0.1.0"
+          }
+        },
+        {
+          "group": "io.github.okay-effects",
           "module": "okay-kernel-api",
           "version": {
             "requires": "0.1.0"
@@ -66,11 +80,11 @@
         {
           "name": "okay-java-0.1.0.jar",
           "url": "okay-java-0.1.0.jar",
-          "size": 261910,
-          "sha512": "18c295cae91b4009ab5e1adf6b2b99ce2301bba2597c502cbb70c410fbed435fee8d71ed72983f6c6905ca0d0a5a80d04a4cd4450b6188a7f2f5c579bdc5aac5",
-          "sha256": "7467c8c138bd3975a7ccbfcf41a5bd83a4f9b223b6a471d2d45e7a40fe288ca8",
-          "sha1": "f2ca2eb013a1271155c8820f0751993b60f08c2a",
-          "md5": "4f457ca27eb0fb09a77a7be1fd161ba3"
+          "size": 260634,
+          "sha512": "b8d6819c701998be5b7ca25a869bc102daf29304da2a6800c982fac1f517153e0546d78275fb29f4ec18b7285bede726ddda01bf141be2bd342f723e3e739569",
+          "sha256": "c8d44ed1077f146f808330ee5624aceedd1b6f30451e6efe4c1e772a11af693b",
+          "sha1": "f71e7378e88f4d245527135e2ba1e975e2cddf0c",
+          "md5": "cccf839b544cf62b58b4b227751cd9fb"
         }
       ]
     },
@@ -86,11 +100,11 @@
         {
           "name": "okay-java-0.1.0-sources.jar",
           "url": "okay-java-0.1.0-sources.jar",
-          "size": 72831,
-          "sha512": "2cc8f2060ae8bd2fcbbe1d9ca61e7683610744116ea915c1d9467b238edfc2324c3796773b7bbda87218189d5496882cb5a3f9b32861f898bdd1f7c4559180de",
-          "sha256": "377791528a9bde129366c0f86b97e25ecc8de10f76cce8e6a80de004be7ad808",
-          "sha1": "767bbff5de0df213284864854808d27f4e694d11",
-          "md5": "f25220cfd856df93ee7f22c4ea190d07"
+          "size": 70542,
+          "sha512": "c9c6daa9a03ba1c09c564152c88747739c4d190ff4775312575cea16f1c1d56dd8ff1a3f8a412b3b96977b4dd38dd929486ebebf301e281925ec1cb868bf9af6",
+          "sha256": "8814e7cb664c8879d660bbc5290fe43ba2a526477103cce2e3371e0c074a8bf1",
+          "sha1": "a77cdc3c9a4642b070f2428eb7b2bb7ef2b41aa2",
+          "md5": "1e0ea0ba1cf5d8db3f3b2227722958d3"
         }
       ]
     },
@@ -106,11 +120,11 @@
         {
           "name": "okay-java-0.1.0-javadoc.jar",
           "url": "okay-java-0.1.0-javadoc.jar",
-          "size": 4536856,
-          "sha512": "145bb6193d597ddde1e7be07b1600cdbd004134d7722274a0395f476149867b866b1d2838fb0636c300162ec8ae2cfd309d866eab33f5b1b9d71d64558628ab2",
-          "sha256": "0b77ab191a670d06f62634689ba84ebeecb6b2e22ab281d56e904cf51d0cdb72",
-          "sha1": "3e39f71ae9618a979d78c82736ceb51e9b2f9486",
-          "md5": "d2b4a4dfd9d1a657e2bb9ecd20c37e99"
+          "size": 4523970,
+          "sha512": "4a9079b7d4dda541cabad61af626af85955f40a90d546630a8358ba32133c0eb28db6aabc70bec4df8b6999f917449a8f4656e306cc8790eee052fbe8d0b2dc6",
+          "sha256": "ac750ac61086ac627aa366fff892bd9dd8886a407e17cc9a533ee0b315439236",
+          "sha1": "f1d4d6def3b936dfb3d6c7b129a545ebfc58cdc3",
+          "md5": "9cc8fd9eb203fa2b6e1e091be53ea0d0"
         }
       ]
     }

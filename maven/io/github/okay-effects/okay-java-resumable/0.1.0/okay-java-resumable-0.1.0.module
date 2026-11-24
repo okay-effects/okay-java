@@ -36,11 +36,11 @@
         {
           "name": "okay-java-resumable-0.1.0.jar",
           "url": "okay-java-resumable-0.1.0.jar",
-          "size": 117814,
-          "sha512": "c9f35f086dc23b6a306cd6ae67e5cae29270259cbb56257093c02c05b2aeb2d419338a09a30da23ab3d5785981e5518f04bc25fea0a7dd2f31ee6bd2aa6ec3dc",
-          "sha256": "bca3e9e73d609ea7b89b6a8e14615509bbe22125bda73b3916dba493be4da124",
-          "sha1": "53408b22568e528ba1427e9849f7b524a0099b63",
-          "md5": "b7b26a12e2cf13eebef4a2027dc07a9f"
+          "size": 118065,
+          "sha512": "e6f8731ef99b9d14be3df2eae120a482d1d520154cb6ba594ce21bb67e7107069aa0f3554515fa2f4d0bfd8228bdfd88304817881ffaf99b7ccd1ac2193f4484",
+          "sha256": "f081e6fb7f62053e776a867498384a88f3d54a78dad708aec13c26ef315cf0dd",
+          "sha1": "84b85a6b954075d09a4086a075c1e30d7f4e9ec4",
+          "md5": "18d3534c73e97406ed249fc6c5e5f12d"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "okay-java-resumable-0.1.0.jar",
           "url": "okay-java-resumable-0.1.0.jar",
-          "size": 117814,
-          "sha512": "c9f35f086dc23b6a306cd6ae67e5cae29270259cbb56257093c02c05b2aeb2d419338a09a30da23ab3d5785981e5518f04bc25fea0a7dd2f31ee6bd2aa6ec3dc",
-          "sha256": "bca3e9e73d609ea7b89b6a8e14615509bbe22125bda73b3916dba493be4da124",
-          "sha1": "53408b22568e528ba1427e9849f7b524a0099b63",
-          "md5": "b7b26a12e2cf13eebef4a2027dc07a9f"
+          "size": 118065,
+          "sha512": "e6f8731ef99b9d14be3df2eae120a482d1d520154cb6ba594ce21bb67e7107069aa0f3554515fa2f4d0bfd8228bdfd88304817881ffaf99b7ccd1ac2193f4484",
+          "sha256": "f081e6fb7f62053e776a867498384a88f3d54a78dad708aec13c26ef315cf0dd",
+          "sha1": "84b85a6b954075d09a4086a075c1e30d7f4e9ec4",
+          "md5": "18d3534c73e97406ed249fc6c5e5f12d"
         }
       ]
     },
@@ -86,11 +86,11 @@
         {
           "name": "okay-java-resumable-0.1.0-sources.jar",
           "url": "okay-java-resumable-0.1.0-sources.jar",
-          "size": 44428,
-          "sha512": "222879148d10a3a3fb10bc9ce9eba6d3db6d35fbfd168bc28fd321cba50ebb31ce31e0ac3b47351b18338b39e84c720a506cab417be20166e41b32d197481bc5",
-          "sha256": "141360fc5e238fbf30eed1e6e97db97d055052d3a3d04ff7567e352042aba679",
-          "sha1": "6ff6d8d2405f616de1dfd5ab74c8a693fb4acc06",
-          "md5": "009ec1250a21ae0d550cb40a170f81b5"
+          "size": 44566,
+          "sha512": "7e34d1707b3237618811864303d3e341ef49211be083eb2cfa4f2af36979b9c0ef26f19ad5f0ebe7aecb0dc0dc536e60845f280ac34732ab3372237fb9710bb0",
+          "sha256": "386fcc093c5e30c3be907a6961633544e08560e1f22e50d3b43dae0afbba9916",
+          "sha1": "02721d93fd57a275a3770eaab9ae8606daddecf5",
+          "md5": "68d052b95ae28d20d9efa5705f1258a7"
         }
       ]
     },
@@ -106,11 +106,11 @@
         {
           "name": "okay-java-resumable-0.1.0-javadoc.jar",
           "url": "okay-java-resumable-0.1.0-javadoc.jar",
-          "size": 4279429,
-          "sha512": "524e1924510c9aa9dbe383c2e4f28d582a6191c33ca18795c5ed20b8b638bf0bcbc3db7a575a1bd4d229ef9a8a121ac755bfe4dbf6d37995b349c4ba9a0441a0",
-          "sha256": "420064c20db74d4fd959d7f4652bdf6e4c02fc3c1e7048f6470cffe832dd737f",
-          "sha1": "fb17a02c0baee16448162255a03fff851c54a53f",
-          "md5": "1f90aef6e03d1adc061eeabf9241f383"
+          "size": 4279499,
+          "sha512": "189e8b261a8e73546abfc1470f688beb6d529800f4f0f22412e42086d67f5cef8b36988be9f25d8feb4dcfa89251ed727e85449b280dca5c2f04cc17b4b6d746",
+          "sha256": "6e7c41a8b349c4d4a7573ac7ce9c46a7e67f0692d668aaf79d7f58c60e06b1cf",
+          "sha1": "07644fd0ed5f8e43ba4274d8cdef2acb55a32283",
+          "md5": "0be511ebebd451169f1e0c1130c2beab"
         }
       ]
     }
