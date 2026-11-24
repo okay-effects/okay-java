@@ -155,6 +155,11 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   answer. A computation made of operations is gathered by `add(ask(op).map(f))`. The same as a lambda, the gather
   its parameter and no anonymous class: `gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })`,
   or a method that takes a `Gather<Long, Prices<?>>`, passed by its name (`GatherLambdaWrongOperation.java`).
+- A gather is more than a list: it says what to do with what it gathered, each a computation — `toList()`,
+  `reduce(zero, f)`, `map(f)`; `first(wanted)`, `any(wanted)`, `all(wanted)` run in order and ask no further than
+  the value that decides; and `operations()` gives the operations themselves as data before anything runs — to ask
+  them all in one batch operation of the effect, to drop the repeated, to count:
+  `gather(g -> { for (..) g.perform(new Price(item)); }).first(p -> p > 100)`.
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the

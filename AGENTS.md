@@ -112,6 +112,8 @@ source of computations, `Iterable<Comp<X, R>>`, is built by plain Java (a `for`,
 `reduce(xs, zero, f)`, or `stream.map(item -> perform(..)).collect(sequencing())`;
 `new Gather<>() {{ for (..) perform(new Price(item)); }}` is a plain `for` with `perform` in it, an `Iterable` of
 the computations made, checked by the compiler — or as a lambda, `gather(g -> { for (..) g.perform(new Price(item)); })`
+— and the gather says what to do with them: `.toList()`, `.reduce(zero, f)`, `.first(wanted)` (asks no further),
+`.operations()` (the operations as data, to ask in one batch)
 (no answer is there in the body: a loop that goes by the answers is
 `fold`).
 Other words: `under`,
