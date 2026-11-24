@@ -91,8 +91,8 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   /** TRUSTED: a kernel program given to okay-java is one of its nodes; at the level {@code Object}, levels phantom */
   @SuppressWarnings("unchecked")
-  static <A> Comp<Object, A> eff(Prog<A> p) {
-    if (p instanceof Comp<?, ?> e) return (Comp<Object, A>) e;
+  static <A> Comp<A, Object> eff(Prog<A> p) {
+    if (p instanceof Comp<?, ?> e) return (Comp<A, Object>) e;
     throw new IllegalArgumentException("not a program of okay-java: " + p);
   }
 
@@ -245,7 +245,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return eff(p).flatMap(a -> bound(f, a));
   }
 
-  private static <A, B> Comp<Object, B> bound(Fn<A, Prog<B>> f, A a) {
+  private static <A, B> Comp<B, Object> bound(Fn<A, Prog<B>> f, A a) {
     try {
       return eff(f.apply(a));
     } catch (Throwable t) {
@@ -258,7 +258,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return eff(p).flatMap(a -> mapped(f, a));
   }
 
-  private static <A, B> Comp<Object, B> mapped(Fn<A, B> f, A a) {
+  private static <A, B> Comp<B, Object> mapped(Fn<A, B> f, A a) {
     try {
       return Comp.pure(f.apply(a));
     } catch (Throwable t) {
@@ -296,7 +296,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   /** a kernel delimiter's body: the program built when the delimiter is entered */
   private static <A, R> Comp.Body<Object, A, R> body(Program<A> program) {
     return new Comp.Body<>() {
-      public <M> Comp<M, A> in(Prompt<Object, M, R> p) {
+      public <M> Comp<A, M> in(Prompt<Object, M, R> p) {
         try {
           return eff(program.in(EFFECTS)).at();
         } catch (Throwable t) {
@@ -309,7 +309,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   /** a body already a program of okay-java's */
   private static <A, R> Comp.Body<Object, A, R> body(Supplier<Comp<?, ?>> program) {
     return new Comp.Body<>() {
-      public <M> Comp<M, A> in(Prompt<Object, M, R> p) {
+      public <M> Comp<A, M> in(Prompt<Object, M, R> p) {
         return trust(program.get());
       }
     };
@@ -362,7 +362,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return new Handle<Object, A, A>(body(body), ret, new KEnsuring(() -> finalized(finalizer)));
   }
 
-  private static Comp<Object, Void> finalized(Program<Void> fin) {
+  private static Comp<Void, Object> finalized(Program<Void> fin) {
     try {
       return eff(fin.in(EFFECTS));
     } catch (Throwable t) {
@@ -430,7 +430,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   /** a translating handler's program for {@code op}, in its place, then the rest with its value */
   private static <X> Comp<?, ?> translated(Translating<?, ?> tr, Op<X> op, Machine.Kont k) {
-    Comp<Object, X> p;
+    Comp<X, Object> p;
     try {
       p = eff(tr.translate(op).in(EFFECTS));
     } catch (Throwable t) {

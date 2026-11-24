@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * On the machine: the reference runs no failures */
 class GuardTest {
 
-  static Comp<Top, Integer> boom(String what) {
+  static Comp<Integer, Top> boom(String what) {
     return Comp.<Top, Integer>pure(1).map(_ -> {
       throw new IllegalArgumentException(what);
     });
@@ -42,7 +42,7 @@ class GuardTest {
   @Test
   void ensuringRunsOnAValueAndOnAFailureThenTheSameWayOn() {
     List<String> log = new ArrayList<>();
-    Comp<Top, Void> fin = Comp.sync(() -> {
+    Comp<Void, Top> fin = Comp.sync(() -> {
       log.add("fin");
       return null;
     });
@@ -51,7 +51,7 @@ class GuardTest {
     assertEquals(-1, Comp.run(Comp.recover(Comp.ensuring(boom("x"), fin), _ -> pure(-1))));
     assertEquals(List.of("fin", "fin"), log);
     // a finalizer's failure replaces the failure
-    Comp<Top, Void> bad = Comp.sync(() -> {
+    Comp<Void, Top> bad = Comp.sync(() -> {
       throw new IllegalStateException("fin failed");
     });
     assertEquals("fin failed", Comp.run(Comp.recover(Comp.ensuring(boom("x"), bad).map(String::valueOf), t -> pure(t.getMessage()))));
@@ -59,7 +59,7 @@ class GuardTest {
 
   @Test
   void aRecoverThatThrowsGoesToTheGuardOutside() {
-    Comp<Top, Integer> inner = Comp.recover(boom("a"), t -> {
+    Comp<Integer, Top> inner = Comp.recover(boom("a"), t -> {
       throw new IllegalStateException(t.getMessage() + "b");
     });
     assertEquals("ab", Comp.run(Comp.recover(inner.map(String::valueOf), t -> pure(t.getMessage()))));
@@ -69,8 +69,8 @@ class GuardTest {
   @Test
   void aFailureUnwindsThroughAHandler() {
     List<String> log = new ArrayList<>();
-    Comp<Top, Final<Integer, Integer>> body = State.state(0, new State.Body<Top, Integer, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(State<M, Integer> st) {
+    Comp<Final<Integer, Integer>, Top> body = State.state(0, new State.Body<Top, Integer, Integer>() {
+      public <M extends Top> Comp<Integer, M> in(State<M, Integer> st) {
         return st.put(1).then(Comp.<M, Integer>failed(new RuntimeException("in"))).map(x -> {
           log.add("not reached");
           return x;
@@ -84,8 +84,8 @@ class GuardTest {
   /** a guard inside a handler's body does not take a failure of a clause: the clause runs outside the handler */
   @Test
   void aClausesFailureIsOutsideItsHandler() {
-    Comp<Top, Integer> p = Comp.recover(Comp.handle(new Comp.Body<Top, Integer, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> pr) {
+    Comp<Integer, Top> p = Comp.recover(Comp.handle(new Comp.Body<Top, Integer, Integer>() {
+      public <M extends Top> Comp<Integer, M> in(Prompt<Top, M, Integer> pr) {
         // the recover inside the body: not the clause's
         return Comp.recover(pr.shift0(k -> {
           throw new IllegalStateException("clause");
@@ -99,9 +99,9 @@ class GuardTest {
   @Test
   void aGuardCrossedByACaptureIsInK() {
     List<Integer> seen = new ArrayList<>();
-    Comp<Top, Integer> p = Comp.handle(new Comp.Body<Top, Integer, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> pr) {
-        Comp<M, Integer> op = pr.shift0(k -> k.apply(1).flatMap(a -> k.apply(2).map(b -> a + b)));
+    Comp<Integer, Top> p = Comp.handle(new Comp.Body<Top, Integer, Integer>() {
+      public <M extends Top> Comp<Integer, M> in(Prompt<Top, M, Integer> pr) {
+        Comp<Integer, M> op = pr.shift0(k -> k.apply(1).flatMap(a -> k.apply(2).map(b -> a + b)));
         return Comp.recover(op.map(x -> {
           seen.add(x);
           if (x == 1) throw new IllegalStateException("one");
@@ -116,9 +116,9 @@ class GuardTest {
   /** the first frame of a resumed rest — the operation's own map — failing: the guard that k crossed takes it */
   @Test
   void aResumedRestsFirstFrameFailsUnderTheGuardAgain() {
-    Comp<Top, Integer> p = Comp.handle(new Comp.Body<Top, Integer, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> pr) {
-        Comp<M, Integer> op = pr.shift0(k -> k.apply(7));
+    Comp<Integer, Top> p = Comp.handle(new Comp.Body<Top, Integer, Integer>() {
+      public <M extends Top> Comp<Integer, M> in(Prompt<Top, M, Integer> pr) {
+        Comp<Integer, M> op = pr.shift0(k -> k.apply(7));
         return Comp.recover(op.map((Function<Integer, Integer>) x -> {
           throw new IllegalStateException("first");
         }), t -> pure(t.getMessage().length()));
@@ -137,9 +137,9 @@ class GuardTest {
 
   @Test
   void manyFailuresInARowInConstantStack() {
-    Comp<Top, Integer> p = pure(0);
+    Comp<Integer, Top> p = pure(0);
     for (int i = 0; i < 100_000; i++) {
-      Comp<Top, Integer> q = p;
+      Comp<Integer, Top> q = p;
       // the value so far, failed with, recovered one more: 100 000 guards in force at the bottom, on the heap
       p = Comp.recover(q.flatMap(n -> Comp.failed(new RuntimeException(String.valueOf(n)))),
           t -> pure(Integer.parseInt(t.getMessage()) + 1));

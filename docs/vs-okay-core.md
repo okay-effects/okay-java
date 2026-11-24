@@ -1,14 +1,14 @@
 # okay-java and okay-core
 
 okay-core is Scala 3 and okay-java is Java 25. Both are built on `shift0` and `$` — okay-core's one monad
-`Cont[R, I, O, A]` (its kernel, `okay.one`), okay-java's `Comp<L, A>` — and both run a program by a machine over an
+`Cont[R, I, O, A]` (its kernel, `okay.one`), okay-java's `Comp<A, L>` — and both run a program by a machine over an
 explicit stack of delimiters, `k` data, in constant stack. They make different choices where the languages differ,
 and they meet at okay-kernel: each implements the protocol natively (okay-core's `OnCore`, okay-java's `Kernel`),
 and a program of either runs under the other's handlers through it.
 
 | | okay-core | okay-java |
 |---|---|---|
-| A program | `A ! E1 + E2`: a row of effects in the type, the facade over `Cont[R, I, O, A]` | `Comp<L, A>`: a level in the type, the handlers in force where it runs |
+| A program | `A ! E1 + E2`: a row of effects in the type, the facade over `Cont[R, I, O, A]` | `Comp<A, L>`: a level in the type, the handlers in force where it runs |
 | The effects a program needs | the row, found by the compiler (`In`, a path to the effect) | capabilities as parameters, `State<L, S> st` |
 | An operation finds its handler | by its path in the row: `Here`, `There`, …; a `Deep` handler relocates the paths crossing it (`Removed`, `Again`) | by its prompt, the handler's identity; the handlers crossed are not looked at |
 | An effect inside a handler of the same effect | the nearest of its type, by path | the one its capability came from: two `State<Integer>` at once |

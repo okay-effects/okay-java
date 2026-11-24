@@ -14,7 +14,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * WebFlux's: a controller's method that returns a {@link Comp} — a program at the top, {@code Comp<Comp.Top, A>}: run
+ * WebFlux's: a controller's method that returns a {@link Comp} — a program at the top, {@code Comp<A, Comp.Top>}: run
  * when the response is subscribed to, by {@link Comp#run}, its value handed to the other result handlers as if the
  * method had returned it, of the type {@code A} (a body, a {@code ResponseEntity}, a view's name); its failure the
  * method's, to the {@code @ExceptionHandler}s. Not a {@code ReactiveAdapter}: an adapted type's value is its FIRST
@@ -44,11 +44,11 @@ public final class EffResultHandler implements HandlerResultHandler, Ordered {
   @Override
   public Mono<Void> handleResult(ServerWebExchange exchange, HandlerResult result) {
     @SuppressWarnings("unchecked")
-    Comp<Comp.Top, Object> program = (Comp<Comp.Top, Object>) result.getReturnValue();
+    Comp<Object, Comp.Top> program = (Comp<Object, Comp.Top>) result.getReturnValue();
     MethodParameter source = result.getReturnTypeSource();
     // the value's type: Comp's second argument where the method declares an Comp, the method's own type where not
     MethodParameter valueType = Comp.class.isAssignableFrom(source.getParameterType())
-        ? new Value(source, result.getReturnType().as(Comp.class).getGeneric(1)) : source;
+        ? new Value(source, result.getReturnType().as(Comp.class).getGeneric(0)) : source;
     return Mono.fromCallable(() -> Optional.ofNullable(program == null ? null : Comp.run(program)))
         .flatMap(value -> {
           HandlerResult answer = new HandlerResult(result.getHandler(), value.orElse(null), valueType,
@@ -67,7 +67,7 @@ public final class EffResultHandler implements HandlerResultHandler, Ordered {
     return hs;
   }
 
-  /** the method's return type as the program's value's, {@code A} of {@code Comp<L, A>}, the method and its
+  /** the method's return type as the program's value's, {@code A} of {@code Comp<A, L>}, the method and its
    * annotations the same — a nested {@code MethodParameter} is not one WebFlux's handlers can take as theirs: its
    * {@code ResolvableType}'s source is the type, not the parameter (MVC's {@code ConcurrentResultMethodParameter}) */
   private static final class Value extends MethodParameter {

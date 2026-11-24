@@ -31,15 +31,15 @@ public final class EffTransactions {
   }
 
   /** {@code body} in a transaction of Spring's defaults: {@code REQUIRED}, the manager's isolation and timeout */
-  public <A> Comp<Comp.Top, A> transactional(Comp<Comp.Top, A> body) {
+  public <A> Comp<A, Comp.Top> transactional(Comp<A, Comp.Top> body) {
     return transactional(TransactionDefinition.withDefaults(), body);
   }
 
   /** {@code body} in a transaction of {@code definition}: a {@code TransactionTemplate} is one */
-  public <A> Comp<Comp.Top, A> transactional(TransactionDefinition definition, Comp<Comp.Top, A> body) {
+  public <A> Comp<A, Comp.Top> transactional(TransactionDefinition definition, Comp<A, Comp.Top> body) {
     return Comp.delay(() -> {
       TransactionStatus tx = transactions.getTransaction(definition);
-      Comp<Comp.Top, A> committed = body.flatMap(a -> Comp.sync(() -> {
+      Comp<A, Comp.Top> committed = body.flatMap(a -> Comp.sync(() -> {
         transactions.commit(tx);
         return a;
       }));

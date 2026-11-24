@@ -10,7 +10,7 @@ final class Nodes {
 
   /** a node: its step the machine's, each kind's its own method (see {@link Machine#run}) — an abstract class, not an
    * interface, so the loop's call to it is a virtual call, one load, not an interface's search */
-  abstract static sealed class Node<L, A> implements Comp<L, A>
+  abstract static sealed class Node<L, A> implements Comp<A, L>
       permits Return, Bind, Map, Delay, Sync, Shift0, Suspend, Handle, Reset, Push, Machine.Resumption,
       Kernel.Perform, Kernel.Shift0K, Kernel.Fail, Kernel.Signalled, Kernel.Foreign, Rows.Ask, Rows.Enter, Rows.Here {
     abstract Comp<?, ?> step(Machine.Run m);
@@ -32,15 +32,15 @@ final class Nodes {
   }
 
   static final class Bind<L, A, B> extends Node<L, B> {
-    private final Comp<L, A> m;
+    private final Comp<A, L> m;
     private final Function f;
 
-    Bind(Comp<L, A> m, Function f) {
+    Bind(Comp<A, L> m, Function f) {
       this.m = m;
       this.f = f;
     }
 
-    Comp<L, A> m() {
+    Comp<A, L> m() {
       return m;
     }
 
@@ -53,15 +53,15 @@ final class Nodes {
   }
 
   static final class Map<L, A, B> extends Node<L, B> {
-    private final Comp<L, A> m;
+    private final Comp<A, L> m;
     private final Function<? super A, ? extends B> f;
 
-    Map(Comp<L, A> m, Function<? super A, ? extends B> f) {
+    Map(Comp<A, L> m, Function<? super A, ? extends B> f) {
       this.m = m;
       this.f = f;
     }
 
-    Comp<L, A> m() {
+    Comp<A, L> m() {
       return m;
     }
 
@@ -75,13 +75,13 @@ final class Nodes {
 
   /** a program built when the loop gets to it: a tail call, one node */
   static final class Delay<L, A> extends Node<L, A> {
-    private final Supplier<? extends Comp<?, A>> c;
+    private final Supplier<? extends Comp<A, ?>> c;
 
-    Delay(Supplier<? extends Comp<?, A>> c) {
+    Delay(Supplier<? extends Comp<A, ?>> c) {
       this.c = c;
     }
 
-    Supplier<? extends Comp<?, A>> c() {
+    Supplier<? extends Comp<A, ?>> c() {
       return c;
     }
     Comp<?, ?> step(Machine.Run m) {
@@ -127,7 +127,7 @@ final class Nodes {
 
     /** an operation bound: one node, {@link Suspend} */
     @Override
-    public <B> Comp<M, B> flatMap(Function<? super X, ? extends Comp<? super M, B>> g) {
+    public <B> Comp<B, M> flatMap(Function<? super X, ? extends Comp<B, ? super M>> g) {
       return new Suspend<>(prompt, f, g);
     }
   }
@@ -194,9 +194,9 @@ final class Nodes {
   }
 
   /** a body that is a program already, at the level outside — a guard's: no fresh level, nothing to give the prompt */
-  static <L, A, R> Comp.Body<L, A, R> plain(Comp<L, A> body) {
+  static <L, A, R> Comp.Body<L, A, R> plain(Comp<A, L> body) {
     return new Comp.Body<>() {
-      public <M extends L> Comp<M, A> in(Prompt<L, M, R> p) {
+      public <M extends L> Comp<A, M> in(Prompt<L, M, R> p) {
         return body.at();
       }
     };
@@ -205,9 +205,9 @@ final class Nodes {
   /** a delimiter under a prompt there already: {@code p.reset(body)}, its answer the body's value */
   static final class Reset<L, R> extends Node<L, R> {
     private final Prompt<?, ?, ?> prompt;
-    private final Comp<?, R> body;
+    private final Comp<R, ?> body;
 
-    Reset(Prompt<?, ?, ?> prompt, Comp<?, R> body) {
+    Reset(Prompt<?, ?, ?> prompt, Comp<R, ?> body) {
       this.prompt = prompt;
       this.body = body;
     }
@@ -216,7 +216,7 @@ final class Nodes {
       return prompt;
     }
 
-    Comp<?, R> body() {
+    Comp<R, ?> body() {
       return body;
     }
     Comp<?, ?> step(Machine.Run m) {

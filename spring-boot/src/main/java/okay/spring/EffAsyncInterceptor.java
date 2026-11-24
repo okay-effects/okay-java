@@ -34,7 +34,7 @@ final class EffAsyncInterceptor extends AnnotationAsyncExecutionInterceptor {
     if (executor == null) throw new IllegalStateException("no executor for @Async " + method);
     CompletableFuture<Object> done = executor.submitCompletable(() -> {
       @SuppressWarnings("unchecked")
-      Comp<Comp.Top, Object> program = (Comp<Comp.Top, Object>) proceed(invocation);
+      Comp<Object, Comp.Top> program = (Comp<Object, Comp.Top>) proceed(invocation);
       return program == null ? null : Comp.run(program);
     });
     return Comp.<Comp.Top, Object>delay(() -> {

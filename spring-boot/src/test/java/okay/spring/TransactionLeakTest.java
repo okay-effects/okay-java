@@ -20,9 +20,9 @@ class TransactionLeakTest {
       import okay.std.Throws;
       import okay.spring.EffTransactions;
       class Snippet {
-        static Comp<Comp.Top, String> f(EffTransactions txs) {
+        static Comp<String, Comp.Top> f(EffTransactions txs) {
           return Throws.catching(new Throws.Body<Comp.Top, String, String>() {
-            public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
+            public <M extends Comp.Top> Comp<String, M> in(Throws<M, String> t) {
               return %s;
             }
           }, e -> Comp.pure(e));

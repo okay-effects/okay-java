@@ -9,7 +9,7 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.mvc.method.annotation.DeferredResultMethodReturnValueHandler;
 
 /**
- * a controller's method that returns a {@link Comp} — a program at the top, {@code Comp<Comp.Top, A>}: run where the
+ * a controller's method that returns a {@link Comp} — a program at the top, {@code Comp<A, Comp.Top>}: run where the
  * request is, by {@link Comp#run}, its value the method's as if it had returned it (a body, a {@code ResponseEntity},
  * a view's name); its failure the method's throw, to the {@code @ExceptionHandler}s. Spring's way for a
  * {@code CompletableFuture} of the value, completed already: an async dispatch, the value's own type deciding how it
@@ -31,7 +31,7 @@ public final class EffReturnValueHandler implements HandlerMethodReturnValueHand
       return;
     }
     @SuppressWarnings("unchecked")
-    Comp<Comp.Top, Object> program = (Comp<Comp.Top, Object>) returnValue;
+    Comp<Object, Comp.Top> program = (Comp<Object, Comp.Top>) returnValue;
     CompletableFuture<Object> done = new CompletableFuture<>();
     try {
       done.complete(Comp.run(program));

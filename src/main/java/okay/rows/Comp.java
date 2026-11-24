@@ -16,11 +16,11 @@ public final class Comp<A, R> {
   static final Rows.Door DOOR = Rows.door(MethodHandles.lookup());
 
   /** the program, at no level of its own: levels are phantom, the row stands for them here */
-  final okay.core.Comp<Object, A> eff;
+  final okay.core.Comp<A, Object> eff;
 
   @SuppressWarnings("unchecked") // the value is an A: the program was built typed, its row and level phantom
   Comp(okay.core.Comp<?, ?> eff) {
-    this.eff = (okay.core.Comp<Object, A>) eff;
+    this.eff = (okay.core.Comp<A, Object>) eff;
   }
 
   /** this, then what {@code f} makes of its value. The row {@code Q} is one that has the effects of both: the
@@ -54,9 +54,9 @@ public final class Comp<A, R> {
   }
 
   /** a bind's function: the next computation's program */
-  private record Next<A, B>(Function<A, ? extends Comp<B, ?>> f) implements Function<A, okay.core.Comp<Object, B>> {
+  private record Next<A, B>(Function<A, ? extends Comp<B, ?>> f) implements Function<A, okay.core.Comp<B, Object>> {
     @Override
-    public okay.core.Comp<Object, B> apply(A a) {
+    public okay.core.Comp<B, Object> apply(A a) {
       return f.apply(a).eff;
     }
   }

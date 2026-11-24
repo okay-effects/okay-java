@@ -43,13 +43,13 @@ public class EffectsBenchmark {
     for (int i = 0; i < n; i++) range.add(i);
   }
 
-  static <L> Comp<L, Integer> counting(State<L, Integer> st, int i) {
+  static <L> Comp<Integer, L> counting(State<L, Integer> st, int i) {
     return i == 0 ? st.get() : st.get().flatMap(x -> st.put(x + 1)).flatMap(_ -> counting(st, i - 1));
   }
 
   State.Body<Top, Integer, Integer> counting() {
     return new State.Body<>() {
-      public <M extends Top> Comp<M, Integer> in(State<M, Integer> st) {
+      public <M extends Top> Comp<Integer, M> in(State<M, Integer> st) {
         return counting(st, n);
       }
     };
@@ -65,23 +65,23 @@ public class EffectsBenchmark {
     return Comp.run(State.cell(0, counting())).state();
   }
 
-  static <L> Comp<L, Void> telling(Writer<L, Integer> w, int i) {
+  static <L> Comp<Void, L> telling(Writer<L, Integer> w, int i) {
     return i == 0 ? Comp.pure(null) : w.tell(i).flatMap(_ -> telling(w, i - 1));
   }
 
   @Benchmark
   public int writerTell() {
     return Comp.run(Writer.writer(new Writer.Body<Top, Integer, Void>() {
-      public <M extends Top> Comp<M, Void> in(Writer<M, Integer> w) {
+      public <M extends Top> Comp<Void, M> in(Writer<M, Integer> w) {
         return telling(w, n);
       }
     })).log().size();
   }
 
-  static <L> Comp<L, Integer> raising(int i, int acc) {
+  static <L> Comp<Integer, L> raising(int i, int acc) {
     if (i == 0) return Comp.pure(acc);
     return Throws.attempt(new Throws.Body<L, String, Integer>() {
-      public <M extends L> Comp<M, Integer> in(Throws<M, String> t) {
+      public <M extends L> Comp<Integer, M> in(Throws<M, String> t) {
         return t.raise("no");
       }
     }).flatMap(r -> raising(i - 1, acc + switch (r) {
@@ -98,7 +98,7 @@ public class EffectsBenchmark {
   @Benchmark
   public int chooseAmong() {
     return Comp.run(Choose.all(new Choose.Body<Top, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(Choose<M> ch) {
+      public <M extends Top> Comp<Integer, M> in(Choose<M> ch) {
         return ch.among(range).map(x -> x + 1);
       }
     })).size();

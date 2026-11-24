@@ -70,7 +70,7 @@ public final class Ref {
   }
 
   /** a program at the top: its value — a capture there had no handler */
-  public static <A> A run(Comp<?, A> p) {
+  public static <A> A run(Comp<A, ?> p) {
     return switch (eval(p)) {
       case Res.Done d -> (A) d.value();
       case Res.Cap _ -> throw new IllegalStateException(

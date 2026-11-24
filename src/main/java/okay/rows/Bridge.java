@@ -19,13 +19,13 @@ public final class Bridge {
 
   /** a row program with nothing left to ask, as a program of the capability notation at any level */
   @SuppressWarnings("unchecked") // levels are phantom: a program asking nothing runs at any
-  public static <L, A> okay.core.Comp<L, A> eff(Comp<A, ? super Pure> p) {
-    return (okay.core.Comp<L, A>) (okay.core.Comp<?, A>) p.eff;
+  public static <L, A> okay.core.Comp<A, L> eff(Comp<A, ? super Pure> p) {
+    return (okay.core.Comp<A, L>) (okay.core.Comp<A, ?>) p.eff;
   }
 
   /** a program of the capability notation at the top — it holds no capability of a handler outside — as a row
    * program, in any row */
-  public static <A, R> Comp<A, R> comp(okay.core.Comp<Top, A> p) {
+  public static <A, R> Comp<A, R> comp(okay.core.Comp<A, Top> p) {
     return new Comp<>(p);
   }
 
@@ -33,20 +33,20 @@ public final class Bridge {
 
   /** what performs the row's first effect from a program of the capability notation, at its level {@code M} */
   public interface Asker<M, F> {
-    <X, O extends Op<F, X, ? super O>> okay.core.Comp<M, X> perform(O op);
+    <X, O extends Op<F, X, ? super O>> okay.core.Comp<X, M> perform(O op);
   }
 
   /** a body of the capability notation: at a fresh level, given what performs the row's first effect there */
   public interface Asking<F, A> {
-    <M> okay.core.Comp<M, A> in(Asker<M, F> ask);
+    <M> okay.core.Comp<A, M> in(Asker<M, F> ask);
   }
 
   /** the body as a row program: its operations of {@code F} go to the handler of the row's first place */
   public static <F, A> Comp<A, Eff<F, ?>> performing(Asking<F, A> body) {
     return new Comp<>(okay.core.Comp.delay(() -> body.<Object>in(new Asker<>() {
       @SuppressWarnings("unchecked") // the operation is answered by an X: it is an Op<F, X, ..>
-      public <X, O extends Op<F, X, ? super O>> okay.core.Comp<Object, X> perform(O op) {
-        return (okay.core.Comp<Object, X>) DOOR.ask(op, 0);
+      public <X, O extends Op<F, X, ? super O>> okay.core.Comp<X, Object> perform(O op) {
+        return (okay.core.Comp<X, Object>) DOOR.ask(op, 0);
       }
     })));
   }
@@ -54,11 +54,11 @@ public final class Bridge {
   /** {@code okay.std.State}'s body, its state the row's first effect, {@code okay.rows.std.State}'s */
   public static <S, A> Comp<A, Eff<okay.rows.std.State<S>, ?>> state(okay.std.State.Body<Top, S, A> body) {
     okay.std.State<Top, S> st = new okay.std.State<>() {
-      public okay.core.Comp<Top, S> get() {
+      public okay.core.Comp<S, Top> get() {
         return Handlers.trusted(DOOR.ask(new okay.rows.std.State.Get<S>(), 0));
       }
 
-      public okay.core.Comp<Top, Void> put(S s) {
+      public okay.core.Comp<Void, Top> put(S s) {
         return Handlers.trusted(DOOR.ask(new okay.rows.std.State.Put<>(s), 0));
       }
     };
@@ -70,7 +70,7 @@ public final class Bridge {
   /** a clause: the operation's answer, a program of the capability notation at the level {@code L}, given to
    * {@code to} with the operation as the witness of its type */
   public interface Answering<L, F> {
-    okay.core.Comp<L, Cell.Answered> answer(F op, To<L> to);
+    okay.core.Comp<Cell.Answered, L> answer(F op, To<L> to);
   }
 
   /** where a clause's answer goes */
@@ -83,7 +83,7 @@ public final class Bridge {
     }
 
     /** {@code x}'s value, the answer to {@code op}: a {@code Get<S>} is answered by an {@code S} */
-    public <X> okay.core.Comp<L, Cell.Answered> answer(Op<?, X, ?> op, okay.core.Comp<L, X> x) {
+    public <X> okay.core.Comp<Cell.Answered, L> answer(Op<?, X, ?> op, okay.core.Comp<X, L> x) {
       if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
       return x.map(v -> {
         value = v;
@@ -96,7 +96,7 @@ public final class Bridge {
 
   /** the row program {@code p}, its effect {@code F} answered by {@code h} at the level {@code L}, where the result
    * runs: each operation's clause a program there, the rest resumed with its answer */
-  public static <L, F, A> okay.core.Comp<L, A> answering(
+  public static <L, F, A> okay.core.Comp<A, L> answering(
       Class<? super F> effect, Answering<L, F> h, Comp<A, ? super Eff<F, Pure>> p) {
     Comp<A, Pure> handled = Effects.handle(effect, new Handler<F, A, A, Pure>() {
       public Comp<A, Pure> ret(A a) {
@@ -106,17 +106,17 @@ public final class Bridge {
       public Comp<A, Pure> on(F op, K<A, Pure> k) {
         To<L> to = new To<>(op);
         return new Comp<A, Pure>(h.answer(op, to)
-            .flatMap(done -> Handlers.<okay.core.Comp<L, A>>trusted(DOOR.resume(k.rest(), to.value))));
+            .flatMap(done -> Handlers.<okay.core.Comp<A, L>>trusted(DOOR.resume(k.rest(), to.value))));
       }
     }, p);
     return eff(handled);
   }
 
   /** the row program's state answered by a capability of {@code okay.std.State} */
-  public static <L, S, A> okay.core.Comp<L, A> state(
+  public static <L, S, A> okay.core.Comp<A, L> state(
       okay.std.State<L, S> st, Comp<A, ? super Eff<okay.rows.std.State<S>, Pure>> p) {
     return answering(okay.rows.std.State.class, new Answering<L, okay.rows.std.State<S>>() {
-      public okay.core.Comp<L, Cell.Answered> answer(okay.rows.std.State<S> op, To<L> to) {
+      public okay.core.Comp<Cell.Answered, L> answer(okay.rows.std.State<S> op, To<L> to) {
         return switch (op) {
           case okay.rows.std.State.Get<S> get -> to.answer(get, st.get());
           case okay.rows.std.State.Put<S> put -> to.answer(put, st.put(put.value()));

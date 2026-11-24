@@ -177,7 +177,7 @@ final class Machine {
 
   /** A RUN, refused ({@link NestedRun}) while a program runs on this thread: from a program's function or a clause, a
    * run would be a second machine on the stack, under none of the program's handlers */
-  static <A> A run(Comp<?, A> program) {
+  static <A> A run(Comp<A, ?> program) {
     Mark mark = MARKS.get();
     if (mark.on) throw new NestedRun();
     mark.on = true;
@@ -190,7 +190,7 @@ final class Machine {
 
   /** the same, inside a running program too, on purpose: a closed program run to its end as a run of its own —
    * {@link Comp#runIsolated}. Inside it, a run of its own is refused again */
-  static <A> A runIsolated(Comp<?, A> program) {
+  static <A> A runIsolated(Comp<A, ?> program) {
     Mark mark = MARKS.get();
     boolean was = mark.on;
     mark.on = true;
@@ -219,7 +219,7 @@ final class Machine {
 
   /** ONE STEP A NODE: the loop calls the node's own step, a method of its own — so C2 compiles each apart, small, its
    * calls to the program's functions profiled by that kind of node alone; the machine's state in the fields here */
-  private static <A> A loop(Comp<?, A> program) {
+  private static <A> A loop(Comp<A, ?> program) {
     Run m = new Run();
     Comp<?, ?> c = program;
     while (true) {

@@ -6,7 +6,7 @@ import okay.core.Comp;
  * capability is the handler, no prompt, no capture — and at the body's fresh level, so it does not leave it */
 @FunctionalInterface
 public interface Reader<L, E> {
-  Comp<L, E> ask();
+  Comp<E, L> ask();
 
   /** this capability at a level further in */
   @SuppressWarnings("unchecked")
@@ -16,12 +16,12 @@ public interface Reader<L, E> {
 
   /** the body of {@link #reader}: at a fresh level, given the capability there */
   interface Body<L, E, A> {
-    <M extends L> Comp<M, A> in(Reader<M, E> r);
+    <M extends L> Comp<A, M> in(Reader<M, E> r);
   }
 
-  static <L, E, A> Comp<L, A> reader(E env, Body<L, E, A> body) {
+  static <L, E, A> Comp<A, L> reader(E env, Body<L, E, A> body) {
     return Comp.delay(() -> {
-      Comp<L, E> value = Comp.pure(env);
+      Comp<E, L> value = Comp.pure(env);
       return body.<L>in(() -> value);
     });
   }

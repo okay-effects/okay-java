@@ -7,7 +7,7 @@ kernel's protocol and semantics are okay-kernel's (`docs/design.md` there; its r
 ## The design
 
 - **A dependency.** The library depends on `okay-kernel-api`: a jar of interfaces and a few records, with no
-  dependency of its own. `Comp<L, A>` extends `okay.kernel.Prog<A>`, so every program of okay-java is a kernel
+  dependency of its own. `Comp<A, L>` extends `okay.kernel.Prog<A>`, so every program of okay-java is a kernel
   program as it is.
 - **`okay.core.Kernel.EFFECTS`** implements `okay.kernel.Effects`. `pure`, `flatMap`, `map` and `delay` are `Comp`'s
   own nodes; a bind's kernel function is adapted to okay-java's `Function` by one closure. A kernel handler, a

@@ -29,7 +29,7 @@ class BridgeTest {
   }
 
   /** a program of the capability notation: the guide's counter, by the capability it is given */
-  static <M> okay.core.Comp<M, Integer> counter(okay.std.State<M, Integer> st) {
+  static <M> okay.core.Comp<Integer, M> counter(okay.std.State<M, Integer> st) {
     return st.modify(x -> x + 1).then(st.get());
   }
 
@@ -39,7 +39,7 @@ class BridgeTest {
     okay.std.Writer.Log<String, List<State.Final<Integer, Integer>>> log =
         okay.core.Comp.run(okay.std.Writer.writer(new okay.std.Writer.Body<Top, String,
             List<State.Final<Integer, Integer>>>() {
-          public <M extends Top> okay.core.Comp<M, List<State.Final<Integer, Integer>>> in(
+          public <M extends Top> okay.core.Comp<List<State.Final<Integer, Integer>>, M> in(
               okay.std.Writer<M, String> w) {
             return w.tell("before").then(Bridge.<M, List<State.Final<Integer, Integer>>>eff(
                 Choose.all(State.run(0, chosen())))).flatMap(r -> w.tell("after").map(done -> r));
@@ -54,7 +54,7 @@ class BridgeTest {
     // the row program's state is okay.std's, the one outside: threaded through both paths of its choice
     okay.std.State.Final<Integer, List<Integer>> threaded = okay.core.Comp.run(okay.std.State.state(10,
         new okay.std.State.Body<Top, Integer, List<Integer>>() {
-          public <M extends Top> okay.core.Comp<M, List<Integer>> in(okay.std.State<M, Integer> st) {
+          public <M extends Top> okay.core.Comp<List<Integer>, M> in(okay.std.State<M, Integer> st) {
             return Bridge.state(st, Choose.all(stateOutside()));
           }
         }));
@@ -74,7 +74,7 @@ class BridgeTest {
 
   @Test
   void aCapabilityProgramAtTheTopIsARowProgram() {
-    okay.core.Comp<Top, Integer> plain = okay.core.Comp.<Top, Integer>pure(20).map(x -> x + 1);
+    okay.core.Comp<Integer, Top> plain = okay.core.Comp.<Top, Integer>pure(20).map(x -> x + 1);
     assertEquals(new State.Final<>(0, 42), run(State.run(0, Bridge.<Integer, Eff<State<Integer>, Pure>>comp(plain)
         .map(x -> x * 2))));
   }

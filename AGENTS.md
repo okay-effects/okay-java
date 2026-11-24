@@ -5,8 +5,10 @@
 okay-java is algebraic effects for Java 25 on delimited continuations (`shift0`): a program is a value that asks
 operations of declared effects, handlers answer them, and the host runs it. Two notations share one machine:
 the row notation `okay.rows` (`Comp<A, Row>`, the effects in the type) and the capability notation
-`okay.core.Comp<L, A>` (level first). Both are a program as data, `Comp`: import one package and name the other
-in full.
+`okay.core.Comp<A, L>` (at the level `L`). One name, one concept: both are a program as data, value first, so
+both are `Comp`, and `State`, `Reader`, `Writer`, `Throws`, `Choose`, `Emit`, `Async` are the same effects in the two
+notations (`okay.std`, `okay.rows.std`). The package is the notation: a file uses one (`okay.rows.Bridge` mixes
+them, with full names).
 
 Getting it: released 0.1.0, group `io.github.okay-effects`, Java 25. Repositories: Maven Central,
 https://okay-effects.github.io/okay-java/maven (okay-java's artifacts and plugins) and
@@ -68,7 +70,7 @@ A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
 value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Other words: `under`,
 `fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step` (docs/rows.md). The capability notation
-(`okay.core.Comp<L, A>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is
+(`okay.core.Comp<A, L>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is
 docs/guide.md; `okay.rows.Bridge` runs either notation inside the other.
 
 ### Design rules

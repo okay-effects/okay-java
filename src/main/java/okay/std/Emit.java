@@ -14,7 +14,7 @@ import okay.core.Prompt;
  * {@link #iterator}, and a {@link java.util.stream.Stream}, {@link #stream} */
 @FunctionalInterface
 public interface Emit<L, X> {
-  Comp<L, Void> emit(X x);
+  Comp<Void, L> emit(X x);
 
   /** this capability at a level further in */
   @SuppressWarnings("unchecked")
@@ -24,17 +24,17 @@ public interface Emit<L, X> {
 
   /** the body of a generator: at a fresh level, given the capability there */
   interface Body<L, X, A> {
-    <M extends L> Comp<M, A> in(Emit<M, X> e);
+    <M extends L> Comp<A, M> in(Emit<M, X> e);
   }
 
   /** each value to {@code each}, its effects the context's: {@code shift0 k. each(x) >>= k} is {@code each(x)}
    * performed in place — the handler is the function, no prompt */
-  static <L, X, A> Comp<L, A> forEach(Body<L, X, A> body, Function<? super X, ? extends Comp<? super L, Void>> each) {
+  static <L, X, A> Comp<A, L> forEach(Body<L, X, A> body, Function<? super X, ? extends Comp<Void, ? super L>> each) {
     return Comp.delay(() -> body.<L>in(x -> each.apply(x).at()));
   }
 
   /** the values in a list, one per run of the handler: a k resumed twice from outside adds to the same */
-  static <L, X, A> Comp<L, List<X>> collect(Body<L, X, A> body) {
+  static <L, X, A> Comp<List<X>, L> collect(Body<L, X, A> body) {
     return Comp.delay(() -> {
       List<X> out = new ArrayList<>();
       return Emit.<L, X, A>forEach(body, x -> { out.add(x); return Comp.<L, Void>pure(null); }).map(_ -> out);
@@ -45,15 +45,15 @@ public interface Emit<L, X> {
    * level, run when it pulls: so the consumer, as the body, may be under effects still to be handled */
   @FunctionalInterface
   interface Next<L, X, G> {
-    G next(X x, Comp<L, G> rest);
+    G next(X x, Comp<G, L> rest);
   }
 
   /** okay-core's {@code generate}: the body as a lazy generator of the consumer's own type {@code G} — each element
    * with the rest by {@code next}, the end {@code done}. Nothing runs past an element until the rest is run. At any
    * level: the body's other effects go to their handlers outside, from the rest as from the start */
-  static <L, X, A, G> Comp<L, G> generate(Body<L, X, A> body, Next<L, X, G> next, G done) {
+  static <L, X, A, G> Comp<G, L> generate(Body<L, X, A> body, Next<L, X, G> next, G done) {
     return Comp.handle(new Comp.Body<L, A, G>() {
-      public <M extends L> Comp<M, A> in(Prompt<L, M, G> p) {
+      public <M extends L> Comp<A, M> in(Prompt<L, M, G> p) {
         return body.in(x -> p.shift0(k -> Comp.pure(next.next(x, k.apply(null)))));
       }
     }, _ -> Comp.pure(done));
@@ -61,10 +61,10 @@ public interface Emit<L, X> {
 
   /** the body run as far as its next emit at each {@code next()}: the body pure but for {@code Emit} */
   static <X, A> Iterator<X> iterator(Body<Comp.Top, X, A> body) {
-    Comp<Comp.Top, Step<X>> start = generate(body, Step.Next::new, new Step.End<>());
+    Comp<Step<X>, Comp.Top> start = generate(body, Step.Next::new, new Step.End<>());
     return new Iterator<>() {
       Step<X> step;
-      Comp<Comp.Top, Step<X>> rest = start;
+      Comp<Step<X>, Comp.Top> rest = start;
 
       private Step<X> step() {
         if (step == null) step = Comp.runIsolated(rest);
@@ -95,6 +95,6 @@ public interface Emit<L, X> {
   sealed interface Step<X> {
     record End<X>() implements Step<X> {}
 
-    record Next<X>(X value, Comp<Comp.Top, Step<X>> rest) implements Step<X> {}
+    record Next<X>(X value, Comp<Step<X>, Comp.Top> rest) implements Step<X> {}
   }
 }

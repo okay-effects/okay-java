@@ -37,7 +37,7 @@ public class EffBenchmark {
   public String clause;
 
   interface Tick<L> {
-    Comp<L, Integer> tick(int a);
+    Comp<Integer, L> tick(int a);
 
     @SuppressWarnings("unchecked")
     default <N extends L> Tick<N> at() {
@@ -45,14 +45,14 @@ public class EffBenchmark {
     }
   }
 
-  static <L> Comp<L, Integer> ticks(Tick<L> t, int i, int acc) {
+  static <L> Comp<Integer, L> ticks(Tick<L> t, int i, int acc) {
     return i == 0 ? Comp.pure(acc) : t.tick(1).flatMap(x -> ticks(t, i - 1, acc + x));
   }
 
   /** a handler of Tick: the body at a fresh level, given the capability */
-  Comp<Top, Integer> ticking() {
+  Comp<Integer, Top> ticking() {
     return Comp.handle(new Comp.Body<Top, Integer, Integer>() {
-      public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> p) {
+      public <M extends Top> Comp<Integer, M> in(Prompt<Top, M, Integer> p) {
         Tick<M> t = clause.equals("answering") ? Comp::pure : a -> p.shift0(k -> k.apply(a));
         return nest(t, crossed);
       }
@@ -60,10 +60,10 @@ public class EffBenchmark {
   }
 
   /** {@code d} handlers of another effect, each a general clause, never asked */
-  <L> Comp<L, Integer> nest(Tick<L> t, int d) {
+  <L> Comp<Integer, L> nest(Tick<L> t, int d) {
     if (d == 0) return ticks(t, n, 0);
     return Comp.handle(new Comp.Body<L, Integer, Integer>() {
-      public <M extends L> Comp<M, Integer> in(Prompt<L, M, Integer> p) {
+      public <M extends L> Comp<Integer, M> in(Prompt<L, M, Integer> p) {
         return nest(t.at(), d - 1);
       }
     }, Comp::pure);
@@ -84,7 +84,7 @@ public class EffBenchmark {
     @Param("8")
     public int size;
 
-    <L> Comp<L, List<Integer>> place(Choose<L> ch, int row, List<Integer> placed) {
+    <L> Comp<List<Integer>, L> place(Choose<L> ch, int row, List<Integer> placed) {
       if (row == size) return Comp.pure(placed);
       List<Integer> safe = new ArrayList<>();
       for (int col = 0; col < size; col++) if (safe(col, placed)) safe.add(col);
@@ -107,7 +107,7 @@ public class EffBenchmark {
     @Benchmark
     public int queensEff() {
       return Comp.run(Choose.all(new Choose.Body<Top, List<Integer>>() {
-        public <M extends Top> Comp<M, List<Integer>> in(Choose<M> ch) {
+        public <M extends Top> Comp<List<Integer>, M> in(Choose<M> ch) {
           return place(ch, 0, List.of());
         }
       })).size();

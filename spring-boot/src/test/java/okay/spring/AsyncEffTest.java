@@ -41,19 +41,19 @@ class AsyncEffTest {
 
     /** waits for the test to let it go: the call has returned by then */
     @Async
-    public Comp<Comp.Top, String> slow() throws InterruptedException {
+    public Comp<String, Comp.Top> slow() throws InterruptedException {
       assertTrue(go.await(10, TimeUnit.SECONDS));
       ranOn = Thread.currentThread().getName();
       return Comp.sync(() -> Thread.currentThread().getName());
     }
 
     @Async
-    public Comp<Comp.Top, String> failing() {
+    public Comp<String, Comp.Top> failing() {
       return Comp.failed(new IllegalStateException("broken"));
     }
 
     @Async
-    public Comp<Comp.Top, String> throwing() {
+    public Comp<String, Comp.Top> throwing() {
       throw new IllegalArgumentException("before the program");
     }
 
@@ -69,7 +69,7 @@ class AsyncEffTest {
 
   @Test
   void theCallReturnsAtOnceTheMethodAndItsProgramOnTheExecutor() throws Exception {
-    Comp<Comp.Top, String> result = work.slow();
+    Comp<String, Comp.Top> result = work.slow();
     work.release();
     String programRanOn = Comp.run(result);
     assertEquals(work.ranOn(), programRanOn);
@@ -79,15 +79,15 @@ class AsyncEffTest {
 
   @Test
   void theProgramsFailureIsTheResultsFailure() {
-    Comp<Comp.Top, String> result = work.failing();
+    Comp<String, Comp.Top> result = work.failing();
     assertEquals("broken", assertThrows(IllegalStateException.class, () -> Comp.run(result)).getMessage());
-    Comp<Comp.Top, String> recovered = Comp.recover(result, e -> Comp.pure("recovered " + e.getMessage()));
+    Comp<String, Comp.Top> recovered = Comp.recover(result, e -> Comp.pure("recovered " + e.getMessage()));
     assertEquals("recovered broken", Comp.run(recovered));
   }
 
   @Test
   void theMethodsThrowIsTheResultsFailure() {
-    Comp<Comp.Top, String> result = work.throwing();
+    Comp<String, Comp.Top> result = work.throwing();
     assertEquals("before the program",
         assertThrows(IllegalArgumentException.class, () -> Comp.run(result)).getMessage());
   }

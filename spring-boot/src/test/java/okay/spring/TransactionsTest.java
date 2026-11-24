@@ -68,7 +68,7 @@ class TransactionsTest {
     tm.log.clear();
   }
 
-  static Comp<Comp.Top, Boolean> active() {
+  static Comp<Boolean, Comp.Top> active() {
     return Comp.sync(TransactionSynchronizationManager::isActualTransactionActive);
   }
 
@@ -81,7 +81,7 @@ class TransactionsTest {
 
   @Test
   void nothingBeginsBeforeTheRunGetsToIt() {
-    Comp<Comp.Top, Boolean> p = txs.transactional(active());
+    Comp<Boolean, Comp.Top> p = txs.transactional(active());
     assertEquals(List.of(), tm.log);
     Comp.run(p.then(p));
     assertEquals(List.of("begin", "commit", "begin", "commit"), tm.log);
@@ -89,15 +89,15 @@ class TransactionsTest {
 
   @Test
   void aFailureRollsBackAndGoesOn() {
-    Comp<Comp.Top, String> p = txs.transactional(Comp.failed(new IllegalStateException("broken")));
+    Comp<String, Comp.Top> p = txs.transactional(Comp.failed(new IllegalStateException("broken")));
     assertEquals("broken", assertThrows(IllegalStateException.class, () -> Comp.run(p)).getMessage());
     assertEquals(List.of("begin", "rollback"), tm.log);
   }
 
   @Test
   void aRaiseCaughtInsideCommitsTheRecovery() {
-    Comp<Comp.Top, String> body = Throws.catching(new Throws.Body<Comp.Top, String, String>() {
-      public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
+    Comp<String, Comp.Top> body = Throws.catching(new Throws.Body<Comp.Top, String, String>() {
+      public <M extends Comp.Top> Comp<String, M> in(Throws<M, String> t) {
         return active().<M>at().flatMap(_ -> t.<String>raise("no"));
       }
     }, e -> Comp.pure("caught " + e));
@@ -107,8 +107,8 @@ class TransactionsTest {
 
   @Test
   void aRaiseNotCaughtInsideRollsBack() {
-    Comp<Comp.Top, Throws.Result<String, String>> body = Throws.attempt(new Throws.Body<Comp.Top, String, String>() {
-      public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
+    Comp<Throws.Result<String, String>, Comp.Top> body = Throws.attempt(new Throws.Body<Comp.Top, String, String>() {
+      public <M extends Comp.Top> Comp<String, M> in(Throws<M, String> t) {
         return t.raise("no");
       }
     }).flatMap(r -> r instanceof Throws.Result.Failed<String, String> f
@@ -121,7 +121,7 @@ class TransactionsTest {
   @Test
   void inTheMiddleOfAProgramUnderAHandler() {
     var p = State.state(1, new State.Body<Comp.Top, Integer, Boolean>() {
-      public <M extends Comp.Top> Comp<M, Boolean> in(State<M, Integer> st) {
+      public <M extends Comp.Top> Comp<Boolean, M> in(State<M, Integer> st) {
         return st.modify(s -> s + 41).then(txs.transactional(active())).flatMap(a -> st.modify(s -> s * 2).then(
             Comp.pure(a)));
       }

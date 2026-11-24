@@ -16,12 +16,12 @@ open: usable as a monad with raw `shift0` and `$`, as in `ContTest`, the printf,
 
 ## `Comp` (`Comp.java`, `Prompt.java`, `Nodes.java`, `Machine.java`)
 
-`Comp<L, A>` keeps `Cont`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
+`Comp<A, L>` keeps `Cont`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
 in the type as a phantom.
 
 - **Two primitives.**
   - `Comp.handle(body, ret)` is `ret $ body` under a prompt made fresh each time the handler runs. Its body is an
-    `Comp.Body`, a generic method `<M extends L> Comp<M, A> in(Prompt<L, M, R> p)`, at a level as fresh as its prompt.
+    `Comp.Body`, a generic method `<M extends L> Comp<A, M> in(Prompt<L, M, R> p)`, at a level as fresh as its prompt.
   - `p.shift0(clause)` is an operation at `M`: the rest up to `p`'s delimiter, the delimiter included, its clause
     run at `L`.
   - `p.shift` and `p.reset` are built on them, and `Comp.reset` is a handler that answers nothing.
@@ -67,7 +67,7 @@ in the type as a phantom.
     and nothing is allocated for a program that does not fail.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
-  `Comp<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
+  `Comp<B, ? super L>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
 - **How the machine got here** (2026-10-09 and 10, JDK 26, each against the code before). Before it, each
   delimiter's body ran in a Java frame of its own (`EffLoop`, up to commit `fcd3868`). That one overflowed the stack
   at about 1 000 nested handlers, and each handler crossed cost about 6 ns. The explicit stack was first one big

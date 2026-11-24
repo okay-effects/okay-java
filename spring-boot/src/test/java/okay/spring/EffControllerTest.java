@@ -38,16 +38,16 @@ class EffControllerTest {
   @RestController
   static class Programs {
     @GetMapping("/pure")
-    Comp<Comp.Top, String> pure() {
+    Comp<String, Comp.Top> pure() {
       return Comp.pure("hello");
     }
 
     /** a handler in the program: the sum of 1..n by a State */
     @GetMapping("/sum/{n}")
-    Comp<Comp.Top, Total> sum(@PathVariable("n") int n) {
+    Comp<Total, Comp.Top> sum(@PathVariable("n") int n) {
       return State.state(0, new State.Body<Comp.Top, Integer, String>() {
-        public <M extends Comp.Top> Comp<M, String> in(State<M, Integer> st) {
-          Comp<M, Void> p = Comp.pure(null);
+        public <M extends Comp.Top> Comp<String, M> in(State<M, Integer> st) {
+          Comp<Void, M> p = Comp.pure(null);
           for (int i = 1; i <= n; i++) {
             int x = i;
             p = p.then(st.modify(s -> s + x));
@@ -58,17 +58,17 @@ class EffControllerTest {
     }
 
     @GetMapping("/created")
-    Comp<Comp.Top, ResponseEntity<String>> created() {
+    Comp<ResponseEntity<String>, Comp.Top> created() {
       return Comp.<Comp.Top, String>pure("made").map(s -> ResponseEntity.status(HttpStatus.CREATED).body(s));
     }
 
     @GetMapping("/failed")
-    Comp<Comp.Top, String> failed() {
+    Comp<String, Comp.Top> failed() {
       return Comp.<Comp.Top, String>pure("x").flatMap(_ -> Comp.failed(new IllegalArgumentException("no such x")));
     }
 
     @GetMapping("/recovered")
-    Comp<Comp.Top, String> recovered() {
+    Comp<String, Comp.Top> recovered() {
       return Comp.recover(Comp.failed(new IllegalArgumentException("lost")), e -> Comp.pure("found " + e.getMessage()));
     }
 
@@ -76,7 +76,7 @@ class EffControllerTest {
     @GetMapping("/async")
     CompletableFuture<String> async() {
       return Async.runAsync(new Async.Body<String>() {
-        public <M extends Comp.Top> Comp<M, String> in(Async<M> as) {
+        public <M extends Comp.Top> Comp<String, M> in(Async<M> as) {
           return as.blocking(() -> "waited").map(s -> s + "!");
         }
       });

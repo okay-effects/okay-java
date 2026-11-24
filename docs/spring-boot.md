@@ -37,7 +37,7 @@ configuration. `Comp.run` and `Async.runAsync` are called wherever a program is 
 
 ## Controllers
 
-A method may return a program at the top, `Comp<Comp.Top, A>`. Its value is the method's, as if the method had
+A method may return a program at the top, `Comp<A, Comp.Top>`. Its value is the method's, as if the method had
 returned it, so `A` decides how it is written: a body (JSON, a string), a `ResponseEntity` with its status and
 headers, a view's name. A failure no guard took is the method's throw and goes to the `@ExceptionHandler`s.
 
@@ -45,14 +45,14 @@ headers, a view's name. A failure no guard took is the method's throw and goes t
 @RestController
 class Orders {
   @GetMapping("/sum/{n}")
-  Comp<Comp.Top, Total> sum(@PathVariable("n") int n) {
+  Comp<Total, Comp.Top> sum(@PathVariable("n") int n) {
     return State.state(0, new State.Body<Comp.Top, Integer, String>() {
-      public <M extends Comp.Top> Comp<M, String> in(State<M, Integer> st) { … }
+      public <M extends Comp.Top> Comp<String, M> in(State<M, Integer> st) { … }
     }).map(f -> new Total(f.value(), f.state()));
   }
 
   @GetMapping("/created")
-  Comp<Comp.Top, ResponseEntity<String>> created() {
+  Comp<ResponseEntity<String>, Comp.Top> created() {
     return Comp.<Comp.Top, String>pure("made").map(s -> ResponseEntity.status(HttpStatus.CREATED).body(s));
   }
 
@@ -68,7 +68,7 @@ WebFlux both take as they are:
 @GetMapping("/async")
 CompletableFuture<String> async() {
   return Async.runAsync(new Async.Body<String>() {
-    public <M extends Comp.Top> Comp<M, String> in(Async<M> as) { return as.blocking(() -> load()); }
+    public <M extends Comp.Top> Comp<String, M> in(Async<M> as) { return as.blocking(() -> load()); }
   });
 }
 ```
@@ -85,7 +85,7 @@ that blocks, a database or a file, belongs on `Async`'s `blocking`, not on the e
 
 ## `@Async`
 
-With `@EnableAsync`, a method annotated `@Async` may return a `Comp<Comp.Top, A>`. The method and its program run on
+With `@EnableAsync`, a method annotated `@Async` may return a `Comp<A, Comp.Top>`. The method and its program run on
 the `@Async` executor: the one `@Async("name")` names, an `AsyncConfigurer`'s, or the application's `TaskExecutor`,
 as Spring chooses. The call returns at once with a program that is their result.
 
@@ -93,10 +93,10 @@ as Spring chooses. The call returns at once with a program that is their result.
 @Service
 class Reports {
   @Async
-  public Comp<Comp.Top, Report> build(Month m) { return … ; }
+  public Comp<Report, Comp.Top> build(Month m) { return … ; }
 }
 
-Comp<Comp.Top, Report> report = reports.build(m);   // started, not waited for
+Comp<Report, Comp.Top> report = reports.build(m);   // started, not waited for
 …
 Report r = Comp.run(report);                         // waits for it
 ```
@@ -120,9 +120,9 @@ class Checkout {
   private final EffTransactions txs;
   Checkout(EffTransactions txs) { this.txs = txs; }
 
-  Comp<Comp.Top, Order> save(Cart cart) { return Comp.sync(() -> repository.save(cart.order())); }
+  Comp<Order, Comp.Top> save(Cart cart) { return Comp.sync(() -> repository.save(cart.order())); }
 
-  <M extends Comp.Top> Comp<M, Order> place(State<M, Cart> st) {
+  <M extends Comp.Top> Comp<Order, M> place(State<M, Cart> st) {
     return st.get().flatMap(cart -> txs.transactional(save(cart)));
   }
 }

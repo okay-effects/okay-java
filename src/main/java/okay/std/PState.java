@@ -13,23 +13,23 @@ import okay.std.State.Final;
  * body ends with {@code done} of the last capability, and the type of the final state is its.
  */
 public interface PState<L, S> {
-  Comp<L, S> get();
+  Comp<S, L> get();
 
   /** the state replaced by one of another type: this capability stale, the one given in force */
-  <T> Comp<L, PState<L, T>> put(T t);
+  <T> Comp<PState<L, T>, L> put(T t);
 
-  default <A> Comp<L, Final<S, A>> done(A a) {
+  default <A> Comp<Final<S, A>, L> done(A a) {
     return get().map(s -> new Final<>(s, a));
   }
 
   /** the body of {@link #pstate}: at a fresh level, given the capability there, ending with the last one's done */
   interface Body<L, S, T, A> {
-    <M extends L> Comp<M, Final<T, A>> in(PState<M, S> st);
+    <M extends L> Comp<Final<T, A>, M> in(PState<M, S> st);
   }
 
-  static <L, S, T, A> Comp<L, Final<T, A>> pstate(S init, Body<L, S, T, A> body) {
-    Comp<L, Function<Cell, Comp<L, Final<T, A>>>> handled = Comp.handle(new Comp.Body<L, Final<T, A>, Function<Cell, Comp<L, Final<T, A>>>>() {
-      public <M extends L> Comp<M, Final<T, A>> in(Prompt<L, M, Function<Cell, Comp<L, Final<T, A>>>> p) {
+  static <L, S, T, A> Comp<Final<T, A>, L> pstate(S init, Body<L, S, T, A> body) {
+    Comp<Function<Cell, Comp<Final<T, A>, L>>, L> handled = Comp.handle(new Comp.Body<L, Final<T, A>, Function<Cell, Comp<Final<T, A>, L>>>() {
+      public <M extends L> Comp<Final<T, A>, M> in(Prompt<L, M, Function<Cell, Comp<Final<T, A>, L>>> p) {
         return body.in(new At<>(p, 0));
       }
     }, f -> Comp.pure(_ -> Comp.pure(f)));
@@ -40,20 +40,20 @@ public interface PState<L, S> {
   record Cell(int generation, Object value) {}
 
   final class At<L, M, S, R> implements PState<M, S> {
-    private final Prompt<L, M, Function<Cell, Comp<L, R>>> p;
+    private final Prompt<L, M, Function<Cell, Comp<R, L>>> p;
     private final int generation;
 
-    At(Prompt<L, M, Function<Cell, Comp<L, R>>> p, int generation) {
+    At(Prompt<L, M, Function<Cell, Comp<R, L>>> p, int generation) {
       this.p = p;
       this.generation = generation;
     }
 
     @SuppressWarnings("unchecked")
-    public Comp<M, S> get() {
+    public Comp<S, M> get() {
       return p.shift0(k -> Comp.pure(c -> k.apply((S) live(c).value()).flatMap(f -> f.apply(c))));
     }
 
-    public <T> Comp<M, PState<M, T>> put(T t) {
+    public <T> Comp<PState<M, T>, M> put(T t) {
       return p.shift0(k -> Comp.pure(c -> {
         Cell next = new Cell(live(c).generation() + 1, t);
         return k.apply(new At<L, M, T, R>(p, next.generation())).flatMap(f -> f.apply(next));

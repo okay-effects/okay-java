@@ -15,14 +15,14 @@ final class AsyncRun {
 
   static <A> CompletableFuture<A> runAsync(Async.Body<A> body) {
     CompletableFuture<A> done = new CompletableFuture<>();
-    Comp<Comp.Top, Void> run = Comp.handle(new Comp.Body<Comp.Top, A, Void>() {
-      public <M extends Comp.Top> Comp<M, A> in(Prompt<Comp.Top, M, Void> p) {
+    Comp<Void, Comp.Top> run = Comp.handle(new Comp.Body<Comp.Top, A, Void>() {
+      public <M extends Comp.Top> Comp<A, M> in(Prompt<Comp.Top, M, Void> p) {
         return body.in(new Async<M>() {
-          public <X> Comp<M, X> raise(Throwable e) {
+          public <X> Comp<X, M> raise(Throwable e) {
             return p.shift0(_ -> fail(done, e));
           }
 
-          public <X> Comp<M, X> async(Supplier<X> a) {
+          public <X> Comp<X, M> async(Supplier<X> a) {
             return p.shift0(k -> {
               X x;
               try {
@@ -34,7 +34,7 @@ final class AsyncRun {
             });
           }
 
-          public <X> Comp<M, X> await(Consumer<BiConsumer<X, Throwable>> register) {
+          public <X> Comp<X, M> await(Consumer<BiConsumer<X, Throwable>> register) {
             return p.shift0(k -> {
               // where the callback's value is against the run waiting on it: not yet; come while the run registered,
               // taken in place; or the run gone on without it, resumed by the callback
@@ -65,18 +65,18 @@ final class AsyncRun {
   private record Failure(Throwable e) {}
 
   @SuppressWarnings("unchecked")
-  private static <X> Comp<Comp.Top, Void> resume(
-      CompletableFuture<?> done, Function<X, Comp<Comp.Top, Void>> k, Object r) {
+  private static <X> Comp<Void, Comp.Top> resume(
+      CompletableFuture<?> done, Function<X, Comp<Void, Comp.Top>> k, Object r) {
     return r instanceof Failure(var e) ? fail(done, e) : k.apply(((Done<X>) r).value());
   }
 
-  private static <L, X> Comp<L, X> fail(CompletableFuture<?> done, Throwable e) {
+  private static <L, X> Comp<X, L> fail(CompletableFuture<?> done, Throwable e) {
     done.completeExceptionally(e);
     return Comp.pure(null);
   }
 
   /** the run up to its end or to a wait; a throw in the program's own code its failure */
-  private static void go(CompletableFuture<?> done, Comp<Comp.Top, Void> run) {
+  private static void go(CompletableFuture<?> done, Comp<Void, Comp.Top> run) {
     try {
       Comp.runIsolated(run);
     } catch (RuntimeException e) {

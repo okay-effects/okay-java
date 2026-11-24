@@ -20,7 +20,7 @@ class LeakTest {
   /** a capability out of a state's body, as a value of the type it may have outside, {@code State<?, Integer>} */
   private static final String LEAKED = """
       State<?, Integer> leaked = Comp.run(State.state(0, new State.Body<Top, Integer, State<?, Integer>>() {
-        public <M extends Top> Comp<M, State<?, Integer>> in(State<M, Integer> st) { return Comp.pure(st); }
+        public <M extends Top> Comp<State<?, Integer>, M> in(State<M, Integer> st) { return Comp.pure(st); }
       })).value();
       """;
 
@@ -33,7 +33,7 @@ class LeakTest {
   private static String secondState(String body) {
     return LEAKED + """
         Final<Integer, Integer> r = Comp.run(State.state(1, new State.Body<Top, Integer, Integer>() {
-          public <M extends Top> Comp<M, Integer> in(State<M, Integer> st) { return %s; }
+          public <M extends Top> Comp<Integer, M> in(State<M, Integer> st) { return %s; }
         }));
         """.formatted(body);
   }
@@ -48,9 +48,9 @@ class LeakTest {
   private static String innerOut(String use) {
     return """
         Final<Integer, Integer> r = Comp.run(State.state(0, new State.Body<Top, Integer, Integer>() {
-          public <M extends Top> Comp<M, Integer> in(State<M, Integer> outer) {
+          public <M extends Top> Comp<Integer, M> in(State<M, Integer> outer) {
             return State.state(1, new State.Body<M, Integer, State<?, Integer>>() {
-              public <N extends M> Comp<N, State<?, Integer>> in(State<N, Integer> inner) { return Comp.pure(inner); }
+              public <N extends M> Comp<State<?, Integer>, N> in(State<N, Integer> inner) { return Comp.pure(inner); }
             }).flatMap(f -> %s);
           }
         }));
@@ -65,8 +65,8 @@ class LeakTest {
 
   private static String programOut(String run) {
     return """
-        Comp<?, Integer> built = Comp.run(State.state(0, new State.Body<Top, Integer, Comp<?, Integer>>() {
-          public <M extends Top> Comp<M, Comp<?, Integer>> in(State<M, Integer> st) { return Comp.pure(st.get()); }
+        Comp<Integer, ?> built = Comp.run(State.state(0, new State.Body<Top, Integer, Comp<Integer, ?>>() {
+          public <M extends Top> Comp<Comp<Integer, ?>, M> in(State<M, Integer> st) { return Comp.pure(st.get()); }
         })).value();
         Integer n = %s;
         """.formatted(run);
@@ -81,7 +81,7 @@ class LeakTest {
   private static String promptOut(String use) {
     return """
         Prompt<?, ?, ?> p = (Prompt<?, ?, ?>) Comp.run(Comp.handle(new Comp.Body<Top, Object, Object>() {
-          public <M extends Top> Comp<M, Object> in(Prompt<Top, M, Object> p) { return Comp.pure(p); }
+          public <M extends Top> Comp<Object, M> in(Prompt<Top, M, Object> p) { return Comp.pure(p); }
         }, Comp::pure));
         Object n = %s;
         """.formatted(use);
@@ -96,9 +96,9 @@ class LeakTest {
   void aCapabilityLiftedInwardOnlyNotOutward() throws IOException {
     String body = """
         Final<Integer, Integer> r = Comp.run(State.state(0, new State.Body<Top, Integer, Integer>() {
-          public <M extends Top> Comp<M, Integer> in(State<M, Integer> outer) {
+          public <M extends Top> Comp<Integer, M> in(State<M, Integer> outer) {
             return State.state(1, new State.Body<M, Integer, Integer>() {
-              public <N extends M> Comp<N, Integer> in(State<N, Integer> inner) {
+              public <N extends M> Comp<Integer, N> in(State<N, Integer> inner) {
                 %s
               }
             }).map(Final::value);
@@ -115,8 +115,8 @@ class LeakTest {
   private static String leakedByReference(String use) {
     return """
         class Bodies {
-          static <M> Comp<M, State<M, Integer>> leak(State<M, Integer> st) { return Comp.pure(st); }
-          static <K> Comp<K, Integer> counter(State<K, Integer> st) { return st.get(); }
+          static <M> Comp<State<M, Integer>, M> leak(State<M, Integer> st) { return Comp.pure(st); }
+          static <K> Comp<Integer, K> counter(State<K, Integer> st) { return st.get(); }
         }
         var leaked = Comp.run(State.state(0, Bodies::leak)).value();
         %s
@@ -129,7 +129,7 @@ class LeakTest {
     rightCompilesWrongDoesNot(right, leakedByReference("Integer n = Comp.run(leaked.get());"));
     rightCompilesWrongDoesNot(right, leakedByReference("""
         Final<Integer, Integer> r = Comp.run(State.state(1, new State.Body<Top, Integer, Integer>() {
-          public <M extends Top> Comp<M, Integer> in(State<M, Integer> st) { return leaked.get(); }
+          public <M extends Top> Comp<Integer, M> in(State<M, Integer> st) { return leaked.get(); }
         }));"""));
   }
 }

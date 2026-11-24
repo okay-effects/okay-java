@@ -2,8 +2,8 @@
 
 okay-java has two ways to write a program with effects. Both run on the same machine.
 
-- **The capability notation** (`okay.core.Comp<L, A>`, `okay.std`, [the guide](guide.md)) passes each effect to the
-  program as a capability at a level: `static <M> Comp<M, Integer> counter(State<M, Integer> st)`.
+- **The capability notation** (`okay.core.Comp<A, L>`, `okay.std`, [the guide](guide.md)) passes each effect to the
+  program as a capability at a level: `static <M> Comp<Integer, M> counter(State<M, Integer> st)`.
 - **The row notation** (`okay.rows`, this page) passes nothing. The program's type lists its effects as a nested
   type, the ROW: `Comp<Integer, Eff<State<Integer>, Eff<Choose, ?>>>`. An operation is data, and a handler takes
   the program itself and removes the first effect from the row.
@@ -106,11 +106,11 @@ operations of a program written in the other. `okay.rows.Bridge` does it (`Bridg
 
 ```java
 // a row program inside a capability program: handled whole, then a value there
-okay.core.Comp<M, List<Final<Integer, Integer>>> inside = Bridge.eff(Choose.all(State.run(0, chosen())));
+okay.core.Comp<List<Final<Integer, Integer>>, M> inside = Bridge.eff(Choose.all(State.run(0, chosen())));
 
 // a capability handler answering a row program: okay.std's state answers the row's State operations
 okay.std.State.state(10, new okay.std.State.Body<Top, Integer, List<Integer>>() {
-  public <M extends Top> okay.core.Comp<M, List<Integer>> in(okay.std.State<M, Integer> st) {
+  public <M extends Top> okay.core.Comp<List<Integer>, M> in(okay.std.State<M, Integer> st) {
     return Bridge.state(st, Choose.all(stateOutside()));          // Final(13, [11, 13])
   }
 });

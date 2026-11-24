@@ -61,15 +61,15 @@ The plugins' setup (`pluginManagement`, `<pluginRepositories>`, okay-audit's rep
 | File | What is in it |
 |---|---|
 | `Cont.java`, `Loop.java` | `Cont<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont`, without the rows |
-| `Comp.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Comp<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows; failures unwound to a guard (`recover`, `ensuring`) |
+| `Comp.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Comp<A, L>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows; failures unwound to a guard (`recover`, `ensuring`) |
 | `Kernel.java` | okay-kernel's `Effects` and `Control` on `Comp`'s nodes: a kernel program is a `Comp`, the machine runs the kernel's operations itself ([docs/kernel.md](docs/kernel.md)) |
 
 ### `okay.std`: effects written on `Comp`
 
 Each effect is an interface at a level, `E<L, …>`, with an `at()` that moves a capability to a level further in.
-Each handler takes a `Body` whose method `<M extends L> Comp<M, A> in(E<M, …> cap)` is the handler's body at its
+Each handler takes a `Body` whose method `<M extends L> Comp<A, M> in(E<M, …> cap)` is the handler's body at its
 fresh level. A body is an anonymous class, or a method of your own by reference, `State.state(0, X::counter)` with
-`static <M> Comp<M, Integer> counter(State<M, Integer> st)`: a lambda cannot implement a generic method, a method
+`static <M> Comp<Integer, M> counter(State<M, Integer> st)`: a lambda cannot implement a generic method, a method
 reference can.
 
 | Effect | Operations | Handlers |
@@ -112,16 +112,16 @@ costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.m
 
 A module of its own, `io.github.okay-effects:okay-java-spring-boot`; okay-java itself depends on nothing of Spring's. On the
 classpath of an application of Spring Boot 4.x, it lets a controller's method return a program at the top,
-`Comp<Comp.Top, A>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
+`Comp<A, Comp.Top>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
 transaction. A controller's program's value is the method's, as if the method had returned it: a body, a
 `ResponseEntity`, a view's name. A failure no guard took goes to the `@ExceptionHandler`s. A program that waits
 needs nothing of the module: `Async.runAsync`'s `CompletableFuture` is Spring's own in both.
 
 ```java
 @GetMapping("/sum/{n}")
-Comp<Comp.Top, Integer> sum(@PathVariable("n") int n) {
+Comp<Integer, Comp.Top> sum(@PathVariable("n") int n) {
   return State.state(0, new State.Body<Comp.Top, Integer, Void>() {
-    public <M extends Comp.Top> Comp<M, Void> in(State<M, Integer> st) { … }
+    public <M extends Comp.Top> Comp<Void, M> in(State<M, Integer> st) { … }
   }).map(State.Final::state);
 }
 ```
@@ -136,7 +136,7 @@ Comp<Comp.Top, Integer> sum(@PathVariable("n") int n) {
 
 Outside the web, in any application:
 
-- **`@Async`** (`OkayAsyncAutoConfiguration`, where `@EnableAsync` is): a method may return a `Comp<Comp.Top, A>`.
+- **`@Async`** (`OkayAsyncAutoConfiguration`, where `@EnableAsync` is): a method may return a `Comp<A, Comp.Top>`.
   The method and its program run on the `@Async` executor, the call returning at once with a program that is their
   result. Run, that program waits for their value, or fails with their failure, the method's throw included. Spring's
   own interceptor takes nothing but `void` and a `Future`, and goes before every other advisor, so the module puts
@@ -149,7 +149,7 @@ Outside the web, in any application:
   `@Transactional` on a method returning a `Comp` commits before the program runs.
 
 ```java
-Comp<M, Order> placed = st.get().flatMap(cart -> txs.transactional(save(cart)));   // save: Comp<Comp.Top, Order>
+Comp<Order, M> placed = st.get().flatMap(cart -> txs.transactional(save(cart)));   // save: Comp<Order, Comp.Top>
 ```
 
 Spring is `compileOnly`, so the application's own Spring Boot is used. Each configuration is on only where its part
@@ -159,9 +159,9 @@ application not of the web. The whole of it: [`docs/spring-boot.md`](docs/spring
 
 ## Effects on `shift0`
 
-A program is `Comp<L, A>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
+A program is `Comp<A, L>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
 `Comp.handle(body, ret)` is `ret $ body` under a prompt that is fresh each time the handler runs. Its body is a
-generic method at a level of its own, also fresh: `<M extends L> Comp<M, A> in(Prompt<L, M, R> p)`.
+generic method at a level of its own, also fresh: `<M extends L> Comp<A, M> in(Prompt<L, M, R> p)`.
 `p.shift0(k -> clause)` is an operation at `M`. It captures the rest up to the prompt's delimiter, the delimiter
 included, and runs the clause outside the delimiter, at `L`, in its place.
 
@@ -169,23 +169,23 @@ An effect is an interface at a level. A handler is an implementation of it over 
 capability at its fresh level:
 
 ```java
-interface Ask<L> { Comp<L, Integer> number(); }
-interface Asked<L, A> { <M extends L> Comp<M, A> in(Ask<M> a); }   // a handler's body: a level of its own
+interface Ask<L> { Comp<Integer, L> number(); }
+interface Asked<L, A> { <M extends L> Comp<A, M> in(Ask<M> a); }   // a handler's body: a level of its own
 
-static <L, A> Comp<L, A> asking(int n, Asked<L, A> body) {
+static <L, A> Comp<A, L> asking(int n, Asked<L, A> body) {
   return Comp.handle(new Comp.Body<L, A, A>() {
-    public <M extends L> Comp<M, A> in(Prompt<L, M, A> p) { return body.in(() -> p.shift0(k -> k.apply(n))); }
+    public <M extends L> Comp<A, M> in(Prompt<L, M, A> p) { return body.in(() -> p.shift0(k -> k.apply(n))); }
   }, Comp::pure);
 }
 
-static <L> Comp<L, Integer> step(State<L, Integer> st, Choose<L> ch) {   // the row: what it is given, at its level
+static <L> Comp<Integer, L> step(State<L, Integer> st, Choose<L> ch) {   // the row: what it is given, at its level
   return ch.among(List.of(1, 2)).flatMap(x -> st.modify(v -> v + x)).then(st.get());
 }
 
 Comp.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
-  public <M extends Top> Comp<M, List<Integer>> in(State<M, Integer> st) {
+  public <M extends Top> Comp<List<Integer>, M> in(State<M, Integer> st) {
     return Choose.all(new Choose.Body<M, Integer>() {
-      public <N extends M> Comp<N, Integer> in(Choose<N> ch) { return step(st.at(), ch); }
+      public <N extends M> Comp<Integer, N> in(Choose<N> ch) { return step(st.at(), ch); }
     });
   }
 }));                                                                     // Final(3, [1, 3])
@@ -220,7 +220,7 @@ The trade-offs:
 
 ## No leaks: a fresh level for each handler
 
-A row in Cont is the nesting of its answer types: each handler is a delimiter, one level more. `Comp<L, A>` keeps
+A row in Cont is the nesting of its answer types: each handler is a delimiter, one level more. `Comp<A, L>` keeps
 that nesting and drops the answers. A handler's body is at a level of its own, `M extends L`, a type variable that
 nobody outside the body can name (runST's rank-2 trick). Its capabilities and its prompt are at `M`. So whatever
 leaves the body, a capability, a prompt or a program built there, is at a level no program outside is at. Each of
@@ -239,7 +239,7 @@ capability out. The prompt then catches a general operation at run time
 
 Levels go one way. A level further in is a subtype, `M extends L`, so a program of a level outside runs inside as
 it is:
-- In a bind's function it fits on its own, `flatMap(Function<A, Comp<? super L, B>>)`.
+- In a bind's function it fits on its own, `flatMap(Function<A, Comp<B, ? super L>>)`.
 - At the head of a chain, `.at()` moves it in, for example `outer.get().<N>at().flatMap(…)`.
 - A capability goes in with its own `at()`: `step(st.at(), ch)`.
 
