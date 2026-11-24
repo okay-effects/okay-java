@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collector;
 import okay.core.Rows;
 
 /** The words of the model: {@code import static okay.rows.Effects.*}. */
@@ -67,8 +68,8 @@ public final class Effects {
    * inside the loop and resumed twice goes through the same elements twice — the place in the source is a value,
    * a {@link Cursor}, not the iterator's own. */
   public static <X, R> Comp<Void, R> forEach(
-      Iterable<X> xs, Function<? super X, ? extends Comp<?, ? super R>> body) {
-    return defer(() -> each(Cursor.of(xs.iterator()), body));
+      Iterable<? extends X> xs, Function<? super X, ? extends Comp<?, ? super R>> body) {
+    return defer(() -> each(Cursor.<X>of(xs.iterator()), body));
   }
 
   private static <X, R> Comp<Void, R> each(Cursor<X> at, Function<? super X, ? extends Comp<?, ? super R>> body) {
@@ -78,8 +79,8 @@ public final class Effects {
 
   /** the loop with a value carried through it: {@code acc = step(acc, x)} for each element, from {@code zero} */
   public static <X, S, R> Comp<S, R> fold(
-      Iterable<X> xs, S zero, BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
-    return defer(() -> folded(Cursor.of(xs.iterator()), zero, step));
+      Iterable<? extends X> xs, S zero, BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    return defer(() -> folded(Cursor.<X>of(xs.iterator()), zero, step));
   }
 
   private static <X, S, R> Comp<S, R> folded(
@@ -91,23 +92,46 @@ public final class Effects {
   /** the values {@code f} makes of the elements, in their order: a list never changed, so each path of a
    * continuation resumed twice has its own */
   public static <X, Y, R> Comp<List<Y>, R> collect(
-      Iterable<X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
+      Iterable<? extends X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
     return Effects.<X, Chain<Y>, R>fold(xs, null, (made, x) ->
         Effects.<Y, R>fit(f.apply(x)).map(y -> new Chain<>(y, made))).map(Chain::list);
+  }
+
+  // -- a source of computations: each element is a program, run when the loop gets to it
+
+  /** the computations of {@code xs}, one after another, their values in their order. The elements may ask
+   * effects; the source itself is plain — built by a {@code for}, a stream, a list:
+   * {@code sequence(cart.stream().map(item -> perform(new Price(item))).toList())} */
+  public static <X, R> Comp<List<X>, R> sequence(Iterable<? extends Comp<X, ? super R>> xs) {
+    return Effects.<Comp<X, ? super R>, X, R>collect(xs, c -> c);
+  }
+
+  /** the same, their values combined as they come: {@code acc = combine(acc, x)} from {@code zero} */
+  public static <X, S, R> Comp<S, R> reduce(
+      Iterable<? extends Comp<X, ? super R>> xs, S zero, BiFunction<? super S, ? super X, ? extends S> combine) {
+    return Effects.<Comp<X, ? super R>, S, R>fold(xs, zero, (acc, c) ->
+        Effects.<X, R>fit(c).map(x -> combine.apply(acc, x)));
+  }
+
+  /** a stream of computations collected into the computation of their values:
+   * {@code cart.stream().map(item -> perform(new Price(item))).collect(sequencing())} */
+  public static <X, R> Collector<Comp<X, R>, ?, Comp<List<X>, R>> sequencing() {
+    return Collector.<Comp<X, R>, ArrayList<Comp<X, R>>, Comp<List<X>, R>>of(ArrayList::new, ArrayList::add,
+        (a, b) -> { a.addAll(b); return a; }, Effects::<X, R>sequence);
   }
 
   /** a place in a source: an element, and the next place, asked of the iterator once and kept */
   private static final class Cursor<X> {
     final X value;
-    private Iterator<X> source;
+    private Iterator<? extends X> source;
     private Cursor<X> next;
 
-    private Cursor(X value, Iterator<X> source) {
+    private Cursor(X value, Iterator<? extends X> source) {
       this.value = value;
       this.source = source;
     }
 
-    static <X> Cursor<X> of(Iterator<X> source) {
+    static <X> Cursor<X> of(Iterator<? extends X> source) {
       return source.hasNext() ? new Cursor<>(source.next(), source) : null;
     }
 

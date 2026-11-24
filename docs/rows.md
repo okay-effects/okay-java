@@ -143,6 +143,10 @@ Comp<Long, Eff<Prices<?>, ?>> total =
 
 - `forEach(xs, x -> c)` runs `c` for each element; `fold(xs, zero, (acc, x) -> c)` carries a value through;
   `collect(xs, x -> c)` gives the list of the values.
+- A source may be of computations, `Iterable<Comp<X, R>>`: the source itself is plain Java — built by a `for`, a
+  stream, a list — and its elements ask the effects. `sequence(xs)` runs them in order and gives their values,
+  `reduce(xs, zero, (acc, x) -> ..)` combines the values, and a stream collects into one:
+  `cart.stream().map(item -> perform(new Prices.Price(item))).collect(sequencing())`.
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the

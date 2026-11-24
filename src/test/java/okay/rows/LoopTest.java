@@ -85,9 +85,44 @@ class LoopTest {
 
   @Test
   void aLoopRunsAgainFromItsStart() {
-    Comp<List<Long>, Pure> prices = priced(collect(Stream.of("tea", "cup").toList(), i -> perform(new Prices.Price(i))));
+    Comp<List<Long>, Pure> prices =
+        priced(collect(Stream.of("tea", "cup").toList(), i -> perform(new Prices.Price(i))));
     assertEquals(List.of(3L, 3L), run(prices));
     assertEquals(List.of(3L, 3L), run(prices));
+  }
+
+  /** a source of computations: a stream mapped to programs, collected into the program of their values */
+  @Test
+  void aStreamOfComputations() {
+    Comp<List<Long>, Eff<Prices<?>, ?>> prices =
+        Stream.of("tea", "kettle").map(item -> perform(new Prices.Price(item))).collect(sequencing());
+    assertEquals(List.of(3L, 6L), run(priced(prices)));
+  }
+
+  /** built by a plain for: the loop makes the programs, the machine runs them */
+  @Test
+  void aForThatMakesComputations() {
+    List<Comp<Long, Eff<Prices<?>, ?>>> asked = new ArrayList<>();
+    for (String item : List.of("tea", "cup", "kettle")) asked.add(perform(new Prices.Price(item)));
+    Comp<Long, Eff<Prices<?>, ?>> total = reduce(asked, 0L, Long::sum);
+    assertEquals(12L, run(priced(total)));
+    Comp<List<Long>, Eff<Prices<?>, ?>> all = sequence(asked);
+    assertEquals(List.of(3L, 3L, 6L), run(priced(all)));
+  }
+
+  /** the source lazy, its elements programs: asked for the next only when the one before has run */
+  @Test
+  void aLazySourceOfComputations() {
+    List<String> made = new ArrayList<>();
+    Iterable<Comp<Long, Eff<Prices<?>, ?>>> lazy = () ->
+        Stream.of("a", "bb", "ccc").<Comp<Long, Eff<Prices<?>, ?>>>map(item -> {
+      made.add(item);
+      return perform(new Prices.Price(item));
+    }).iterator();
+    Comp<Long, Eff<Prices<?>, Eff<Throws<String>, ?>>> upTo2 = fold(lazy, 0L, (sum, c) -> c.flatMap(p ->
+        p == 2 ? up(Throws.<String, Long>raise("stop")) : pure(sum + p)));
+    assertEquals(new Throws.Err<>("stop"), run(Throws.run(priced(upTo2))));
+    assertEquals(List.of("a", "bb"), made);
   }
 
   @Test
