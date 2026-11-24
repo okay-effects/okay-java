@@ -163,6 +163,89 @@ class TogetherTest {
     assertEquals(List.of("true/true", "true/false", "false/true", "false/false"), run(all));
   }
 
+  /** FLAT: a question made of answers says which, and is asked when they are known — no block inside */
+  static Comp<Long, Eff<Prices<?>, ?>> flat(String first, String second) {
+    return together(t -> {
+      Var<Long> a = t.ask(perform(new Prices.Price(first)));
+      Var<Long> b = t.ask(perform(new Prices.Price(second)));
+      Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));
+      return t.yield(a, b, off, (x, y, o) -> x + y - o);
+    });
+  }
+
+  @Test
+  void aQuestionMadeOfAnswersIsFlat() {
+    List<String> queries = new ArrayList<>();
+    assertEquals(118L, run(shop(queries, flat("kettle", "cup"))));
+    assertEquals(List.of("all of [price cup, price kettle]", "discount 131"), queries);
+  }
+
+  /** the rounds are found by what each question needs, not by where it is written: two questions that each need
+   * one answer are of one round, one set */
+  @Test
+  void theRoundsFollowTheNeeds() {
+    List<String> queries = new ArrayList<>();
+    Comp<String, Eff<Prices<?>, ?>> p = together(t -> {
+      Var<Long> tea = t.ask(perform(new Prices.Price("tea")));
+      Var<Long> teaOff = t.ask(tea, x -> perform(new Prices.Discount(x * 100)));
+      Var<Long> kettle = t.ask(perform(new Prices.Price("kettle")));
+      Var<Long> kettleOff = t.ask(kettle, x -> perform(new Prices.Discount(x)));
+      Var<Boolean> cup = t.ask(perform(new Prices.InStock("cup")));
+      Var<Long> both = t.ask(teaOff, kettleOff, (x, y) -> perform(new Prices.Discount(x + y)));
+      return t.yield(cup, both, (in, off) -> in + " " + off);
+    });
+    assertEquals("true 5", run(shop(queries, p)));
+    assertEquals(List.of("all of [price kettle, price tea, stock cup]", "all of [discount 120, discount 400]",
+        "discount 52"), queries);
+  }
+
+  /** a question that reads the answers above it by get: asked after all of them */
+  @Test
+  void aQuestionThatReadsWhatIsAboveIt() {
+    List<String> queries = new ArrayList<>();
+    Comp<Long, Eff<Prices<?>, ?>> p = together(t -> {
+      Var<Long> a = t.ask(perform(new Prices.Price("kettle")));
+      Var<Long> b = t.ask(perform(new Prices.Price("cup")));
+      Var<Long> off = t.ask(() -> perform(new Prices.Discount(a.get() + b.get())));
+      return t.yield(() -> a.get() + b.get() - off.get());
+    });
+    assertEquals(118L, run(shop(queries, p)));
+    assertEquals(2, queries.size());
+  }
+
+  /** a list of questions under one name, a name for a value, the block going on with a computation */
+  @Test
+  void aListOfQuestionsAndANameForAValue() {
+    List<String> queries = new ArrayList<>();
+    List<String> cart = List.of("tea", "kettle", "cup");
+    Comp<String, Eff<Prices<?>, ?>> p = together(t -> {
+      Var<List<Long>> prices = t.askAll(cart.stream().map(i -> perform(new Prices.Price(i))).toList());
+      Var<Long> sum = t.let(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
+      Var<Long> off = t.ask(sum, s -> perform(new Prices.Discount(s)));
+      return t.then(sum, off, (s, o) -> quote("cup").map(q -> q + ", total " + (s - o)));
+    });
+    assertEquals("cup 11, total 122", run(shop(queries, p)));
+    assertEquals(List.of("all of [price cup, price kettle, price tea]", "discount 135",
+        "all of [price cup, stock cup]"), queries);
+  }
+
+  @Test
+  void anAnswerOfAnotherBlockIsRefused() {
+    List<String> queries = new ArrayList<>();
+    Comp<Long, Eff<Prices<?>, ?>> p = together(t -> {
+      Var<Long> a = t.ask(perform(new Prices.Price("tea")));
+      return t.then(() -> together(u -> u.yield(a, x -> x)));
+    });
+    assertThrows(IllegalArgumentException.class, () -> run(shop(queries, p)));
+    Comp<Long, Eff<Prices<?>, ?>> early = together(t -> {
+      Var<Long> a = t.ask(() -> perform(new Prices.Price("tea")));
+      Var<Long> b = t.ask(perform(new Prices.Price("cup")));
+      Var<Long> c = t.ask(b, x -> perform(new Prices.Discount(x + a.get())));
+      return t.yield(c, x -> x);
+    });
+    assertEquals(1L, run(shop(queries, early)));
+  }
+
   @Test
   void anAnswerReadOutsideItsBlockIsRefused() {
     List<String> queries = new ArrayList<>();

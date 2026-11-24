@@ -103,21 +103,23 @@ static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter<?>, R>> 
 An effect with
 type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot tell `Get<S>` by an index.
 
-A comprehension, as Scala's `for`: `together` — questions one after another, each answer a name, the block going on
-once with `yield` (a value) or `then` (a computation, which may be another block). Code nests only where a question
-depends on an answer; the questions of one block are independent, and its operations are asked at once, as a set:
+A comprehension, as Scala's `for`, flat: `together` — questions one after another, each answer a name; a question
+made of answers says which and is asked when they are known; the block ends with `yield` (a value) or `then` (a
+computation). It asks in rounds, by what each question needs; the operations of a round go at once, as a set:
 
 ```java
-static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
+static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   return together(t -> {
-    Var<Long> price = t.ask(perform(new Prices.Price(item)));
-    Var<Boolean> stock = t.ask(perform(new Prices.InStock(item)));
-    return t.yield(() -> stock.get() ? item + " " + price.get() : item + " is out");
+    Var<Long> a = t.ask(perform(new Prices.Price(first)));
+    Var<Long> b = t.ask(perform(new Prices.Price(second)));
+    Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));
+    return t.yield(a, b, off, (x, y, o) -> x + y - o);
   });
 }
 ```
 
-A `Var` is read in its block's `then`/`yield` only (take it into a local for a function run later).
+Up to three answers are given as values; for more, `t.ask(() -> ..)`/`t.yield(() -> ..)` read the names by `get()`
+(there only). `t.askAll(list)` names a list of answers, `t.let(a, f)` a value.
 
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
