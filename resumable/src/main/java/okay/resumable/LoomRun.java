@@ -1,6 +1,5 @@
 package okay.resumable;
 
-import java.util.function.Supplier;
 import jdk.internal.vm.Continuation;
 import jdk.internal.vm.ContinuationScope;
 import okay.rows.Comp;
@@ -10,10 +9,8 @@ import okay.rows.Here;
  * {@code Once}, and whose clause does not resume at once, yields; the JVM freezes the frames and thaws them when the
  * answer comes. Only frames between the body and the yield are in it: nothing of the machine. A yield that cannot be
  * made (a native frame, a monitor held) falls back to saved frames. */
-final class LoomRun implements Supplier<Object> {
+final class LoomRun extends BodyRun {
   static final ContinuationScope SCOPE = new ContinuationScope("okay.resumable");
-  /** not yielded: the frames are saved instead */
-  static final Object NOT = new Object();
 
   private static final class NotYielded extends RuntimeException {
     NotYielded() {
@@ -22,28 +19,9 @@ final class LoomRun implements Supplier<Object> {
   }
 
   final Continuation cont;
-  /** how the boundary enters its outermost frame: a body's run, a clause's on or ret */
-  final Driver.Entry entry;
-  /** what the body came to: its value, its failure, or frames it saved */
-  Object value;
-  Throwable failure;
-  Capture capture;
-  /** the program it yielded to go on with; what it is given back: an answer, or a throwable thrown at the yield */
-  Comp<Object, Object> pending;
-  Object answer;
-  Throwable thrown;
-  /** the operations asked so far, the last answered: each is answered once */
-  int asked;
-  int answered;
-  /** the frames that wait for an answer, where a yield could not be made and they were saved instead */
-  Frame waiting;
-  /** whether the program's guard is in place: put before the first operation of a handler declared Once */
-  boolean guarded;
-  /** the body run on from where it waits: one program, made once */
-  final Comp<Object, Object> next;
 
-  LoomRun(Driver.Prog p, Driver.Run body, Driver.Entry entry) {
-    this.entry = entry;
+  LoomRun(Driver.Prog p, Driver.Run body, Driver.Entry entry, boolean plain) {
+    super(entry, plain);
     next = Here.here(h -> Driver.step(p, this, h));
     cont = new Continuation(SCOPE, () -> {
       try {
@@ -61,13 +39,8 @@ final class LoomRun implements Supplier<Object> {
     };
   }
 
-  @Override
-  public Object get() {
-    run();
-    return null;
-  }
-
   /** run to its end or its next yield, with the scoped-value bindings of the stack it runs on put back after */
+  @Override
   void run() {
     Object outside = Bindings.current();
     try {
@@ -77,13 +50,20 @@ final class LoomRun implements Supplier<Object> {
     }
   }
 
+  @Override
+  boolean isDone() {
+    return cont.isDone();
+  }
+
   /** whether this is the continuation running here: only it can yield */
+  @Override
   boolean current() {
     return Continuation.getCurrentContinuation(SCOPE) == cont;
   }
 
   /** yielded, the program to go on with given to the boundary, and the answer returned — or NOT, if it cannot
    * yield */
+  @Override
   Object yield(Comp<Object, Object> next) {
     pending = next;
     Object inside = Bindings.current();

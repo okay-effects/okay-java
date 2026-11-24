@@ -81,6 +81,12 @@ public final class Here {
     return pending(probe.resumeHere(op, place, x -> later.apply(x).eff));
   }
 
+  /** the same, of a handler whose clause was called already by {@link #ask} and did more than answer
+   * ({@link #made}): the rest is taken, the clause not called again */
+  public Object resumeHere(Op<?, ?, ?> op, int place, Function<Object, ? extends Comp<?, ?>> later, Object made) {
+    return pending(probe.resumeHere(op, place, x -> later.apply(x).eff, null, true, made));
+  }
+
   /** the same, of a handler {@link #EAGER} or {@link #ONCE}: its clause, made where it runs, is made on this stack;
    * answered at once if it resumes at once — in tail position only, unless {@code once}. {@code unwound}, if not
    * null, the finalizer of what {@code later} resumes: run first when the rest is unwound */

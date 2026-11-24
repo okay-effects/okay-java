@@ -194,19 +194,38 @@ place 5.5, under a clause that only resumes 10.5 — where the same loop written
 
 ## Without the plugin
 
-A method that was not transformed performs all the same where its handler ANSWERS IN PLACE: a handler in place
-(`InPlace`), a clause that only resumes (`handle((op, k) -> .. k.resume(op, x) ..)`), a clause with a state. Nothing
-of the method has to be saved then, so nothing had to be transformed: `Direct.perform` asks the handlers in force
-from the method's own stack and returns the answer. The same source, the same `throws`, the same
-`Direct.effects(..).of(..)` — no plugin, no agent, no JVM flag, an IDE that compiles by itself (`NoPluginTest`,
-whose program is a class the build leaves as javac wrote it).
+The same source — the same `throws`, the same `Direct.perform`, the same `Direct.effects(..).of(..)` — runs with no
+plugin, no agent and no JVM flag, in an IDE that compiles by itself. What the plugin adds is a rest that can be
+resumed MORE THAN ONCE.
 
-The plugin is needed where a handler TAKES THE REST of the program — goes on after it, resumes it twice, keeps it,
-leaves it: the method's frames must then be saved, and only a transformed method's can be. Such an operation
-performed by a method that was not transformed is refused when it is asked, with the method and the reason.
+| the handler of an operation | without the plugin | with it |
+|---|---|---|
+| answers in place: `InPlace`, a clause that only resumes, a clause with a state | on the method's own stack, nothing saved | the same |
+| takes the rest and resumes it at most once: goes on after it, leaves it (`k.unwind()`), keeps it for later | the body waits on a stack of its own | frames saved as data |
+| resumes the rest twice | refused when it does, and told why | frames entered again, each path its own locals |
 
-Measured on `gadtDirectBench` (one run under load, ns an operation of a plain loop): a handler in place 8.1 with
-the plugin, 9.2 without; a clause that only resumes 14.7 with, 13.6 without — the same within the noise.
+- A program whose boundary — the lambda given to `of` — is in a class the plugin did not transform runs its body
+  on a stack of its own: the JVM's continuation where its packages are opened (the plugin's flags), else a VIRTUAL
+  THREAD (`ThreadRun`): the public API, nothing to set. The body and the program take turns, one running, the other
+  waiting, so the body asks the handlers in force from its own stack as a transformed method does: an operation
+  answered in place costs no turn.
+- Where a handler takes the rest, the body waits where it asked, the program goes on with the handler's clause, and
+  the answer starts the body again — once: a waiting stack is one rest, it cannot be copied. A rest that is left
+  (`k.unwind()`) unwinds the body where it waits, and its `finally` blocks run. A rest kept and never resumed nor
+  unwound keeps its thread.
+- `Direct.effects(..).embed(sub)` runs an `okay.rows` program as a part of the body: the body waits while it runs.
+- Mixed code is still refused where a frame would be lost: a method that was not transformed, called by a program
+  whose boundary was, cannot wait — the boundary's frames are saved as data, and its own cannot be.
+- The body runs on another thread than the program's: what is bound to a thread (a `ThreadLocal`, a transaction,
+  a lock) is not the program's there.
+
+The module's build runs `NoPluginTest` twice, its program a class left as javac wrote it: with the plugin's flags
+(a continuation) and with none (the task `testNoFlags`, a virtual thread).
+
+Measured on `gadtDirectBench` (one run each, under load, ns an operation of a plain loop): answered in place 11.8
+without the plugin and 11.4 with it; by a clause that only resumes 17.1 and 15.4. Under a handler that takes the
+rest at every operation, without the plugin: about 480 on the JVM's continuation, 1400 to 2000 on a virtual thread
+(a turn of two threads, looked for before it is parked for; 8000 when it parked at once).
 
 ## The boundary
 

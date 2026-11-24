@@ -41,12 +41,16 @@ public final class Direct {
   /** a sensitive operation asked: its effect, at the first place of the program's row, is answered only under its
    * audit ({@link #sensitive}). As {@link #perform(Op)}, thrown for javac only */
   public static <E extends SensitiveSuspend, X, O extends Sensitive.Op<E, X, ? super O>> X perform(O op) throws E {
-    throw untransformed(op);
+    Object answer = Driver.performSensitive(op);
+    if (answer instanceof Capture) throw untransformed(op, 2);
+    @SuppressWarnings("unchecked") // the answer of the operation, of the type the operation names
+    X x = (X) answer;
+    return x;
   }
 
   /** an operation of an effect written as a GADT ({@link Performed}) asked, its answer returned: of the type its
    * record names, {@code long price = Direct.perform(new Prices.Price(item))}. Its effect's name is thrown for
-   * javac only, as {@link #perform(Op)}'"'"'s */
+   * javac only, as {@link #perform(Op)}'s */
   public static <T, F, X extends Suspend & Marks<F>> T perform(Performed<T, F, X> op) throws X {
     return here(op);
   }
@@ -138,7 +142,7 @@ public final class Direct {
 
     /** the body as a program of the row: run when the program is */
     public <A> Comp<A, Eff<E1, Pure>> of(Body1<A, E1> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     /** A SUB-PROGRAM OF THIS ROW, ITS HANDLERS INSIDE IT, run as a part of the program that calls this — no nested
@@ -161,7 +165,7 @@ public final class Direct {
     private Row2(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Eff<E1, Eff<E2, Pure>>> of(Body2<A, E1, E2> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Pure>>> sub) throws E1, E2 {
@@ -179,7 +183,7 @@ public final class Direct {
     private Row3(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Eff<E1, Eff<E2, Eff<E3, Pure>>>> of(Body3<A, E1, E2, E3> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Eff<E3, Pure>>>> sub) throws E1, E2, E3 {
@@ -198,7 +202,7 @@ public final class Direct {
     private Row4(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Eff<E1, Eff<E2, Eff<E3, Eff<E4, Pure>>>>> of(Body4<A, E1, E2, E3, E4> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     public <A> A embed(Comp<A, ? super Eff<E1, Eff<E2, Eff<E3, Eff<E4, Pure>>>>> sub) throws E1, E2, E3, E4 {
@@ -212,7 +216,7 @@ public final class Direct {
   }
 
   /** THE ROW of a direct-style program whose effects are written as GADTs, named by their names in a
-   * {@code throws} ({@link Marks}), in the order of their handlers: the program'"'"'s row is of the effects they stand
+   * {@code throws} ({@link Marks}), in the order of their handlers: the program's row is of the effects they stand
    * for — {@code Direct.effects(Prices.Fx.class, Ask.Fx.class).of(() -> shop(cart))} is a
    * {@code Comp<A, Eff<Prices<?>, Eff<Ask<?>, Pure>>>}. */
   public static <F1, X1 extends Suspend & Marks<F1>> Effects1<F1, X1> effects(Class<X1> x1) {
@@ -237,7 +241,7 @@ public final class Direct {
 
     /** the body as a program of the row: run when the program is */
     public <A> Comp<A, Eff<F1, Pure>> of(Body1<A, X1> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     /** a sub-program of this row, its handlers inside it, run as a part of the program that calls this
@@ -253,7 +257,7 @@ public final class Direct {
     private Effects2(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Eff<F1, Eff<F2, Pure>>> of(Body2<A, X1, X2> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     public <A> A embed(Comp<A, ? super Eff<F1, Eff<F2, Pure>>> sub) throws X1, X2 {
@@ -268,7 +272,7 @@ public final class Direct {
     private Effects3(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Eff<F1, Eff<F2, Eff<F3, Pure>>>> of(Body3<A, X1, X2, X3> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
 
     public <A> A embed(Comp<A, ? super Eff<F1, Eff<F2, Eff<F3, Pure>>>> sub) throws X1, X2, X3 {
@@ -335,7 +339,7 @@ public final class Direct {
     private SensitiveRow1(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Sensitive<S, ?>> of(Body1<A, S> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -345,7 +349,7 @@ public final class Direct {
     private SensitiveRow2(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Sensitive<S, ? extends Eff<E1, ?>>> of(Body2<A, S, E1> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -355,7 +359,7 @@ public final class Direct {
     private SensitiveRow3(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, Sensitive<S, ? extends Eff<E1, ? extends Eff<E2, ?>>>> of(Body3<A, S, E1, E2> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -367,7 +371,7 @@ public final class Direct {
 
     public <A> Comp<A, Sensitive<S, ? extends Eff<E1, ? extends Eff<E2, ? extends Eff<E3, ?>>>>> of(
         Body4<A, S, E1, E2, E3> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -404,7 +408,7 @@ public final class Direct {
     private Places2(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, R> of(Body2<A, E1, E2> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -458,7 +462,7 @@ public final class Direct {
     private Places3(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, R> of(Body3<A, E1, E2, E3> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 
@@ -571,7 +575,7 @@ public final class Direct {
     private Places4(Class<?>[] row) { this.row = row; }
 
     public <A> Comp<A, R> of(Body4<A, E1, E2, E3, E4> body) {
-      return Driver.program(row, body::run);
+      return Driver.program(row, body::run, body);
     }
   }
 

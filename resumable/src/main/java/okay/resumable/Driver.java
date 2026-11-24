@@ -40,7 +40,7 @@ final class Driver {
 
   /** where a program runs, while it runs on this thread: the handlers in force, the program, its continuation if
    * any */
-  record Ctx(Here here, Prog prog, LoomRun loom) {}
+  record Ctx(Here here, Prog prog, BodyRun loom) {}
 
   static final ThreadLocal<Ctx> CTX = new ThreadLocal<>();
 
@@ -60,22 +60,27 @@ final class Driver {
     if (c != null) {
       int place = place(c.prog().row, op);
       Object a = c.here().ask(op, place);
+      BodyRun r = c.loom();
+      // a body that was not transformed, where it can wait on its own stack: none of its frames can be saved, so
+      // every handler that takes the rest is asked as one that resumes once
+      boolean plain = r != null && r.plain && r.current();
       if (Here.made(a)) {
+        if (plain) return once(c, r, op, place, a);
         // its handler's clause was called here and did more than answer: the frames are saved, the clause kept
         Capture taken = new Capture(op);
         taken.made = a;
         return taken;
       }
       if (a != Here.ELSEWHERE) {
-        if (a == Here.EAGER) return here(c, op, place, false);
+        if (a == Here.EAGER) return plain ? once(c, r, op, place, null) : here(c, op, place, false);
         if (a != Here.ONCE) {
           if (TRACE) TAKEN[0]++;
           return a;
         }
-        LoomRun r = c.loom();
-        if (r != null && r.current()) return once(c, r, op, place);
+        if (r != null && r.current()) return once(c, r, op, place, null);
         return here(c, op, place, true);
       }
+      if (plain) return once(c, r, op, place, null);
     }
     return new Capture(op);
   }
@@ -86,11 +91,12 @@ final class Driver {
     Ctx c = CTX.get();
     if (c != null) {
       int place = place(c.prog().row, op);
+      BodyRun r = c.loom();
       if (c.here().kind(op, place) == Here.ONCE) {
-        LoomRun r = c.loom();
-        if (r != null && r.current()) return once(c, r, op, place);
+        if (r != null && r.current()) return once(c, r, op, place, null);
         return here(c, op, place, true);
       }
+      if (r != null && r.plain && r.current()) return once(c, r, op, place, null);
     }
     return new Capture(op);
   }
@@ -98,17 +104,12 @@ final class Driver {
   /** 2: the handler's clause called from the body's stack. Resumed at once, as most are, its answer is returned and
    * nothing suspends; else the body yields, and the boundary goes on with the clause's program. If the yield cannot
    * be made, the frames are saved, and the answer resumes them */
-  private static Object once(Ctx c, LoomRun r, Object op, int place) {
-    if (!r.guarded) {
-      // the program's one guard, put before the first rest a clause may keep: if a rest is left unanswered while
-      // the body waits, its frames are unwound. Not put for a program that never asks such a handler
-      r.guarded = true;
-      Prog p = c.prog();
-      c.here().ensure(() -> Here.here(h -> unwound(p, r, h)));
-    }
+  private static Object once(Ctx c, BodyRun r, Object op, int place, Object made) {
+    guard(c, r);
     Answer later = new Answer(c.prog(), r, ++r.asked, op);
     // the cast: an operation that is not sensitive came here from perform, which takes an Op
-    Object x = op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later)
+    Object x = made != null ? c.here().resumeHere((Op<?, ?, ?>) op, place, later, made)
+        : op instanceof Sensitive.Op<?, ?, ?> s ? c.here().resumeHere(s, place, later)
         : c.here().resumeHere((Op<?, ?, ?>) op, place, later);
     if (!(x instanceof Here.Pending p)) {
       r.answered = later.n;
@@ -117,9 +118,18 @@ final class Driver {
     }
     if (TRACE) TAKEN[2]++;
     Object y = r.yield(p.next());
-    if (y != LoomRun.NOT) return y;
+    if (y != BodyRun.NOT) return y;
     if (TRACE) TAKEN[2]--;
     return new Capture(op, p.next(), later);
+  }
+
+  /** the program's one guard, put before the first rest a clause may keep: if a rest is left unanswered while the
+   * body waits, its frames are unwound. Not put for a program that never asks such a handler */
+  private static void guard(Ctx c, BodyRun r) {
+    if (r.guarded) return;
+    r.guarded = true;
+    Prog p = c.prog();
+    c.here().ensure(() -> Here.here(h -> unwound(p, r, h)));
   }
 
   /** 2 with no continuation to yield: the clause of a handler declared {@code Once} ({@code once}), or of one
@@ -149,11 +159,24 @@ final class Driver {
   }
 
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
-  static <A, R> Comp<A, R> program(Class<?>[] row, Run body) {
+  static <A, R> Comp<A, R> program(Class<?>[] row, Run body, Object origin) {
     Prog p = new Prog(row);
-    if (!Loom.AVAILABLE) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, RUN));
+    // a body the plugin did not transform: none of its frames can be saved, so it waits on a stack of its own —
+    // the JVM's continuation where it is opened, else a virtual thread
+    boolean plain = !transformed(origin);
+    if (!Loom.AVAILABLE) {
+      if (plain) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(p, new ThreadRun(p, body, RUN), h));
+      return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, RUN));
+    }
     // a continuation for each run of the program
-    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(p, new LoomRun(p, body, RUN), h));
+    return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(p, new LoomRun(p, body, RUN, plain), h));
+  }
+
+  /** whether the class that wrote the body — a lambda's or a method reference's host, or the body's own class —
+   * was transformed */
+  private static boolean transformed(Object origin) {
+    Class<?> c = origin.getClass();
+    return (c.isHidden() ? c.getNestHost() : c).isAnnotationPresent(Transformed.class);
   }
 
   /** how the boundary enters the outermost frame: a body's run, a direct-style clause's on or ret */
@@ -213,7 +236,17 @@ final class Driver {
     if (c == null) throw new IllegalStateException("okay.resumable: Direct.row(..).embed was called where no program "
         + "runs: it runs a sub-program as a part of the program that calls it — call it from a program's body or a "
         + "direct-style clause; a program by itself is run by Effects.run");
-    throw new Capture(new Await(fitted(row, c.prog().row, (Comp<Object, Object>) sub), false));
+    Comp<Object, Object> part = fitted(row, c.prog().row, (Comp<Object, Object>) sub);
+    BodyRun r = c.loom();
+    if (r != null && r.plain && r.current()) {
+      // a body that was not transformed waits on its own stack while the part runs in the program
+      guard(c, r);
+      return (T) r.yield(part.flatMap(x -> {
+        r.answer = x;
+        return r.next;
+      }));
+    }
+    throw new Capture(new Await(part, false));
   }
 
   /** {@code sub}, of the places {@code row}, made a program of {@code in}: a place put for each place of {@code in}
@@ -274,9 +307,9 @@ final class Driver {
   // ---- 2: on the JVM's continuation
 
   /** the body run on to its end or its next yield, then the program it yielded */
-  static Comp<Object, Object> step(Prog p, LoomRun r, Here h) {
+  static Comp<Object, Object> step(Prog p, BodyRun r, Here h) {
     at(new Ctx(h, p, r), r);
-    if (r.cont.isDone()) {
+    if (r.isDone()) {
       Capture c = r.capture;
       if (c != null) {
         Resume.outermost(c, r.entry);
@@ -297,7 +330,7 @@ final class Driver {
     Frame frames;
 
     /** the frames saved, {@code r} the body's continuation if it ran in one */
-    void saved(Frame f, LoomRun r) {
+    void saved(Frame f, BodyRun r) {
       frames = f;
     }
   }
@@ -306,11 +339,11 @@ final class Driver {
    * again is refused */
   static final class Answer extends Later {
     final Prog p;
-    final LoomRun r;
+    final BodyRun r;
     final int n;
     final Object op;
 
-    Answer(Prog p, LoomRun r, int n, Object op) {
+    Answer(Prog p, BodyRun r, int n, Object op) {
       this.p = p;
       this.r = r;
       this.n = n;
@@ -318,14 +351,14 @@ final class Driver {
     }
 
     @Override
-    void saved(Frame f, LoomRun r) {
+    void saved(Frame f, BodyRun r) {
       frames = f;
       this.r.waiting = f;
     }
 
     @Override
     public Comp<Object, Object> apply(Object x) {
-      if (r.answered >= n) throw twice(op);
+      if (r.answered >= n) throw twice(op, r.plain);
       r.answered = n;
       Frame k = frames;
       if (k == null) {
@@ -337,7 +370,11 @@ final class Driver {
     }
   }
 
-  static IllegalStateException twice(Object op) {
+  static IllegalStateException twice(Object op, boolean plain) {
+    if (plain) return new IllegalStateException("okay.resumable: the handler of " + op + " resumed its rest again, "
+        + "but the program that asked was not transformed: without the plugin a body waits on a stack of its own, "
+        + "and a stack goes on once. Build the program with the okay-java-resumable plugin: its frames are then "
+        + "saved as data, and a rest may be resumed many times");
     return new IllegalStateException("okay.resumable: the handler of " + op + " declares Once but resumed its rest "
         + "again; the JVM's continuation goes on once. A handler that resumes more than once must not implement Once: "
         + "its programs' frames are then saved as data");
@@ -358,7 +395,7 @@ final class Driver {
     @Override
     public Comp<Object, Object> apply(Object x) {
       Frame k = frames;
-      if (k == null) throw twice(op);
+      if (k == null) throw twice(op, false);
       return Here.here(h -> resume(p, k, x, h));
     }
 
@@ -371,17 +408,17 @@ final class Driver {
 
   /** the program's guard: run when the program is left, by its end or unwound. Unwound while the body waits for an
    * answer, its frames are left: by {@link Unwound} thrown at the yield, or re-entered if they were saved */
-  private static Comp<Object, Object> unwound(Prog p, LoomRun r, Here h) {
+  private static Comp<Object, Object> unwound(Prog p, BodyRun r, Here h) {
     r.answered = r.asked;
     Frame k = r.waiting;
     if (k != null) {
       r.waiting = null;
       return k.finalizes ? unwind(p, k, h) : Effects.pure(null);
     }
-    if (r.cont.isDone()) return Effects.pure(null);
+    if (r.isDone()) return Effects.pure(null);
     r.thrown = Unwound.INSTANCE;
     at(new Ctx(h, p, r), r);
-    if (!r.cont.isDone() || r.capture != null)
+    if (!r.isDone() || r.capture != null)
       throw new IllegalStateException("okay.resumable: a finally block performed an operation while its program "
           + "was unwound: not supported");
     return Effects.pure(null);
@@ -391,7 +428,7 @@ final class Driver {
 
   /** the frames of {@code c} saved, linked to {@code tail}, and the program to go on with: the operation asked, its
    * answer resuming them; or the program of a clause already called, where one was ({@code c.next}) */
-  static Comp<Object, Object> suspended(Prog p, Capture c, Frame tail, LoomRun r) {
+  static Comp<Object, Object> suspended(Prog p, Capture c, Frame tail, BodyRun r) {
     if (TRACE) TAKEN[3]++;
     Frame rest = c.link(tail);
     if (c.next != null) {

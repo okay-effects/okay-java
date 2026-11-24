@@ -39,7 +39,7 @@ public final class GadtDirectBench {
       body.run();
       best = Math.min(best, System.nanoTime() - start);
     }
-    System.out.println(String.format("%-20s %7.1f ns/op", name, (double) best / ops));
+    System.out.println(String.format("%-52s %9.1f ns/op", name, (double) best / ops));
   }
 
   /** the same loop in a class the plugin did not transform ({@link UntransformedGadt}) */
@@ -64,6 +64,13 @@ public final class GadtDirectBench {
           case UntransformedGadt.Prices.Price price -> k.resume(price, 1L);
           case UntransformedGadt.Prices.InStock s -> k.resume(s, true);
         }, Direct.effects(UntransformedGadt.Prices.Fx.class).of(() -> UntransformedGadt.count(n)))));
+    int m = 50_000;
+    String stack = Direct.continuations().startsWith("the JVM") ? "a continuation" : "a virtual thread";
+    measure("no plugin, the rest (" + stack + ")", m, () -> run(
+        okay.rows.Effects.<UntransformedGadt.Prices<?>, Long, Pure>handle((op, k) -> switch (op) {
+          case UntransformedGadt.Prices.Price price -> k.resume(price, 1L).map(sum -> sum);
+          case UntransformedGadt.Prices.InStock s -> k.resume(s, true);
+        }, UntransformedGadt.counting(m))));
     measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Long, Pure>handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1);
     }, Direct.effects(Tick.Fx.class).of(() -> loop(n)))));

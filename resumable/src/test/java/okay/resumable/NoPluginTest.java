@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import okay.effect.Eff;
 import okay.effect.Pure;
+import okay.resumable.UntransformedGadt.Ask;
 import okay.resumable.UntransformedGadt.Prices;
 import okay.rows.Cell;
 import okay.rows.Comp;
@@ -76,7 +77,107 @@ class NoPluginTest {
     assertEquals(1_200_000L, run(p));
   }
 
-  /** a clause that does more than answer takes the rest: the method's frames would have to be saved */
+  /** which stack a body that waits is on here: the build runs these tests twice, with the JVM's continuations
+   * opened (the plugin's flags) and with nothing (the task testNoFlags), where it is a virtual thread */
+  @Test
+  void theStackABodyWaitsOn() {
+    String expected = System.getProperty("okay.resumable.expect", "continuations");
+    assertEquals(expected.equals("threads"), !Direct.continuations().equals("the JVM's continuations"),
+        Direct.continuations());
+  }
+
+  // ---- a handler that takes the rest, with nothing transformed: the body waits on a stack of its own
+
+  static <A, R> Comp<A, R> priced(List<String> queries, Comp<A, ? super Eff<Prices<?>, R>> body) {
+    return handle((op, k) -> switch (op) {
+      case Prices.Price price -> {
+        queries.add("price " + price.item());
+        yield k.resume(price, TABLE.get(price.item()));
+      }
+      case Prices.InStock s -> k.resume(s, TABLE.containsKey(s.item()));
+    }, body);
+  }
+
+  static <R> Comp<String, R> asking(boolean yes, Comp<String, ? super Eff<Ask<?>, R>> body) {
+    return handle((op, k) -> switch (op) {
+      case Ask.Confirm c -> k.resume(c, yes).map(r -> r + " (asked: " + c.question() + ")");
+      case Ask.Fail<?> f -> k.unwind().map(left -> "failed: " + f.why());
+    }, body);
+  }
+
+  /** a handler that goes on after the rest, and one that leaves it: the plain method waits, then goes on or is
+   * unwound — its finally runs */
+  @Test
+  void aHandlerThatGoesOnAfterTheRest() {
+    List<String> queries = new ArrayList<>();
+    List<String> log = new ArrayList<>();
+    assertEquals("paid 15 (asked: pay 15?)",
+        run(asking(true, priced(queries, UntransformedGadt.shopping(List.of("tea", "cup"), log)))));
+    assertEquals(List.of("left the shop"), log);
+    log.clear();
+    assertEquals("failed: declined (asked: pay 15?)",
+        run(asking(false, priced(queries, UntransformedGadt.shopping(List.of("tea", "cup"), log)))));
+    assertEquals(List.of("left the shop"), log);
+    log.clear();
+    assertEquals("paid 4", run(asking(false, priced(queries, UntransformedGadt.shopping(List.of("tea"), log)))));
+  }
+
+  /** every operation's handler takes the rest, in a long loop: a turn of the two stacks each, no stack grows */
+  @Test
+  void aLongLoopUnderAHandlerThatTakesTheRest() {
+    int[] after = {0};
+    Comp<Long, Pure> p = handle((op, k) -> switch (op) {
+      case Prices.Price price -> k.resume(price, 4L).map(sum -> {
+        after[0]++;
+        return sum;
+      });
+      case Prices.InStock s -> k.resume(s, true);
+    }, UntransformedGadt.counting(20_000));
+    assertEquals(80_000L, run(p));
+    assertEquals(20_000, after[0]);
+  }
+
+  /** a rest that waits on a stack goes on once: a handler that resumes it again is refused, and told why */
+  @Test
+  void aHandlerThatResumesTwiceIsRefused() {
+    Comp<Long, Pure> p = handle((op, k) -> switch (op) {
+      case Prices.Price price -> k.resume(price, 4L).flatMap(a -> k.resume(price, 5L).map(b -> a + b));
+      case Prices.InStock s -> k.resume(s, true);
+    }, UntransformedGadt.totalling(List.of("tea")));
+    IllegalStateException e = assertThrows(IllegalStateException.class, () -> run(p));
+    assertTrue(e.getMessage().contains("was not transformed"), e.getMessage());
+  }
+
+  /** a set asked from a plain method: the part runs in the program while the method waits */
+  @Test
+  void aSetAskedFromAPlainMethod() {
+    List<String> queries = new ArrayList<>();
+    Comp<Long, Pure> p = handle((op, k) -> switch (op) {
+      case Prices.Price price -> k.resume(price, TABLE.get(price.item()));
+      case Prices.InStock s -> k.resume(s, true);
+    }, (ops, k) -> {
+      queries.add("all of " + ops.size());
+      for (Prices<?> op : ops) switch (op) {
+        case Prices.Price price -> k.answer(price, TABLE.get(price.item()));
+        case Prices.InStock s -> k.answer(s, true);
+      }
+      return k.resume();
+    }, UntransformedGadt.batching(List.of("tea", "cup", "kettle")));
+    assertEquals(139L, run(p));
+    assertEquals(List.of("all of 3"), queries);
+  }
+
+  /** the same program run again: a stack of its own for each run */
+  @Test
+  void aProgramRunsAgain() {
+    List<String> queries = new ArrayList<>();
+    Comp<String, Pure> p =
+        asking(true, priced(queries, UntransformedGadt.shopping(List.of("tea", "cup"), new ArrayList<>())));
+    assertEquals(run(p), run(p));
+  }
+
+  /** a clause that does more than answer takes the rest; the BOUNDARY here is this class's, which was transformed,
+   * and the method below it was not: its frame cannot be saved between two that are */
   @Test
   void aHandlerThatTakesTheRestIsRefused() {
     Comp<Long, Pure> p = handle((op, k) -> switch (op) {

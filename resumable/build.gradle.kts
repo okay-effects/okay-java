@@ -232,5 +232,23 @@ tasks.register<JavaExec>("gadtDirectBench") {
         (sourceSets.test.get().runtimeClasspath - sourceSets.test.get().output.classesDirs)
     mainClass = "okay.resumable.GadtDirectBench"
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
-    jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
+    // -PnoFlags: a JVM whose continuations are not opened, as a project without the plugin has it
+    if (project.hasProperty("noFlags")) jvmArgs("-Dokay.resumable.loom=false")
+    else jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
 }
+
+// WITHOUT THE PLUGIN AND WITHOUT A FLAG: the same tests of code the build left as javac wrote it, on a JVM whose
+// continuations are not opened — a body that waits does so on a virtual thread of its own (ThreadRun)
+val testNoFlags by tasks.registering(Test::class) {
+    dependsOn(transformTestClasses)
+    useJUnitPlatform()
+    testClassesDirs = files(resumableTestClasses)
+    classpath = files(resumableTestClasses) +
+        (sourceSets.test.get().runtimeClasspath - sourceSets.test.get().output.classesDirs)
+    filter { includeTestsMatching("okay.resumable.NoPluginTest") }
+    jvmArgs("-Xss512k")
+    systemProperty("okay.resumable.expect", "threads")
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+}
+tasks.test { finalizedBy(testNoFlags) }
+tasks.check { dependsOn(testNoFlags) }

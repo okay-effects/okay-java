@@ -249,7 +249,7 @@ public final class Rows {
 
     protected void state(Object entry, Object state) {}
 
-    /** whether the handler'"'"'s clause is called before the rest is taken ({@link #early}): then a probing stack
+    /** whether the handler's clause is called before the rest is taken ({@link #early}): then a probing stack
      * calls it too */
     protected boolean asksEarly() {
       return false;
@@ -512,12 +512,18 @@ public final class Rows {
      * rest's finalizers */
     public Object resumeHere(Object op, int skip, Function<Object, ? extends Comp<?, ?>> later,
         Supplier<? extends Comp<?, ?>> unwound, boolean once) {
+      return resumeHere(op, skip, later, unwound, once, null);
+    }
+
+    /** the same, the handler's clause called already by {@link #ask}: {@code made}, what it gave */
+    public Object resumeHere(Object op, int skip, Function<Object, ? extends Comp<?, ?>> later,
+        Supplier<? extends Comp<?, ?>> unwound, boolean once, Object made) {
       Mark mk = new Mark(later, unwound);
       Frames k0 = m.k;
       m.k = new Frames.Then(mk, k0);
       Comp<?, ?> next;
       try {
-        next = asked(m, op, skip);
+        next = asked(m, op, skip, (Made) made);
         // a clause made where it runs: made here, and resumed here as the machine's capture would
         if (next instanceof Here<?, ?> h) next = m.atOnce(h.step(m), once);
       } catch (Throwable t) {
