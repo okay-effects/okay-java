@@ -14,7 +14,13 @@ import okay.core.Rows;
  * program holds is released. */
 public final class K<B, R> {
   private final Object asked;
-  private final Rows.Rest rest;
+  /** taken already; or, of a clause called before its rest is taken (Effects.handle of a Clause), given when it is */
+  private Rows.Rest rest;
+  private final boolean late;
+  /** a late continuation's first resumption and its answer: a clause whose program is that alone answered in place */
+  okay.core.Comp<?, ?> first;
+  Object firstAnswer;
+  boolean answeredInPlace;
   /** an interceptor's (by the class): it is no place, and leaves none when unwound */
   private final boolean place;
 
@@ -22,19 +28,55 @@ public final class K<B, R> {
     this.asked = asked;
     this.rest = rest;
     this.place = place;
+    this.late = false;
+  }
+
+  /** the continuation of a clause called before its rest is taken */
+  K(Object asked) {
+    this.asked = asked;
+    this.place = true;
+    this.late = true;
+  }
+
+  /** the rest, taken now: what the clause made with this continuation runs after this */
+  void take(Rows.Rest taken) {
+    rest = taken;
+  }
+
+  private okay.core.Comp<?, ?> resumed(Object answer) {
+    if (!late) return Comp.DOOR.resume(rest, answer);
+    okay.core.Comp<?, ?> c = okay.core.Comp.delay(() -> Handlers.trusted(Comp.DOOR.resume(taken(), answer)));
+    if (first == null) {
+      first = c;
+      firstAnswer = answer;
+    }
+    return c;
+  }
+
+  /** a program of the rest: made at once, or — the rest not taken yet — when it is run */
+  private okay.core.Comp<?, ?> late(java.util.function.Supplier<okay.core.Comp<?, ?>> made) {
+    return late ? okay.core.Comp.delay(() -> Handlers.trusted(made.get())) : made.get();
+  }
+
+  private Rows.Rest taken() {
+    if (rest == null)
+      throw new IllegalStateException(answeredInPlace
+          ? "a continuation whose clause only answered was resumed again: " + asked
+          : "a continuation run before its clause returned: " + asked);
+    return rest;
   }
 
   /** the rest resumed with the answer; the operation is the witness of the answer's type:
    * {@code case Among<X> among -> k.resume(among, among.values().get(0))} */
   public <X> Comp<B, R> resume(Op<?, X, ?> op, X answer) {
     if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
-    return new Comp<>(Comp.DOOR.resume(rest, answer));
+    return new Comp<>(resumed(answer));
   }
 
   /** a sensitive operation answered: by the handler of its audit ({@link Audit#handle}), or by its interceptor */
   public <X> Comp<B, R> resume(Sensitive.Op<?, X, ?> op, X answer) {
     if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
-    return new Comp<>(Comp.DOOR.resume(rest, answer));
+    return new Comp<>(resumed(answer));
   }
 
   /** {@code c}, then the rest resumed with its value. If {@code c} is left — the handler that answers it unwinds
@@ -43,18 +85,18 @@ public final class K<B, R> {
    * would leave the rest neither resumed nor unwound. */
   public <X> Comp<B, R> after(Op<?, X, ?> op, Comp<X, ? super R> c) {
     if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
-    return new Comp<>(Comp.DOOR.after(rest, c.eff));
+    return new Comp<>(late(() -> Comp.DOOR.after(taken(), c.eff)));
   }
 
   /** the same, of a sensitive operation */
   public <X> Comp<B, R> after(Sensitive.Op<?, X, ?> op, Comp<X, ? super R> c) {
     if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
-    return new Comp<>(Comp.DOOR.after(rest, c.eff));
+    return new Comp<>(late(() -> Comp.DOOR.after(taken(), c.eff)));
   }
 
   /** the operation asked again, at the place of the handler's effect in the row outside, the rest resumed with its
    * answer as by {@link #after}: what an interceptor at a place passes on (Effects.observe) */
-  Comp<B, R> again() { return new Comp<>(Comp.DOOR.after(rest, Comp.DOOR.ask(asked, 0))); }
+  Comp<B, R> again() { return new Comp<>(late(() -> Comp.DOOR.after(taken(), Comp.DOOR.ask(asked, 0)))); }
 
   /** the rest left: its finalizers, the innermost first, then nothing ({@code null}). No bind of it runs, no
    * {@code ret} of the handlers in it; their states are dropped. Each finalizer runs where it was installed: the
@@ -63,7 +105,7 @@ public final class K<B, R> {
    * has its handler outside, and its operations go there.) A failure of a finalizer answered inside what is
    * unwound does not stop the unwinding. */
   public Comp<Void, R> unwind() {
-    return new Comp<>(Comp.DOOR.unwind(rest, place ? Rows.GONE : Rows.NONE));
+    return new Comp<>(late(() -> Comp.DOOR.unwind(taken(), place ? Rows.GONE : Rows.NONE)));
   }
 
   /** {@code k.unwind()}, by a handler that kept its effect in the row — an interceptor at a place
@@ -73,11 +115,11 @@ public final class K<B, R> {
   public static <F, B, R extends Eff<F, ?>, O extends Op<F, ?, ? super O>> Comp<Void, R> unwindKeeping(
       K<B, R> k, O op) {
     if (op != k.asked) throw new IllegalArgumentException("not the operation asked: " + op);
-    return new Comp<>(Comp.DOOR.unwind(k.rest, Rows.KEPT));
+    return new Comp<>(k.late(() -> Comp.DOOR.unwind(k.taken(), Rows.KEPT)));
   }
 
   /** the same rest, for {@code okay.rows}' own: an audit's, an observer's */
   Rows.Rest rest() {
-    return rest;
+    return taken();
   }
 }

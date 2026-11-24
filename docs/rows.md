@@ -91,6 +91,43 @@ static <S, A, R> Comp<Final<S, A>, R> run(S s0, Comp<A, ? super Eff<State<S>, R>
 The `switch` is exhaustive over the sealed family, so a handler that misses an operation does not compile
 (`MissingCase.java`). An answer of the wrong type does not compile either (`WrongAnswer.java`).
 
+### An effect as a GADT, a handler as one function
+
+An effect without type parameters of its own can be written as a GADT: its interface is indexed by the answers
+and extends `Operation<T, F>` once, and its operations are plain records. A handler is then one lambda, a
+`Clause<F, A, R>`, given the operation and the continuation:
+
+```java
+sealed interface Prices<T> extends Operation<T, Prices<?>> {
+  record Price(String item) implements Prices<Long> {}
+  record InStock(String item) implements Prices<Boolean> {}
+}
+
+static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
+  return handle((op, k) -> switch (op) {
+    case Prices.Price p -> k.resume(p, table.getOrDefault(p.item(), 0L));
+    case Prices.InStock s -> k.resume(s, table.containsKey(s.item()));
+  }, body);
+}
+```
+
+- `Operation<T, F>` is `Op<F, T, F>`: the operation names the effect as itself, so `perform` takes every record of
+  the family and no other (`OperationOfAnotherEffect.java`).
+- Java does not refine `T` in a `case`. The continuation's type does it: `k.resume(op, x)` takes an `Op<?, X, ?>`
+  and an `X`, so a `Price`, a `Prices<Long>`, is answered by a `Long` only (`ClauseWrongAnswer.java`,
+  `ClauseMissingCase.java`).
+- No class names the effect: the handler takes the first effect of the body's row, which gives the lambda its type.
+- The clause is called before the rest is taken. If its program is `k.resume(op, x)` and nothing else, the
+  operation is answered in place: nothing is captured. Any other clause is given the rest as a `Handler`'s is, and
+  may resume it twice, later, or leave it. A continuation of a clause that only answered cannot be resumed again.
+- The handler's value is the program's. For another result type, or a state of the handler, write a `Handler` or
+  an `InPlace`.
+- An effect with type parameters of its own keeps `Op` on each record: `Get<S> implements State<S, S>` cannot be
+  told from a `State<S, ?>` by its index, and javac refuses the `case`.
+
+Measured on `rowsBench` (one run, ns an operation): a handler in place 14.1, a clause that only resumes 18.3, a
+general handler 25.5.
+
 Other words, all as in the reference:
 - `under(c)` adds a place under the first effect.
 - `fit(c)` names a row.

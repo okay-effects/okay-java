@@ -56,6 +56,56 @@ final class Handlers {
     }
   }
 
+  /** a handler that is one function ({@link Clause}), of a place: its clause called before the rest is taken */
+  static final class Quick<F, A, R> extends Rows.Spec {
+    private final Clause<F, A, R> clause;
+
+    Quick(Clause<F, A, R> clause) {
+      super(true, false);
+      this.clause = clause;
+    }
+
+    @Override
+    protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
+      return okay.core.Comp.pure(value);
+    }
+
+    @Override
+    protected Rows.Early early(Object op) {
+      K<A, R> k = new K<>(op);
+      return new Asked(k, clause.on(trusted(op), k).eff);
+    }
+  }
+
+  /** a clause's program, made before the rest was taken */
+  private static final class Asked extends Rows.Early {
+    private final K<?, ?> k;
+    private final okay.core.Comp<?, ?> made;
+
+    Asked(K<?, ?> k, okay.core.Comp<?, ?> made) {
+      this.k = k;
+      this.made = made;
+    }
+
+    @Override
+    protected boolean answered() {
+      if (made != k.first) return false;
+      k.answeredInPlace = true;
+      return true;
+    }
+
+    @Override
+    protected Object answer() {
+      return k.firstAnswer;
+    }
+
+    @Override
+    protected okay.core.Comp<?, ?> taken(Rows.Rest rest) {
+      k.take(rest);
+      return made;
+    }
+  }
+
   /** a handler in place: its state in the cell of its entry */
   static final class Local<F, S, A, B, R> extends Rows.Spec {
     private final Class<?> effect;

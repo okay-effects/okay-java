@@ -222,6 +222,25 @@ public final class Rows {
     protected Comp<?, ?> on(Object op, Rest rest, int skip) {
       throw new IllegalStateException("not a general handler");
     }
+
+    /** general: the clause for {@code op} called BEFORE the rest is taken — a clause that only answers
+     * ({@link Early#answered}) is answered at once, nothing captured; any other is given the rest then
+     * ({@link Early#taken}). {@code null}: not such a handler, {@link #on} is called with the rest */
+    protected Early early(Object op) {
+      return null;
+    }
+  }
+
+  /** a clause called before its rest was taken ({@link Spec#early}) */
+  public abstract static class Early {
+    /** whether the clause's program is the rest resumed, and nothing else */
+    protected abstract boolean answered();
+
+    /** the answer it resumes with */
+    protected abstract Object answer();
+
+    /** the clause's program, the rest now taken: run outside the handler */
+    protected abstract Comp<?, ?> taken(Rest rest);
   }
 
   // -- frames: what a delimiter of the row notation is for
@@ -507,7 +526,18 @@ public final class Rows {
         if (p.spec.row && !found) skip--;
         if (found) {
           if (p.spec.inPlace) return m.value(p.spec.answer(p.entry, op));
+          Early early;
+          try {
+            early = p.spec.early(op);
+          } catch (Throwable t) {
+            // the clause failed: a failure outside the handler, the rest taken and dropped, as a clause's of `on`
+            Comp<?, ?> failed = new Kernel.Fail<>(Kernel.nonFatal(t));
+            return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k -> failed, m.k);
+          }
+          if (early != null && early.answered()) return m.value(early.answer());
           Object[] saved = saved(m.ms, depth);
+          if (early != null)
+            return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k -> early.taken(new Rest(k, saved, false)), m.k);
           int left = skip;
           return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);

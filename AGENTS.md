@@ -66,6 +66,30 @@ static <A, R> Comp<A, R> priced(Map<String, Integer> table, Comp<A, ? super Eff<
 String q = run(Clock.at(() -> 1000L, priced(Map.of("tea", 4), quote("tea"))));       // "tea=4@1000"
 ```
 
+The light form, for an effect without type parameters of its own: the effect a GADT, the handler one lambda.
+
+```java
+// the effect's interface is indexed by the answers and says so once; its operations are plain records
+sealed interface Prices<T> extends Operation<T, Prices<?>> {
+  record Price(String item) implements Prices<Long> {}
+  record InStock(String item) implements Prices<Boolean> {}
+}
+
+// the handler: the operation and the continuation; no class is named, the effect is the first of the body's row.
+// k.resume(op, x) takes an answer of the operation's own type: a Price is answered by a Long
+static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
+  return handle((op, k) -> switch (op) {
+    case Prices.Price p -> k.resume(p, table.getOrDefault(p.item(), 0L));
+    case Prices.InStock s -> k.resume(s, table.containsKey(s.item()));
+  }, body);
+}
+```
+
+A clause (`Clause<F, A, R>`) whose program is `k.resume(op, x)` and nothing else is answered in place, nothing
+captured; one that goes on after the rest (`k.resume(c, yes).map(..)`), resumes twice, or leaves it
+(`k.unwind().map(..)`) is given the rest. The handler's value is the program's: it has no `ret`. An effect with
+type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot tell `Get<S>` by an index.
+
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
 value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Other words: `under`,

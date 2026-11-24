@@ -69,6 +69,14 @@ public final class Effects {
     return new Comp<>(DOOR.handle(new Handlers.General<>(effect, h, true), null, p.eff));
   }
 
+  /** the same, the handler one function of the operation and the continuation ({@link Clause}), a lambda:
+   * {@code handle((op, k) -> switch (op) { case Price p -> k.resume(p, 4L); }, p)}. The effect is the first of the
+   * program's row: the compiler finds it there, and nothing names its class. A clause that only resumes is answered
+   * in place. */
+  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause), null, p.eff));
+  }
+
   /** the same, in place, from the state {@code s0} */
   public static <F, S, A, B, R> Comp<B, R> handle(
       Class<? super F> effect, InPlace<F, S, A, B, R> h, S s0, Comp<A, ? super Eff<F, R>> p) {

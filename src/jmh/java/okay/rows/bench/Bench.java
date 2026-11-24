@@ -7,7 +7,10 @@ import okay.rows.Audit;
 import okay.rows.Cell;
 import okay.rows.Comp;
 import okay.effect.Eff;
+import okay.effect.Operation;
+import okay.rows.Handler;
 import okay.rows.InPlace;
+import okay.rows.K;
 import okay.rows.Interceptor;
 import okay.effect.Pure;
 import okay.effect.Sensitive;
@@ -60,6 +63,34 @@ public final class Bench {
     }
   };
 
+  /** a GADT of one operation, asked in a loop: answered by a handler in place, by a clause that only resumes
+   * (in place too), by a clause that goes on after the rest and by a general handler (the rest taken) */
+  sealed interface Tick<T> extends Operation<T, Tick<?>> {
+    record Next() implements Tick<Integer> {}
+  }
+
+  static Comp<Integer, Eff<Tick<?>, ?>> ticks(int n, int sum) {
+    return n == 0 ? pure(sum) : perform(new Tick.Next()).flatMap(x -> ticks(n - 1, sum + x));
+  }
+
+  static final InPlace<Tick<?>, Void, Integer, Integer, Pure> TICK_IN_PLACE = new InPlace<>() {
+    public Comp<Integer, Pure> ret(Void state, Integer a) { return pure(a); }
+    public Cell.Answered answer(Cell<Void> state, Tick<?> op) {
+      return switch (op) {
+        case Tick.Next next -> state.answer(next, 1);
+      };
+    }
+  };
+
+  static final Handler<Tick<?>, Integer, Integer, Pure> TICK_GENERAL = new Handler<>() {
+    public Comp<Integer, Pure> ret(Integer a) { return pure(a); }
+    public Comp<Integer, Pure> on(Tick<?> op, K<Integer, Pure> k) {
+      return switch (op) {
+        case Tick.Next next -> k.resume(next, 1);
+      };
+    }
+  };
+
   static void measure(String name, int ops, Runnable body) {
     long best = Long.MAX_VALUE;
     for (int round = 0; round < 7; round++) {
@@ -77,5 +108,14 @@ public final class Bench {
     measure("choose", 1 << 18, () -> run(Choose.all(tree(18))).size());
     measure("binds", n, () -> run(binds(n, 0)));
     measure("audited", n, () -> run(Audit.handle(TICKED, null, Audit.audit(PASSING, meter(n, 0)))));
+    measure("inplace", n, () -> run(handle(Tick.class, TICK_IN_PLACE, null, ticks(n, 0))));
+    measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
+      case Tick.Next next -> k.resume(next, 1);
+    }, ticks(n, 0))));
+    measure("general", n, () -> run(handle(Tick.class, TICK_GENERAL, ticks(n, 0))));
+    int m = 100_000;
+    measure("after", m, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
+      case Tick.Next next -> k.resume(next, 1).map(r -> r + 1);
+    }, ticks(m, 0))));
   }
 }
