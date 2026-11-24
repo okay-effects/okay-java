@@ -1,6 +1,7 @@
 package okay.resumable;
 
 import static okay.rows.Effects.run;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,11 +11,17 @@ import org.junit.jupiter.api.Test;
 class RefusalTest {
   @Test
   void performUnderACallerThatWasNotTransformedNamesIt() {
+    // its handler watched, so general: the rest would be taken. (A handler in place answers it: NoPluginTest)
     var e = assertThrows(IllegalStateException.class,
-        () -> run(Counter.run(0, Direct.row(Counter.class).of(Untransformed::performs))));
+        () -> run(Counter.run(0, Counter.watched(Direct.row(Counter.class).of(Untransformed::performs)))));
     System.out.println(e.getMessage());
     assertTrue(e.getMessage().startsWith("okay.resumable: okay.resumable.Untransformed.performs (line 10) performed "
         + "Get, but its class was not transformed"), e.getMessage());
+  }
+
+  @Test
+  void performUnderACallerThatWasNotTransformedIsAnsweredInPlace() {
+    assertEquals(7, run(Counter.run(7, Direct.row(Counter.class).of(Untransformed::performs))).value());
   }
 
   @Test

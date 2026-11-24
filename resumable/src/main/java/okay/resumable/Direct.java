@@ -32,9 +32,10 @@ public final class Direct {
   private Direct() {}
 
   /** the operation asked, its answer returned. Its effect {@code E} is thrown for javac only: a transformed caller
-   * does not call this method but its own path, which suspends. Called here, the caller was not transformed. */
+   * does not call this method but its own path, which suspends. Called here, the caller was not transformed: the
+   * operation is answered if its handler answers in place, and refused if the handler takes the rest. */
   public static <E extends Suspend, X, O extends Op<E, X, ? super O>> X perform(O op) throws E {
-    throw untransformed(op);
+    return here(op);
   }
 
   /** a sensitive operation asked: its effect, at the first place of the program's row, is answered only under its
@@ -47,12 +48,26 @@ public final class Direct {
    * record names, {@code long price = Direct.perform(new Prices.Price(item))}. Its effect's name is thrown for
    * javac only, as {@link #perform(Op)}'"'"'s */
   public static <T, F, X extends Suspend & Marks<F>> T perform(Performed<T, F, X> op) throws X {
-    throw untransformed(op);
+    return here(op);
+  }
+
+  /** an operation performed by a method that was NOT transformed: answered all the same where its handler answers
+   * it in place — a handler in place, a clause that only resumes: nothing of the method has to be saved, so
+   * nothing had to be transformed. Refused where the handler takes the rest of the program, or no program runs */
+  @SuppressWarnings("unchecked") // the answer of the operation, of the type the operation names
+  private static <T> T here(Op<?, ?, ?> op) {
+    Object answer = Driver.perform(op);
+    if (answer instanceof Capture) throw untransformed(op, 3);
+    return (T) answer;
   }
 
   private static IllegalStateException untransformed(Object op) {
+    return untransformed(op, 3);
+  }
+
+  private static IllegalStateException untransformed(Object op, int frames) {
     StackWalker.StackFrame caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-        .walk(s -> s.skip(2).findFirst()).orElseThrow();
+        .walk(s -> s.skip(frames).findFirst()).orElseThrow();
     String method = caller.getClassName() + "." + caller.getMethodName() + " (line " + caller.getLineNumber() + ")";
     String why = caller.getDeclaringClass().isAnnotationPresent(Transformed.class)
         ? "its class was transformed but this method was not (a constructor, a static initializer or a synchronized"
@@ -60,7 +75,9 @@ public final class Direct {
         : "its class was not transformed: build it with the okay-java-resumable plugin (Gradle:"
             + " id(\"io.github.okay-effects.resumable\"); Maven: okay-java-resumable-maven-plugin), or run a jar with"
             + " java -jar, whose manifest's Launcher-Agent-Class transforms it as it is loaded. An IDE that compiles"
-            + " by itself does not run the plugin: delegate the build and the tests to Gradle or Maven";
+            + " by itself does not run the plugin: delegate the build and the tests to Gradle or Maven. (Without the"
+            + " transformation a method performs only what a handler answers in place; this operation's handler"
+            + " takes the rest of the program, or no program runs here)";
     return new IllegalStateException("okay.resumable: " + method + " performed " + op + ", but " + why
         + " — the rest of the program could not be resumed.");
   }

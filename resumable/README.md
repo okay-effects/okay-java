@@ -192,6 +192,22 @@ run(handle((op, k) -> switch (op) {
 Measured on `gadtDirectBench` (one run, a plain loop of a million operations, ns an operation): under a handler in
 place 5.5, under a clause that only resumes 10.5 — where the same loop written as data (`rowsBench`) takes 14 and 20.
 
+## Without the plugin
+
+A method that was not transformed performs all the same where its handler ANSWERS IN PLACE: a handler in place
+(`InPlace`), a clause that only resumes (`handle((op, k) -> .. k.resume(op, x) ..)`), a clause with a state. Nothing
+of the method has to be saved then, so nothing had to be transformed: `Direct.perform` asks the handlers in force
+from the method's own stack and returns the answer. The same source, the same `throws`, the same
+`Direct.effects(..).of(..)` — no plugin, no agent, no JVM flag, an IDE that compiles by itself (`NoPluginTest`,
+whose program is a class the build leaves as javac wrote it).
+
+The plugin is needed where a handler TAKES THE REST of the program — goes on after it, resumes it twice, keeps it,
+leaves it: the method's frames must then be saved, and only a transformed method's can be. Such an operation
+performed by a method that was not transformed is refused when it is asked, with the method and the reason.
+
+Measured on `gadtDirectBench` (one run under load, ns an operation of a plain loop): a handler in place 8.1 with
+the plugin, 9.2 without; a clause that only resumes 14.7 with, 13.6 without — the same within the noise.
+
 ## The boundary
 
 `Direct.row(E1.class, ..).of(body)` names the row once, in the order of its handlers, and gives a

@@ -208,7 +208,9 @@ Effects as GADTs in direct style: the interface extends `Performed<T, Prices<?>,
 plain method `static long total(List<String> cart) throws Prices.Fx` performs with
 `long price = Direct.perform(new Prices.Price(item))` — in a `for`, under an `if`, the answers in locals — and
 `Direct.effects(Prices.Fx.class).of(() -> total(cart))` is a `Comp<Long, Eff<Prices<?>, Pure>>` for `okay.rows`'
-handlers (resumable/README.md, "Effects as GADTs").
+handlers (resumable/README.md, "Effects as GADTs"). WITHOUT the plugin the same code runs wherever its handlers
+answer in place (a handler in place, a clause that only resumes or keeps a state); the plugin is needed only where
+a handler takes the rest of the program (resumable/README.md, "Without the plugin").
 
 ### Pitfalls
 

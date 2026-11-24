@@ -39,13 +39,31 @@ public final class GadtDirectBench {
       body.run();
       best = Math.min(best, System.nanoTime() - start);
     }
-    System.out.println(String.format("%-8s %7.1f ns/op", name, (double) best / ops));
+    System.out.println(String.format("%-20s %7.1f ns/op", name, (double) best / ops));
   }
+
+  /** the same loop in a class the plugin did not transform ({@link UntransformedGadt}) */
+  static final InPlace<UntransformedGadt.Prices<?>, Void, Long, Long, Pure> PLAIN_IN_PLACE = new InPlace<>() {
+    public Comp<Long, Pure> ret(Void state, Long a) { return okay.rows.Effects.pure(a); }
+    public Cell.Answered answer(Cell<Void> state, UntransformedGadt.Prices<?> op) {
+      return switch (op) {
+        case UntransformedGadt.Prices.Price price -> state.answer(price, 1L);
+        case UntransformedGadt.Prices.InStock s -> state.answer(s, true);
+      };
+    }
+  };
 
   public static void main(String[] args) {
     int n = 1_000_000;
     measure("inplace", n, () -> run(handle(Tick.class, IN_PLACE, null,
         Direct.effects(Tick.Fx.class).of(() -> loop(n)))));
+    measure("no plugin, inplace", n, () -> run(handle(UntransformedGadt.Prices.class, PLAIN_IN_PLACE, null,
+        Direct.effects(UntransformedGadt.Prices.Fx.class).of(() -> UntransformedGadt.count(n)))));
+    measure("no plugin, clause", n, () -> run(
+        okay.rows.Effects.<UntransformedGadt.Prices<?>, Long, Pure>handle((op, k) -> switch (op) {
+          case UntransformedGadt.Prices.Price price -> k.resume(price, 1L);
+          case UntransformedGadt.Prices.InStock s -> k.resume(s, true);
+        }, Direct.effects(UntransformedGadt.Prices.Fx.class).of(() -> UntransformedGadt.count(n)))));
     measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Long, Pure>handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1);
     }, Direct.effects(Tick.Fx.class).of(() -> loop(n)))));
