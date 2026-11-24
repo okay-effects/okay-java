@@ -59,10 +59,18 @@ final class Handlers {
   /** a handler that is one function ({@link Clause}), of a place: its clause called before the rest is taken */
   static final class Quick<F, A, R> extends Rows.Spec {
     private final Clause<F, A, R> clause;
+    /** its clause for a set of operations, or {@code null}: a set is then asked one by one */
+    private final Batch<F, A, R> batch;
 
-    Quick(Clause<F, A, R> clause) {
+    Quick(Clause<F, A, R> clause, Batch<F, A, R> batch) {
+      this.batch = batch;
       super(true, false);
       this.clause = clause;
+    }
+
+    @Override
+    protected boolean takesMany() {
+      return batch != null;
     }
 
     @Override
@@ -73,6 +81,8 @@ final class Handlers {
     @Override
     protected Rows.Early early(Object entry, Object op) {
       K<A, R> k = new K<>(op);
+      if (op instanceof Rows.Many many)
+        return new Asked(k, batch.on(trusted(many.ops()), new KAll<>(k, many.ops())).eff, null);
       return new Asked(k, clause.on(trusted(op), k).eff, null);
     }
   }

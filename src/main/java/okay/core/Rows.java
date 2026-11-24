@@ -52,6 +52,12 @@ public final class Rows {
   public static final class Door {
     private Door() {}
 
+    /** the operations {@code ops} asked at once, as a set: to the nearest handler, which takes them together if it
+     * takes sets ({@link Spec#takesMany}); else, or with an interceptor on the way, each is asked as one */
+    public Comp<?, ?> askAll(Object[] ops) {
+      return new Ask<>(new Many(ops), 0);
+    }
+
     /** the operation {@code op}, to the handler {@code skip} row places past the nearest */
     public Comp<?, ?> ask(Object op, int skip) {
       return new Ask<>(op, skip);
@@ -221,6 +227,11 @@ public final class Rows {
     }
 
     protected void state(Object entry, Object state) {}
+
+    /** whether the handler answers a set of operations at once: it is given a {@link Many} as an operation */
+    protected boolean takesMany() {
+      return false;
+    }
 
     /** whether an entry has a state a path keeps: saved when a rest is taken across it, put back when resumed */
     protected boolean keepsState() {
@@ -525,6 +536,9 @@ public final class Rows {
 
   /** the operation's handler, by its place: walked to from the innermost delimiter */
   private static Comp<?, ?> asked(Run m, Object op, int skip) {
+    // a set of operations goes to a handler that takes sets; any other on its way, and it is asked one by one from here
+    Many many = op instanceof Many set ? set : null;
+    int from = skip;
     Meta rest = m.ms;
     Walk w = null;
     int depth = 0;
@@ -543,9 +557,11 @@ public final class Rows {
         return Kernel.unwind(m, new IllegalStateException("an operation with no handler in force: " + op));
       Object f = s.prompt().frame;
       if (f instanceof Place p) {
+        if (many != null && !p.spec.row) return one(many.ops, 0, null, from);
         boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
         if (p.spec.row && !found) skip--;
         if (found) {
+          if (many != null && !p.spec.takesMany()) return one(many.ops, 0, null, from);
           if (p.spec.inPlace) return m.value(p.spec.answer(p.entry, op));
           Early early;
           try {
@@ -574,12 +590,49 @@ public final class Rows {
         }
         if (g.mode == KEPT && skip >= 1) skip--;
       } else if (f instanceof Root r) {
+        if (many != null) return one(many.ops, 0, null, from);
         Object[] saved = saved(m.ms, depth);
         return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
             Comp.pure(r.asked.apply(op, new Rest(k, saved, true))), m.k);
       }
       depth++;
     }
+  }
+
+  /** A SET OF OPERATIONS asked at once ({@link Door#askAll}): independent of each other, known before any is
+   * answered. Its answer is the list of theirs, in their order */
+  public static final class Many {
+    final Object[] ops;
+
+    Many(Object[] ops) {
+      this.ops = ops;
+    }
+
+    /** the operations, in their order */
+    public java.util.List<Object> ops() {
+      return java.util.Collections.unmodifiableList(java.util.Arrays.asList(ops));
+    }
+
+    @Override
+    public String toString() {
+      return "all of " + java.util.Arrays.toString(ops);
+    }
+  }
+
+  /** the answers so far of a set asked one by one, the last first: a value, so a rest taken on the way and resumed
+   * twice has its own */
+  private record Answers(Object last, Answers before) {}
+
+  /** a set asked one by one, from the {@code i}th: each as an operation of its own, the same places to skip */
+  private static Comp<?, ?> one(Object[] ops, int i, Answers made, int skip) {
+    if (i == ops.length) {
+      Object[] out = new Object[ops.length];
+      Answers a = made;
+      for (int j = ops.length - 1; j >= 0; j--, a = a.before) out[j] = a.last;
+      return Comp.pure(java.util.Collections.unmodifiableList(java.util.Arrays.asList(out)));
+    }
+    return ((Comp<Object, Object>) (Comp) new Ask<>(ops[i], skip))
+        .flatMap(x -> (Comp<Object, Object>) (Comp) one(ops, i + 1, new Answers(x, made), skip));
   }
 
   /** the states of the handlers in place among the first {@code n} delimiters: theirs and them, in pairs; none,

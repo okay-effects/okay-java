@@ -32,6 +32,14 @@ public final class Effects {
     return new Comp<>(DOOR.ask(op, 0));
   }
 
+  /** A SET OF OPERATIONS ASKED AT ONCE: independent of each other, known before any is answered. Their answers,
+   * in their order. A handler with a clause for sets ({@link Batch}) is given them together; any other handler —
+   * and any handler with an interceptor or an observer on the way — is asked them one by one, so the program is
+   * the same under either. */
+  public static <E, X, O extends Op<E, X, ? super O>> Comp<List<X>, Eff<E, ?>> performAll(List<? extends O> ops) {
+    return new Comp<>(DOOR.askAll(ops.toArray()));
+  }
+
   /** the computation, under one more handler: its effects are one step further — and so its operations go, each
    * one handler further out than it would */
   public static <A, R> Comp<A, Eff<?, ? extends R>> up(Comp<A, R> c) { return retyped(lifted(c, 0)); }
@@ -185,7 +193,15 @@ public final class Effects {
    * program's row: the compiler finds it there, and nothing names its class. A clause that only resumes is answered
    * in place. */
   public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause), null, p.eff));
+    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, null), null, p.eff));
+  }
+
+  /** the same, with a clause for a SET of operations asked at once ({@link Batch}; {@link #performAll}, a
+   * {@link Gather}): it is given them all before any is answered — one query, a cache, each repeated one once. An
+   * operation asked alone still goes to {@code clause}. */
+  public static <F, A, R> Comp<A, R> handle(
+      Clause<F, A, R> clause, Batch<F, A, R> batch, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, batch), null, p.eff));
   }
 
   /** the same, the handler with a state: a {@link StateClause} is given the state of this path, the operation and

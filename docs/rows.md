@@ -160,6 +160,12 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   the value that decides; and `operations()` gives the operations themselves as data before anything runs — to ask
   them all in one batch operation of the effect, to drop the repeated, to count:
   `gather(g -> { for (..) g.perform(new Price(item)); }).first(p -> p > 100)`.
+- A SET OF OPERATIONS is asked at once: `performAll(ops)`, and a gather's `toList()` and `reduce` when it holds
+  operations only. The operations of a set are independent and known before any is answered, so a handler may
+  answer them together — `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`, a
+  `Batch`: one query for all, a cache, each repeated one once, each answer typed by its operation. A handler
+  without that clause, and any handler with an interceptor or an observer on the way, is asked them one by one:
+  the program is the same under either, and what changes is the handler (`BatchTest`: four prices, one query).
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
   leaves pulls no further.
 - The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the

@@ -70,14 +70,22 @@ public abstract class Gather<X, E> implements Iterable<Comp<X, Eff<E, ?>>> {
 
   // -- what to do with what was gathered: each a computation of the same effect
 
-  /** all of them run in their order: their values */
+  /** all of them: their values, in their order. Operations only (no {@link #add}): asked at once, as a set — a
+   * handler with a clause for sets ({@link Batch}) takes them together, any other answers them one by one */
   public final Comp<List<X>, Eff<E, ?>> toList() {
+    // operations only: asked at once, as a set a handler may take together
+    if (asked.isEmpty()) return Effects.pure(List.of());
+    if (!operations.contains(null)) return new Comp<>(Comp.DOOR.askAll(operations.toArray()));
     return Effects.<X, Eff<E, ?>>sequence(asked);
   }
 
   /** all of them run in their order, their values combined: {@code acc = combine(acc, x)} from {@code zero} */
   public final <S> Comp<S, Eff<E, ?>> reduce(S zero, BiFunction<? super S, ? super X, ? extends S> combine) {
-    return Effects.<X, S, Eff<E, ?>>reduce(asked, zero, combine);
+    return toList().map(values -> {
+      S acc = zero;
+      for (X x : values) acc = combine.apply(acc, x);
+      return acc;
+    });
   }
 
   /** run in their order UNTIL a value is {@code wanted}: that value, and the ones after it are never asked;
