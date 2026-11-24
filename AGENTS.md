@@ -109,9 +109,10 @@ value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/ro
 the machine is the loop: `fold(cart, 0L, (sum, item) -> perform(new Prices.Price(item)).map(p -> sum + p))`,
 `forEach(xs, x -> c)`, `collect(xs, x -> c)` — lazy, constant stack, right under a continuation resumed twice. A
 source of computations, `Iterable<Comp<X, R>>`, is built by plain Java (a `for`, a stream) and run by `sequence(xs)`,
-`reduce(xs, zero, f)`, or `stream.map(item -> perform(..)).collect(sequencing())`; `gather(Price.class, () -> { for
-(..) perform(new Price(item)); })` is a plain `for` with `perform` in it, giving the list of the computations made
-(no answer is there in the body: a loop that goes by the answers is `fold`).
+`reduce(xs, zero, f)`, or `stream.map(item -> perform(..)).collect(sequencing())`;
+`new Gather<>() {{ for (..) perform(new Price(item)); }}` is a plain `for` with `perform` in it, an `Iterable` of
+the computations made, checked by the compiler (no answer is there in the body: a loop that goes by the answers is
+`fold`).
 Other words: `under`,
 `fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step` (docs/rows.md). The capability notation
 (`okay.core.Comp<A, L>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is

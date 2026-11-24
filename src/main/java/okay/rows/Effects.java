@@ -28,9 +28,7 @@ public final class Effects {
    * Written {@code ? super O}, for javac refuses {@code Op<E, X, O>} here: it cannot see that {@code O} is an
    * {@code E}, and a type variable's bound cannot say both. */
   public static <E, X, O extends Op<E, X, ? super O>> Comp<X, Eff<E, ?>> perform(O op) {
-    Comp<X, Eff<E, ?>> asked = new Comp<>(DOOR.ask(op, 0));
-    if (GATHERING.get() != 0) Gather.asked(op, asked);
-    return asked;
+    return new Comp<>(DOOR.ask(op, 0));
   }
 
   /** the computation, under one more handler: its effects are one step further — and so its operations go, each
@@ -97,61 +95,6 @@ public final class Effects {
       Iterable<? extends X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
     return Effects.<X, Chain<Y>, R>fold(xs, null, (made, x) ->
         Effects.<Y, R>fit(f.apply(x)).map(y -> new Chain<>(y, made))).map(Chain::list);
-  }
-
-  // -- gather: perform written in a plain loop, the computations it made taken out of it
-
-  /** how many {@code gather}s run, on any thread: {@code perform} looks for its own only while one does */
-  private static final java.util.concurrent.atomic.AtomicInteger GATHERING =
-      new java.util.concurrent.atomic.AtomicInteger();
-
-  /** THE OPERATIONS ASKED WHILE {@code body} RUNS, each as the computation {@code perform} made of it, in their
-   * order: a plain {@code for} with {@code perform} in it, and the computations to do with what is needed —
-   * {@code sequence}, {@code reduce}, {@code fold}, a stream.
-   *
-   * <pre>{@code
-   * List<Comp<Long, Eff<Prices<?>, ?>>> asked = gather(Prices.Price.class, () -> {
-   *   for (String item : cart) perform(new Prices.Price(item));
-   * });
-   * }</pre>
-   *
-   * {@code operation} is the class of the operations gathered: it gives the computations their type, and an
-   * operation of another class asked in the body is refused there. Nothing runs in the body: {@code perform}
-   * makes a computation, it does not answer, so the body cannot use an answer — a loop that goes by the answers
-   * is {@code fold}. What is gathered is what {@code perform} returned, not what the body made of it after
-   * ({@code perform(op).map(f)}: the operation, without the {@code map}). */
-  public static <E, X, O extends Op<E, X, ? super O>> List<Comp<X, Eff<E, ?>>> gather(
-      Class<O> operation, Runnable body) {
-    Gather outer = Gather.CURRENT.get();
-    Gather mine = new Gather(operation);
-    Gather.CURRENT.set(mine);
-    GATHERING.incrementAndGet();
-    try {
-      body.run();
-    } finally {
-      GATHERING.decrementAndGet();
-      Gather.CURRENT.set(outer);
-    }
-    return Collections.unmodifiableList(Handlers.trusted(mine.asked));
-  }
-
-  /** a gather that runs on this thread: the class it takes, and what was asked */
-  private static final class Gather {
-    static final ThreadLocal<Gather> CURRENT = new ThreadLocal<>();
-    final Class<?> operation;
-    final ArrayList<Comp<?, ?>> asked = new ArrayList<>();
-
-    Gather(Class<?> operation) {
-      this.operation = operation;
-    }
-
-    static void asked(Object op, Comp<?, ?> made) {
-      Gather g = CURRENT.get();
-      if (g == null) return; // another thread's gather
-      if (!g.operation.isInstance(op))
-        throw new IllegalStateException("gather of " + g.operation.getSimpleName() + ": another operation asked, " + op);
-      g.asked.add(made);
-    }
   }
 
   // -- a source of computations: each element is a program, run when the loop gets to it
