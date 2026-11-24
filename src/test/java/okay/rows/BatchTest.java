@@ -33,10 +33,10 @@ class BatchTest {
 
   /** the program: a plain loop, the prices of a cart */
   static Comp<Long, Eff<Prices<?>, ?>> total(List<String> cart) {
-    Gather<Long, Prices<?>> prices = gather(g -> {
+    Comp<List<Long>, Eff<Prices<?>, ?>> prices = gather(g -> {
       for (String item : cart) g.perform(new Prices.Price(item));
     });
-    return prices.reduce(0L, Long::sum);
+    return prices.map(ps -> ps.stream().mapToLong(Long::longValue).sum());
   }
 
   /** one by one: every operation a query */

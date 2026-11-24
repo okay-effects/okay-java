@@ -11,7 +11,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import okay.core.Rows;
@@ -43,6 +45,41 @@ public final class Effects {
       Together<E, R> t = new Together<>();
       return Handlers.trusted(t.program(block.apply(t)));
     }));
+  }
+
+  /** PERFORM WRITTEN IN A PLAIN LOOP: the block ({@link Together}) that is nothing but one loop of questions, the
+   * list of their answers its value —
+   * {@code gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })}. The questions are
+   * independent: operations of one handler are asked at once, as a set. In a block with other questions the same
+   * loop is {@code t.gather(g -> ..)}, its list one of the block's names. */
+  public static <X, E, R extends Eff<E, ?>> Comp<List<X>, R> gather(Consumer<? super Gather<X, E, R>> loop) {
+    return Effects.<List<X>, E, R>together(t -> t.yield(t.<X>gather(loop), answers -> answers));
+  }
+
+  // -- a source of computations asked one after another, as far as the answers say
+
+  /** the computations of {@code xs} run in their order UNTIL a value is {@code wanted}: that value, and the ones
+   * after it are never asked; none wanted, all were asked and the value is empty. Not a set: each is asked when
+   * the answer before it did not decide */
+  public static <X, R> Comp<Optional<X>, R> first(
+      Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return defer(() -> firstFrom(Cursor.<Comp<X, ? super R>>of(xs.iterator()), wanted));
+  }
+
+  private static <X, R> Comp<Optional<X>, R> firstFrom(Cursor<Comp<X, ? super R>> at, Predicate<? super X> wanted) {
+    if (at == null) return pure(Optional.empty());
+    return Effects.<X, R>fit(at.value).flatMap(x -> wanted.test(x)
+        ? Effects.<Optional<X>, R>pure(Optional.ofNullable(x)) : firstFrom(at.next(), wanted));
+  }
+
+  /** whether a value is {@code wanted}: asked no further than the first that is */
+  public static <X, R> Comp<Boolean, R> any(Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return Effects.<X, R>first(xs, wanted).map(Optional::isPresent);
+  }
+
+  /** whether every value is {@code wanted}: asked no further than the first that is not */
+  public static <X, R> Comp<Boolean, R> all(Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return Effects.<X, R>first(xs, wanted.negate()).map(Optional::isEmpty);
   }
 
   /** A SET OF OPERATIONS ASKED AT ONCE: independent of each other, known before any is answered. Their answers,
@@ -119,15 +156,6 @@ public final class Effects {
         Effects.<Y, R>fit(f.apply(x)).map(y -> new Chain<>(y, made))).map(Chain::list);
   }
 
-  /** PERFORM WRITTEN IN A PLAIN LOOP, as a lambda: the body is given the gather, and asks through it —
-   * {@code gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })}. The computations made, in
-   * their order: an {@code Iterable<Comp<X, Eff<E, ?>>>}, its type the target's, the body checked against it
-   * ({@link Gather}, which is the same with {@code perform} unqualified, as an anonymous class). */
-  public static <X, E> Gather<X, E> gather(Consumer<? super Gather<X, E>> body) {
-    Gather<X, E> g = new Gather.Given<>();
-    body.accept(g);
-    return g;
-  }
 
   // -- a source of computations: each element is a program, run when the loop gets to it
 

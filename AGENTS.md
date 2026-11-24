@@ -119,7 +119,9 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
 ```
 
 Up to three answers are given as values; for more, `t.ask(() -> ..)`/`t.yield(() -> ..)` read the names by `get()`
-(there only). `t.askAll(list)` names a list of answers, `t.let(a, f)` a value.
+(there only). `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop, `t.askAll(list)` of a
+list, `t.let(a, f)`
+a value.
 
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
@@ -128,10 +130,9 @@ the machine is the loop: `fold(cart, 0L, (sum, item) -> perform(new Prices.Price
 `forEach(xs, x -> c)`, `collect(xs, x -> c)` — lazy, constant stack, right under a continuation resumed twice. A
 source of computations, `Iterable<Comp<X, R>>`, is built by plain Java (a `for`, a stream) and run by `sequence(xs)`,
 `reduce(xs, zero, f)`, or `stream.map(item -> perform(..)).collect(sequencing())`;
-`new Gather<>() {{ for (..) perform(new Price(item)); }}` is a plain `for` with `perform` in it, an `Iterable` of
-the computations made, checked by the compiler — or as a lambda, `gather(g -> { for (..) g.perform(new Price(item)); })`
-— and the gather says what to do with them: `.toList()`, `.reduce(zero, f)`, `.first(wanted)` (asks no further),
-`.operations()` (the operations as data). A set is asked AT ONCE (`performAll(ops)`, a gather's `toList`/`reduce`):
+`gather(g -> { for (..) g.perform(new Price(item)); })` is a plain `for` with `perform` in it, the computation of
+the list of the answers, checked by the compiler; `first(xs, wanted)`, `any`, `all` ask one after another and no
+further than the answer that decides. A set is asked AT ONCE (`performAll(ops)`, a `gather`, a round of a block):
 a handler with a clause for sets, `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`,
 answers them by one query; any other handler answers them one by one, the program the same
 (no answer is there in the body: a loop that goes by the answers is

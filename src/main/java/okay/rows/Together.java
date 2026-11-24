@@ -98,9 +98,24 @@ public final class Together<E, R extends Eff<E, ?>> {
 
   /** every question of {@code questions}: their answers, in their order, under one name */
   public <T> Var<List<T>> askAll(Iterable<? extends Comp<T, ? super R>> questions) {
-    ArrayList<Integer> places = new ArrayList<>();
-    for (Comp<T, ? super R> q : questions) places.add(ask(q).index);
-    int[] needs = places.stream().mapToInt(Integer::intValue).toArray();
+    ArrayList<Var<T>> asked = new ArrayList<>();
+    for (Comp<T, ? super R> q : questions) asked.add(ask(q));
+    return list(asked);
+  }
+
+  /** A PLAIN LOOP OF QUESTIONS: those asked through {@code g} in {@code loop}, all answered by one type, are
+   * questions of this block; their answers, in their order, under one name —
+   * {@code t.gather(g -> { for (String item : cart) g.perform(new Price(item)); })} */
+  public <T> Var<List<T>> gather(java.util.function.Consumer<? super Gather<T, E, R>> loop) {
+    Gather<T, E, R> g = new Gather<>(this);
+    loop.accept(g);
+    return list(g.asked);
+  }
+
+  /** the answers of several questions of this block, in that order, under one name */
+  public <T> Var<List<T>> list(List<Var<T>> asked) {
+    int[] needs = new int[asked.size()];
+    for (int i = 0; i < needs.length; i++) needs[i] = place(asked.get(i));
     return member(new Member(null, got -> {
       Object[] values = new Object[needs.length];
       for (int i = 0; i < needs.length; i++) values[i] = got[needs[i]];
@@ -184,7 +199,8 @@ public final class Together<E, R extends Eff<E, ?>> {
 
   Object answer(int index) {
     if (answers == null)
-      throw new IllegalStateException("an answer read outside its block: take it into a local where the block reads it");
+      throw new IllegalStateException(
+          "an answer read outside its block: take it into a local where the block reads it");
     if (answers[index] == NOT_YET)
       throw new IllegalStateException("an answer read by a question asked before it is known: say it, ask(a, x -> ..)");
     return answers[index];

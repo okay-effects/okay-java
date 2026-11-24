@@ -147,21 +147,16 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   stream, a list — and its elements ask the effects. `sequence(xs)` runs them in order and gives their values,
   `reduce(xs, zero, (acc, x) -> ..)` combines the values, and a stream collects into one:
   `cart.stream().map(item -> perform(new Prices.Price(item))).collect(sequencing())`.
-- `new Gather<>() {{ for (String item : cart) perform(new Prices.Price(item)); }}` is a plain `for` with `perform`
-  in it: an `Iterable<Comp<Long, Eff<Prices<?>, ?>>>` of the computations made while the body ran, in their order.
-  The body is the initializer of an anonymous `Gather`, so `perform` there is the gather's own method: no state of
-  the thread, nothing `Effects.perform` reads, and the compiler checks the body — an operation of another effect
-  or another answer does not compile (`GatherWrongOperation.java`). Nothing runs in the body, so it cannot use an
-  answer. A computation made of operations is gathered by `add(ask(op).map(f))`. The same as a lambda, the gather
-  its parameter and no anonymous class: `gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })`,
-  or a method that takes a `Gather<Long, Prices<?>>`, passed by its name (`GatherLambdaWrongOperation.java`).
-- A gather is more than a list: it says what to do with what it gathered, each a computation — `toList()`,
-  `reduce(zero, f)`, `map(f)`; `first(wanted)`, `any(wanted)`, `all(wanted)` run in order and ask no further than
-  the value that decides; and `operations()` gives the operations themselves as data before anything runs — to ask
-  them all in one batch operation of the effect, to drop the repeated, to count:
-  `gather(g -> { for (..) g.perform(new Price(item)); }).first(p -> p > 100)`.
-- A SET OF OPERATIONS is asked at once: `performAll(ops)`, and a gather's `toList()` and `reduce` when it holds
-  operations only. The operations of a set are independent and known before any is answered, so a handler may
+- `gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })` is a plain `for` with `perform` in
+  it: the computation of the list of the answers, `Comp<List<Long>, Eff<Prices<?>, ?>>`. It is a block
+  (`together`, below) that is nothing but one loop: its questions are independent, and its operations are asked at
+  once, as a set. An operation of another effect or another answer does not compile (`GatherWrongOperation.java`);
+  `g.ask(c)` asks any computation of the row. In a block with other questions the same loop is
+  `t.gather(g -> ..)`, its list one of the block's names.
+- NOT together — computations asked one after another, as far as the answers say: `first(xs, wanted)`,
+  `any(xs, wanted)`, `all(xs, wanted)` over an `Iterable<Comp<X, R>>` ask no further than the value that decides.
+- A SET OF OPERATIONS is asked at once: `performAll(ops)`, a `gather`, the questions of a round of a block. The
+  operations of a set are independent and known before any is answered, so a handler may
   answer them together — `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`, a
   `Batch`: one query for all, a cache, each repeated one once, each answer typed by its operation. A handler
   without that clause, and any handler with an interceptor or an observer on the way, is asked them one by one:
@@ -197,7 +192,8 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
 - `t.perform(op)` asks an operation of the row's first effect; an operation of another effect there does not
   compile (`TogetherWrongOperation.java`). `t.ask(c)` asks any computation of the row — another effect's with
   `up`, another block, a program: run in its
-  turn within its round. `t.askAll(questions)` names the list of the answers; `t.let(a, f)` names a value.
+  turn within its round. `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop of questions,
+  `t.askAll(questions)` of a list of them, `t.list(vars)` of names; `t.let(a, f)` names a value.
 - For more than three answers, or any: `t.ask(() -> ..)`, `t.yield(() -> ..)`, `t.then(() -> ..)` read the names
   by `get()`. Such a question is asked after every question written before it. A `Var` read by `get()` anywhere
   else — before it is known, or later from a function made there and run after — is refused; an answer of
