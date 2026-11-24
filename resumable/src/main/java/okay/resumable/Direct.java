@@ -43,6 +43,13 @@ public final class Direct {
     throw untransformed(op);
   }
 
+  /** an operation of an effect written as a GADT ({@link Performed}) asked, its answer returned: of the type its
+   * record names, {@code long price = Direct.perform(new Prices.Price(item))}. Its effect's name is thrown for
+   * javac only, as {@link #perform(Op)}'"'"'s */
+  public static <T, F, X extends Suspend & Marks<F>> T perform(Performed<T, F, X> op) throws X {
+    throw untransformed(op);
+  }
+
   private static IllegalStateException untransformed(Object op) {
     StackWalker.StackFrame caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
         .walk(s -> s.skip(2).findFirst()).orElseThrow();
@@ -184,6 +191,71 @@ public final class Direct {
     public <F, A, B, R> okay.rows.Handler<F, A, B, Eff<E1, Eff<E2, Eff<E3, Eff<E4, R>>>>> handler(
         Handler4<F, A, B, E1, E2, E3, E4> h) {
       return adapt(row, h, h::ret, h::on, h::mine);
+    }
+  }
+
+  /** THE ROW of a direct-style program whose effects are written as GADTs, named by their names in a
+   * {@code throws} ({@link Marks}), in the order of their handlers: the program'"'"'s row is of the effects they stand
+   * for — {@code Direct.effects(Prices.Fx.class, Ask.Fx.class).of(() -> shop(cart))} is a
+   * {@code Comp<A, Eff<Prices<?>, Eff<Ask<?>, Pure>>>}. */
+  public static <F1, X1 extends Suspend & Marks<F1>> Effects1<F1, X1> effects(Class<X1> x1) {
+    return new Effects1<>(plain(x1));
+  }
+
+  public static <F1, X1 extends Suspend & Marks<F1>, F2, X2 extends Suspend & Marks<F2>> Effects2<F1, X1, F2, X2>
+      effects(Class<X1> x1, Class<X2> x2) {
+    return new Effects2<>(plain(x1, x2));
+  }
+
+  public static <F1, X1 extends Suspend & Marks<F1>, F2, X2 extends Suspend & Marks<F2>,
+      F3, X3 extends Suspend & Marks<F3>> Effects3<F1, X1, F2, X2, F3, X3> effects(
+      Class<X1> x1, Class<X2> x2, Class<X3> x3) {
+    return new Effects3<>(plain(x1, x2, x3));
+  }
+
+  public static final class Effects1<F1, X1 extends Suspend & Marks<F1>> {
+    private final Class<?>[] row;
+
+    private Effects1(Class<?>[] row) { this.row = row; }
+
+    /** the body as a program of the row: run when the program is */
+    public <A> Comp<A, Eff<F1, Pure>> of(Body1<A, X1> body) {
+      return Driver.program(row, body::run);
+    }
+
+    /** a sub-program of this row, its handlers inside it, run as a part of the program that calls this
+     * ({@link Row1#embed}) */
+    public <A> A embed(Comp<A, ? super Eff<F1, Pure>> sub) throws X1 {
+      return Driver.embed(row, sub);
+    }
+  }
+
+  public static final class Effects2<F1, X1 extends Suspend & Marks<F1>, F2, X2 extends Suspend & Marks<F2>> {
+    private final Class<?>[] row;
+
+    private Effects2(Class<?>[] row) { this.row = row; }
+
+    public <A> Comp<A, Eff<F1, Eff<F2, Pure>>> of(Body2<A, X1, X2> body) {
+      return Driver.program(row, body::run);
+    }
+
+    public <A> A embed(Comp<A, ? super Eff<F1, Eff<F2, Pure>>> sub) throws X1, X2 {
+      return Driver.embed(row, sub);
+    }
+  }
+
+  public static final class Effects3<F1, X1 extends Suspend & Marks<F1>, F2, X2 extends Suspend & Marks<F2>,
+      F3, X3 extends Suspend & Marks<F3>> {
+    private final Class<?>[] row;
+
+    private Effects3(Class<?>[] row) { this.row = row; }
+
+    public <A> Comp<A, Eff<F1, Eff<F2, Eff<F3, Pure>>>> of(Body3<A, X1, X2, X3> body) {
+      return Driver.program(row, body::run);
+    }
+
+    public <A> A embed(Comp<A, ? super Eff<F1, Eff<F2, Eff<F3, Pure>>>> sub) throws X1, X2, X3 {
+      return Driver.embed(row, sub);
     }
   }
 

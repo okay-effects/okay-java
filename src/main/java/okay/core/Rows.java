@@ -52,6 +52,12 @@ public final class Rows {
   public static final class Door {
     private Door() {}
 
+    /** {@code op} asked as a program, its handler's clause called already from a probing stack: {@code made}, what
+     * {@link Probe#ask} gave for it */
+    public Comp<?, ?> askMade(Object op, int skip, Object made) {
+      return new Ask<>(op, skip, (Made) made);
+    }
+
     /** the operation {@code c} is, and nothing else; else {@code null}: a computation made of more */
     public Object operation(Comp<?, ?> c) {
       return c instanceof Ask<?, ?> a && !(a.op instanceof Many) ? a.op : null;
@@ -243,6 +249,12 @@ public final class Rows {
 
     protected void state(Object entry, Object state) {}
 
+    /** whether the handler'"'"'s clause is called before the rest is taken ({@link #early}): then a probing stack
+     * calls it too */
+    protected boolean asksEarly() {
+      return false;
+    }
+
     /** whether the handler answers a set of operations at once: it is given a {@link Many} as an operation */
     protected boolean takesMany() {
       return false;
@@ -342,14 +354,58 @@ public final class Rows {
   static final class Ask<L, X> extends Nodes.Node<L, X> {
     final Object op;
     final int skip;
+    /** its handler's clause, called already from a probing stack ({@link Probe#ask}); or {@code null} */
+    final Made made;
 
     Ask(Object op, int skip) {
+      this(op, skip, null);
+    }
+
+    Ask(Object op, int skip, Made made) {
       this.op = op;
       this.skip = skip;
+      this.made = made;
     }
 
     Comp<?, ?> step(Run m) {
-      return asked(m, op, skip);
+      return asked(m, op, skip, made);
+    }
+  }
+
+  /** A CLAUSE CALLED FROM A PROBING STACK that did more than answer ({@link Probe#ask}): its program, made, and the
+   * handler it is of — for the operation asked as a program then ({@link Door#askMade}), so that the clause is not
+   * called again */
+  public static final class Made {
+    final Place place;
+    final Early early;
+
+    Made(Place place, Early early) {
+      this.place = place;
+      this.early = early;
+    }
+  }
+
+  /** a clause that failed when it was called: a failure outside its handler, the rest taken and dropped */
+  private static final class Failed extends Early {
+    private final Throwable why;
+
+    Failed(Throwable why) {
+      this.why = why;
+    }
+
+    @Override
+    protected boolean answered() {
+      return false;
+    }
+
+    @Override
+    protected Object answer() {
+      throw new IllegalStateException();
+    }
+
+    @Override
+    protected Comp<?, ?> taken(Rest rest) {
+      return new Kernel.Fail<>(why);
     }
   }
 
@@ -418,7 +474,17 @@ public final class Rows {
      * {@link #ONCE} or {@link #ELSEWHERE} */
     public Object ask(Object op, int skip) {
       Object r = route(op, skip);
-      return r instanceof Place p ? p.spec.answer(p.entry, op) : r;
+      if (!(r instanceof Place p)) return r;
+      if (p.spec.inPlace) return p.spec.answer(p.entry, op);
+      // a handler whose clause is called before the rest is taken: called here, on the probing stack. One that
+      // only answers is answered at once, nothing captured; any other is a {@link Made}, to ask as a program
+      Early early;
+      try {
+        early = p.spec.early(p.entry, op);
+      } catch (Throwable t) {
+        early = new Failed(Kernel.nonFatal(t));
+      }
+      return early.answered() ? early.answer() : new Made(p, early);
     }
 
     /** where {@code op} goes, never answered here: {@link #ONCE} or {@link #ELSEWHERE} — for an operation that must
@@ -536,7 +602,10 @@ public final class Rows {
           if (!p.spec.row) crossed = true;
           boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
           if (p.spec.row && !found) skip--;
-          if (found) return p.spec.inPlace ? p : p.spec.once() ? ONCE : p.spec.eager() ? EAGER : ELSEWHERE;
+          if (found) {
+            if (p.spec.inPlace || p.spec.asksEarly()) return p;
+            return p.spec.once() ? ONCE : p.spec.eager() ? EAGER : ELSEWHERE;
+          }
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {
@@ -551,6 +620,10 @@ public final class Rows {
 
   /** the operation's handler, by its place: walked to from the innermost delimiter */
   private static Comp<?, ?> asked(Run m, Object op, int skip) {
+    return asked(m, op, skip, null);
+  }
+
+  private static Comp<?, ?> asked(Run m, Object op, int skip, Made made) {
     // a set of operations goes to a handler that takes sets; any other on its way, and it is asked one by one from here
     Many many = op instanceof Many set ? set : null;
     int from = skip;
@@ -580,7 +653,9 @@ public final class Rows {
           if (p.spec.inPlace) return m.value(p.spec.answer(p.entry, op));
           Early early;
           try {
-            early = p.spec.early(p.entry, op);
+            if (made == null) early = p.spec.early(p.entry, op);
+            else if (made.place == p) early = made.early;
+            else throw new IllegalStateException("a clause made for another handler: " + op);
           } catch (Throwable t) {
             // the clause failed: a failure outside the handler, the rest taken and dropped, as a clause's of `on`
             Comp<?, ?> failed = new Kernel.Fail<>(Kernel.nonFatal(t));
@@ -591,7 +666,8 @@ public final class Rows {
           Place own = early != null && p.spec.keepsState() ? p : null;
           Object ownState = own == null ? null : p.spec.state(p.entry);
           if (early != null)
-            return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k -> early.taken(new Rest(k, saved, false, own, ownState)), m.k);
+            return m.capture(s.prompt(),
+                (Function<Kont, Comp<?, ?>>) k -> early.taken(new Rest(k, saved, false, own, ownState)), m.k);
           int left = skip;
           return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);

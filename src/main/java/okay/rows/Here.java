@@ -50,6 +50,17 @@ public final class Here {
     return probe.ask(op, place);
   }
 
+  /** whether {@link #ask} gave, for an operation, its handler's clause made — one that did more than answer: the
+   * operation is then asked as a program by {@link #asked}, the clause not called again */
+  public static boolean made(Object answer) {
+    return answer instanceof Rows.Made;
+  }
+
+  /** {@code op} asked as a program at {@code place} of the row, its clause {@code made} already ({@link #made}) */
+  public static Comp<Object, Object> asked(Op<?, ?, ?> op, int place, Object made) {
+    return new Comp<>(Comp.DOOR.askMade(op, place, made));
+  }
+
   /** {@link #ONCE} or {@link #ELSEWHERE} for a sensitive operation: never answered here, even by a handler in place,
    * so that it passes its audit */
   public Object kind(Sensitive.Op<?, ?, ?> op, int place) {

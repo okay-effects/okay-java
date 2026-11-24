@@ -203,6 +203,13 @@ plugins check effectful (transformed) methods at build time: `guard` (a handler'
 `fresh`, `async`, `io`, `nested-run`, `pure` (all of the effect ones). Sensitive effects there: `SensitiveSuspend`,
 `Direct.sensitive(Pay.class)` in the row.
 
+Effects as GADTs in direct style: the interface extends `Performed<T, Prices<?>, Prices.Fx>` and holds
+`final class Fx extends Suspend implements Marks<Prices<?>> {}`, its name in a `throws`; operations are records. A
+plain method `static long total(List<String> cart) throws Prices.Fx` performs with
+`long price = Direct.perform(new Prices.Price(item))` — in a `for`, under an `if`, the answers in locals — and
+`Direct.effects(Prices.Fx.class).of(() -> total(cart))` is a `Comp<Long, Eff<Prices<?>, Pure>>` for `okay.rows`'
+handlers (resumable/README.md, "Effects as GADTs").
+
 ### Pitfalls
 
 - Handler order is the row order, innermost first: `Choose.all(State.run(0, p))` and `State.run(0, Choose.all(p))`

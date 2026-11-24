@@ -144,6 +144,54 @@ What javac then checks:
 
 These refusals are tested against `src/test/negative/*.java`, with errors at exactly the marked lines.
 
+## Effects as GADTs
+
+An effect can be written as a GADT instead, its operations plain records — the form of `okay.rows`' light notation
+(`Operation`, a handler as one function). In direct style the interface names, once, its answers' index, itself,
+and its name in a `throws`:
+
+```java
+sealed interface Prices<T> extends Performed<T, Prices<?>, Prices.Fx> {
+  final class Fx extends Suspend implements Marks<Prices<?>> {}       // the effect's name in a throws
+  record Price(String item) implements Prices<Long> {}
+  record InStock(String item) implements Prices<Boolean> {}
+}
+
+static long total(List<String> cart) throws Prices.Fx {
+  long sum = 0;
+  for (String item : cart) {
+    if (!Direct.perform(new Prices.InStock(item))) continue;
+    long price = Direct.perform(new Prices.Price(item));
+    if (price > 100) break;
+    sum += price;
+  }
+  return sum;
+}
+
+// a Comp<Long, Eff<Prices<?>, Pure>>, answered by okay.rows' handlers
+var program = Direct.effects(Prices.Fx.class).of(() -> total(cart));
+run(handle((op, k) -> switch (op) {
+  case Prices.Price p -> k.resume(p, table.getOrDefault(p.item(), 0L));
+  case Prices.InStock s -> k.resume(s, table.containsKey(s.item()));
+}, program));
+```
+
+- `Fx` is never made or thrown: it is the effect in a `throws`, which javac checks as any checked exception — a
+  method that performs an effect it does not list does not compile, nor a row that lacks one its body performs
+  (`GadtUndeclared.java`); an answer has the type its record names (`GadtWrongAnswer.java`).
+- `Direct.effects(X1.class, ..)` makes the row of the effects the names stand for, `Eff<Prices<?>, ..>`: the
+  program is an `okay.rows` program of the same effects, and the same operations can be asked by
+  `okay.rows.Effects.perform` in a program written as data. `embed` runs an `okay.rows` program of the row as a
+  part of the body — a set, `Direct.effects(Prices.Fx.class).embed(performAll(ops))`.
+- A handler that is one function (`Clause`, `StateClause`) is called from the body's own stack: a clause that only
+  resumes answers in place, nothing saved; any other takes the frames, and may resume them twice — the method's
+  locals are each path's own (`GadtDirectTest`).
+- The transformation is the same: a method is made resumable because its `throws` names a `Suspend`, and a call of
+  `Direct.perform` is where it may suspend.
+
+Measured on `gadtDirectBench` (one run, a plain loop of a million operations, ns an operation): under a handler in
+place 5.5, under a clause that only resumes 10.5 — where the same loop written as data (`rowsBench`) takes 14 and 20.
+
 ## The boundary
 
 `Direct.row(E1.class, ..).of(body)` names the row once, in the order of its handlers, and gives a

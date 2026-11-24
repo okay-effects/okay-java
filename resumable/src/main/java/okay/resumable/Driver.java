@@ -60,6 +60,12 @@ final class Driver {
     if (c != null) {
       int place = place(c.prog().row, op);
       Object a = c.here().ask(op, place);
+      if (Here.made(a)) {
+        // its handler's clause was called here and did more than answer: the frames are saved, the clause kept
+        Capture taken = new Capture(op);
+        taken.made = a;
+        return taken;
+      }
       if (a != Here.ELSEWHERE) {
         if (a == Here.EAGER) return here(c, op, place, false);
         if (a != Here.ONCE) {
@@ -404,7 +410,8 @@ final class Driver {
         return a.rest();
       }
       ask = a.rest();
-    } else ask = ask(c.op, place(p.row, c.op));
+    } else if (c.made != null) ask = Here.asked((Op<?, ?, ?>) c.op, place(p.row, c.op), c.made);
+    else ask = ask(c.op, place(p.row, c.op));
     if (rest.finalizes) ask = finalizing(ask, () -> Here.here(h -> unwind(p, rest, h)));
     return ask.flatMap(x -> Here.here(h -> resume(p, rest, x, h)));
   }
@@ -495,10 +502,27 @@ final class Driver {
   private static final ClassValue<Class<?>> EFFECT = new ClassValue<>() {
     @Override
     protected Class<?> computeValue(Class<?> type) {
+      // an effect written as a GADT: its operations are records, its place the name it gives in a throws
+      if (Performed.class.isAssignableFrom(type)) return mark(type);
       Class<?> effect = type;
       while (effect.getSuperclass() != Suspend.class && effect.getSuperclass() != SensitiveSuspend.class)
         effect = effect.getSuperclass();
       return effect;
+    }
+
+    /** the third type argument of {@link Performed} among the interfaces of {@code type}: the effect's mark */
+    private Class<?> mark(Class<?> type) {
+      java.util.ArrayDeque<java.lang.reflect.Type> todo = new java.util.ArrayDeque<>(
+          java.util.List.of(type.getGenericInterfaces()));
+      while (!todo.isEmpty()) {
+        java.lang.reflect.Type t = todo.poll();
+        Class<?> raw = t instanceof java.lang.reflect.ParameterizedType p ? (Class<?>) p.getRawType() : (Class<?>) t;
+        if (raw == Performed.class && t instanceof java.lang.reflect.ParameterizedType p
+            && p.getActualTypeArguments()[2] instanceof Class<?> mark) return mark;
+        todo.addAll(java.util.List.of(raw.getGenericInterfaces()));
+      }
+      throw new IllegalStateException("okay.resumable: " + type.getName()
+          + " is a Performed whose effect does not name its mark, Performed<T, F, X>");
     }
   };
 

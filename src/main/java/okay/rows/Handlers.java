@@ -69,6 +69,11 @@ final class Handlers {
     }
 
     @Override
+    protected boolean asksEarly() {
+      return true;
+    }
+
+    @Override
     protected boolean takesMany() {
       return batch != null;
     }
@@ -107,6 +112,11 @@ final class Handlers {
     @Override
     protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
       return okay.core.Comp.pure(ret.apply(trusted(((Object[]) entry)[0]), trusted(value)));
+    }
+
+    @Override
+    protected boolean asksEarly() {
+      return true;
     }
 
     @Override

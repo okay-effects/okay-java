@@ -223,3 +223,14 @@ rootProject.tasks.register("release") {
         ":okay-java-resumable:publishAllPublicationsToPagesRepository",
         ":okay-java-spring-boot:publishAllPublicationsToPagesRepository", mavenPluginRelease)
 }
+
+// a rough measure of a plain loop over a GADT effect, under a clause and under a handler in place:
+// ./gradlew :okay-java-resumable:gadtDirectBench
+tasks.register<JavaExec>("gadtDirectBench") {
+    dependsOn(transformTestClasses)
+    classpath = files(resumableTestClasses) +
+        (sourceSets.test.get().runtimeClasspath - sourceSets.test.get().output.classesDirs)
+    mainClass = "okay.resumable.GadtDirectBench"
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+    jvmArgs(loomExports + "--add-opens=java.base/java.lang=ALL-UNNAMED")
+}

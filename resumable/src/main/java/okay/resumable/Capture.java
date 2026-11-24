@@ -21,6 +21,8 @@ public final class Capture extends Error {
    * the clause's program, and what it gives the answer to */
   final transient Comp<Object, Object> next;
   final transient Driver.Later later;
+  /** the clause of the operation's handler, called already from the body's stack ({@code Here.made}); or null */
+  transient Object made;
 
   Capture(Object op) {
     this(op, null, null);
