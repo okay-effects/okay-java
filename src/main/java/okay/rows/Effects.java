@@ -37,9 +37,10 @@ public final class Effects {
    * t.ask(perform(new InStock(item))); return t.yield(() -> stock.get() ? price.get() : 0L); })}. The questions
    * of a block are independent: operations of one handler are asked at once, as a set. The block is written again
    * each time the program gets to it. */
-  public static <A, R> Comp<A, R> together(Function<? super Together<R>, ? extends Comp<A, R>> block) {
+  public static <A, E, R extends Eff<E, ?>> Comp<A, R> together(
+      Function<? super Together<E, R>, ? extends Comp<A, R>> block) {
     return new Comp<>(okay.core.Comp.delay(() -> {
-      Together<R> t = new Together<>();
+      Together<E, R> t = new Together<>();
       return Handlers.trusted(t.program(block.apply(t)));
     }));
   }

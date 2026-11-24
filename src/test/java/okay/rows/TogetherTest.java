@@ -123,9 +123,9 @@ class TogetherTest {
   void questionsOfTwoEffects() {
     List<String> queries = new ArrayList<>();
     Comp<String, Eff<Prices<?>, Eff<State<Integer>, ?>>> p = together(t -> {
-      Var<Long> tea = t.ask(perform(new Prices.Price("tea")));
+      Var<Long> tea = t.perform(new Prices.Price("tea"));
       Var<Integer> count = t.ask(up(State.get()));
-      Var<Long> cup = t.ask(perform(new Prices.Price("cup")));
+      Var<Long> cup = t.perform(new Prices.Price("cup"));
       Var<Void> counted = t.ask(up(State.put(7)));
       return t.yield(() -> tea.get() + cup.get() + " of " + count.get());
     });
@@ -166,8 +166,8 @@ class TogetherTest {
   /** FLAT: a question made of answers says which, and is asked when they are known — no block inside */
   static Comp<Long, Eff<Prices<?>, ?>> flat(String first, String second) {
     return together(t -> {
-      Var<Long> a = t.ask(perform(new Prices.Price(first)));
-      Var<Long> b = t.ask(perform(new Prices.Price(second)));
+      Var<Long> a = t.perform(new Prices.Price(first));
+      Var<Long> b = t.perform(new Prices.Price(second));
       Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));
       return t.yield(a, b, off, (x, y, o) -> x + y - o);
     });
@@ -186,11 +186,11 @@ class TogetherTest {
   void theRoundsFollowTheNeeds() {
     List<String> queries = new ArrayList<>();
     Comp<String, Eff<Prices<?>, ?>> p = together(t -> {
-      Var<Long> tea = t.ask(perform(new Prices.Price("tea")));
+      Var<Long> tea = t.perform(new Prices.Price("tea"));
       Var<Long> teaOff = t.ask(tea, x -> perform(new Prices.Discount(x * 100)));
-      Var<Long> kettle = t.ask(perform(new Prices.Price("kettle")));
+      Var<Long> kettle = t.perform(new Prices.Price("kettle"));
       Var<Long> kettleOff = t.ask(kettle, x -> perform(new Prices.Discount(x)));
-      Var<Boolean> cup = t.ask(perform(new Prices.InStock("cup")));
+      Var<Boolean> cup = t.perform(new Prices.InStock("cup"));
       Var<Long> both = t.ask(teaOff, kettleOff, (x, y) -> perform(new Prices.Discount(x + y)));
       return t.yield(cup, both, (in, off) -> in + " " + off);
     });

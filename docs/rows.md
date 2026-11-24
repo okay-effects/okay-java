@@ -179,8 +179,8 @@ A block of questions and what follows from their answers, as Scala's `for`, in p
 ```java
 static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   return together(t -> {
-    Var<Long> a = t.ask(perform(new Prices.Price(first)));
-    Var<Long> b = t.ask(perform(new Prices.Price(second)));
+    Var<Long> a = t.perform(new Prices.Price(first));
+    Var<Long> b = t.perform(new Prices.Price(second));
     Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));   // asked when a and b are known
     return t.yield(a, b, off, (x, y, o) -> x + y - o);
   });
@@ -194,7 +194,9 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   that needs nothing, then those that needed only these, and so on. The questions of one round are independent,
   so those that are operations of one handler are asked at once, as a set (`performAll`), whatever their types: a
   handler with a clause for sets answers a round by one query (`TogetherTest`: seven questions, three queries).
-- A question may be any computation of the row — another effect's with `up`, another block, a program: run in its
+- `t.perform(op)` asks an operation of the row's first effect; an operation of another effect there does not
+  compile (`TogetherWrongOperation.java`). `t.ask(c)` asks any computation of the row — another effect's with
+  `up`, another block, a program: run in its
   turn within its round. `t.askAll(questions)` names the list of the answers; `t.let(a, f)` names a value.
 - For more than three answers, or any: `t.ask(() -> ..)`, `t.yield(() -> ..)`, `t.then(() -> ..)` read the names
   by `get()`. Such a question is asked after every question written before it. A `Var` read by `get()` anywhere

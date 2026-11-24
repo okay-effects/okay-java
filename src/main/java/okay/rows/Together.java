@@ -9,14 +9,16 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import okay.effect.Eff;
+import okay.effect.Op;
 
 /**
  * A BLOCK OF QUESTIONS AND WHAT FOLLOWS FROM THEIR ANSWERS — a comprehension, as Scala's {@code for}, in plain Java:
  *
  * <pre>{@code
  * Comp<Long, Eff<Prices<?>, ?>> total = together(t -> {
- *   Var<Long> a = t.ask(perform(new Prices.Price(first)));
- *   Var<Long> b = t.ask(perform(new Prices.Price(second)));
+ *   Var<Long> a = t.perform(new Prices.Price(first));
+ *   Var<Long> b = t.perform(new Prices.Price(second));
  *   Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));   // asked when a and b are known
  *   return t.yield(a, b, off, (x, y, o) -> x + y - o);
  * });
@@ -34,7 +36,7 @@ import java.util.function.Supplier;
  * <p>The block goes on once, with {@code yield} (a value) or {@code then} (a computation), when every question is
  * answered.
  */
-public final class Together<R> {
+public final class Together<E, R extends Eff<E, ?>> {
   /** a function of three */
   @FunctionalInterface
   public interface F3<A, B, C, T> {
@@ -54,6 +56,12 @@ public final class Together<R> {
   Together() {}
 
   // -- questions
+
+  /** an operation of the block's first effect, asked: its answer's name. The same as
+   * {@code t.ask(Effects.perform(op))}; an operation of another effect is refused by the compiler */
+  public <T, O extends Op<E, T, ? super O>> Var<T> perform(O op) {
+    return member(new Member(DOOR.ask(op, 0), null, null));
+  }
 
   /** a question of the block: any computation of its row; its answer's name */
   public <T> Var<T> ask(Comp<T, ? super R> question) {

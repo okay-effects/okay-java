@@ -110,8 +110,8 @@ computation). It asks in rounds, by what each question needs; the operations of 
 ```java
 static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   return together(t -> {
-    Var<Long> a = t.ask(perform(new Prices.Price(first)));
-    Var<Long> b = t.ask(perform(new Prices.Price(second)));
+    Var<Long> a = t.perform(new Prices.Price(first));
+    Var<Long> b = t.perform(new Prices.Price(second));
     Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));
     return t.yield(a, b, off, (x, y, o) -> x + y - o);
   });
