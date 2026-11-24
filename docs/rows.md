@@ -120,13 +120,19 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
 - The clause is called before the rest is taken. If its program is `k.resume(op, x)` and nothing else, the
   operation is answered in place: nothing is captured. Any other clause is given the rest as a `Handler`'s is, and
   may resume it twice, later, or leave it. A continuation of a clause that only answered cannot be resumed again.
-- The handler's value is the program's. For another result type, or a state of the handler, write a `Handler` or
-  an `InPlace`.
+- The handler's value is the program's. For another result type write a `Handler`.
+- A handler with a state is a `StateClause<F, S, B, R>`, given the state of this path first, and resuming with the
+  next: `handle(0, (state, op, k) -> switch (op) { case Counter.Get g -> k.resume(g, state); case Counter.Put p ->
+  k.resume(p, null, p.value()); }, body)`. The state is a value, never changed in place: `k.resume(op, x)` goes on
+  with the state the operation was asked in, and a continuation resumed twice — by this clause, or by a handler
+  outside that took the rest across it — goes on twice from there. `handle(s0, clause, (state, a) -> b, body)`
+  makes the handler's value of the last state and the program's value.
 - An effect with type parameters of its own keeps `Op` on each record: `Get<S> implements State<S, S>` cannot be
   told from a `State<S, ?>` by its index, and javac refuses the `case`.
 
-Measured on `rowsBench` (one run, ns an operation): a handler in place 14.1, a clause that only resumes 18.3, a
-general handler 25.5.
+Measured on `rowsBench` (one run, ns an operation): a handler in place 14.4, a clause that only resumes 20.0, a
+clause with a state 19.9 (`State.run`, in place: 13.1), a
+general handler 25.2.
 
 Loops take an `Iterable`; the machine is the loop, in constant stack:
 

@@ -87,9 +87,9 @@ public final class Rows {
             Machine.TOP)), k.n());
       }
       Comp<?, ?> r = k.apply(x);
-      if (rest.saved == null) return r;
+      if (rest.saved == null && rest.own == null) return r;
       return Comp.delay(() -> {
-        restore(rest.saved);
+        restore(rest);
         return r;
       });
     }
@@ -108,8 +108,8 @@ public final class Rows {
       for (int i = crossed.length - 1; i >= 0; i--)
         levels = new Seg(crossed[i].prompt(), crossed[i].ret(), null, onFrames, levels);
       Comp<?, ?> r = new Kont(on, levels, k.n()).apply(null);
-      Comp<?, ?> run = rest.saved == null ? r : Comp.delay(() -> {
-        restore(rest.saved);
+      Comp<?, ?> run = rest.saved == null && rest.own == null ? r : Comp.delay(() -> {
+        restore(rest);
         return r;
       });
       // a rest taken from a probing stack whose frames wait elsewhere (Probe.resumeHere): theirs first, innermost
@@ -140,6 +140,12 @@ public final class Rows {
       return Machine.runIsolated(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
     }
 
+    /** the same rest, its own handler's state {@code state} for the path that resumes it: a clause with a state
+     * going on with another */
+    public Rest with(Rest rest, Object state) {
+      return new Rest(rest.kont, rest.saved, rest.root, rest.own, state);
+    }
+
     /** {@code body}, given when it is run a {@link Probe}: what it may ask, while it runs on this Java stack, of the
      * handlers in force there. For direct-style code (okay-java-resumable): an operation a handler in place answers is
      * answered at once, with nothing captured */
@@ -159,8 +165,18 @@ public final class Rows {
     final Kont kont;
     final Object[] saved;
     final boolean root;
+    /** the handler it was taken by, if it keeps a state and is not in place (a clause with a state), and that
+     * state for this path: put back as {@code saved} is, when the rest is resumed */
+    final Place own;
+    final Object ownState;
 
     Rest(Kont kont, Object[] saved, boolean root) {
+      this(kont, saved, root, null, null);
+    }
+
+    Rest(Kont kont, Object[] saved, boolean root, Place own, Object ownState) {
+      this.own = own;
+      this.ownState = ownState;
       this.kont = kont;
       this.saved = saved;
       this.root = root;
@@ -206,6 +222,11 @@ public final class Rows {
 
     protected void state(Object entry, Object state) {}
 
+    /** whether an entry has a state a path keeps: saved when a rest is taken across it, put back when resumed */
+    protected boolean keepsState() {
+      return inPlace;
+    }
+
     /** general: whether it declares that it resumes the rest at most once (okay.rows.Once) */
     protected boolean once() {
       return false;
@@ -226,7 +247,7 @@ public final class Rows {
     /** general: the clause for {@code op} called BEFORE the rest is taken — a clause that only answers
      * ({@link Early#answered}) is answered at once, nothing captured; any other is given the rest then
      * ({@link Early#taken}). {@code null}: not such a handler, {@link #on} is called with the rest */
-    protected Early early(Object op) {
+    protected Early early(Object entry, Object op) {
       return null;
     }
   }
@@ -528,7 +549,7 @@ public final class Rows {
           if (p.spec.inPlace) return m.value(p.spec.answer(p.entry, op));
           Early early;
           try {
-            early = p.spec.early(op);
+            early = p.spec.early(p.entry, op);
           } catch (Throwable t) {
             // the clause failed: a failure outside the handler, the rest taken and dropped, as a clause's of `on`
             Comp<?, ?> failed = new Kernel.Fail<>(Kernel.nonFatal(t));
@@ -536,8 +557,10 @@ public final class Rows {
           }
           if (early != null && early.answered()) return m.value(early.answer());
           Object[] saved = saved(m.ms, depth);
+          Place own = early != null && p.spec.keepsState() ? p : null;
+          Object ownState = own == null ? null : p.spec.state(p.entry);
           if (early != null)
-            return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k -> early.taken(new Rest(k, saved, false)), m.k);
+            return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k -> early.taken(new Rest(k, saved, false, own, ownState)), m.k);
           int left = skip;
           return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);
@@ -569,13 +592,19 @@ public final class Rows {
     Walk w = new Walk(ms);
     for (int j = 0; j < n; j++) {
       Seg s = w.next();
-      if (s.prompt().frame instanceof Place p && p.spec.inPlace) {
+      if (s.prompt().frame instanceof Place p && p.spec.keepsState()) {
         if (saved == null) saved = new Object[2 * n];
         saved[i++] = p;
         saved[i++] = p.spec.state(p.entry);
       }
     }
     return saved;
+  }
+
+  /** the states a rest was taken with, put back: those of the handlers it crossed, and its own handler's */
+  private static void restore(Rest rest) {
+    if (rest.saved != null) restore(rest.saved);
+    if (rest.own != null) rest.own.spec.state(rest.own.entry, rest.ownState);
   }
 
   private static void restore(Object[] saved) {

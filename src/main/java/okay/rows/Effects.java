@@ -153,6 +153,21 @@ public final class Effects {
     return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause), null, p.eff));
   }
 
+  /** the same, the handler with a state: a {@link StateClause} is given the state of this path, the operation and
+   * the continuation, and resumes with the answer and the next state —
+   * {@code handle(0, (s, op, k) -> switch (op) { case Get g -> k.resume(g, s); case Put p -> k.resume(p, null,
+   * p.value()); }, p)}. A continuation resumed twice goes on twice from the state it was asked in. */
+  public static <F, S, A, R> Comp<A, R> handle(
+      S s0, StateClause<F, S, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, (state, a) -> a), s0, p.eff));
+  }
+
+  /** the same, its value made of the last state and the program's value: {@code ret} */
+  public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
+      BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, ret), s0, p.eff));
+  }
+
   /** the same, in place, from the state {@code s0} */
   public static <F, S, A, B, R> Comp<B, R> handle(
       Class<? super F> effect, InPlace<F, S, A, B, R> h, S s0, Comp<A, ? super Eff<F, R>> p) {

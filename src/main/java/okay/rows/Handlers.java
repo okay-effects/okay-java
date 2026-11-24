@@ -71,9 +71,54 @@ final class Handlers {
     }
 
     @Override
-    protected Rows.Early early(Object op) {
+    protected Rows.Early early(Object entry, Object op) {
       K<A, R> k = new K<>(op);
-      return new Asked(k, clause.on(trusted(op), k).eff);
+      return new Asked(k, clause.on(trusted(op), k).eff, null);
+    }
+  }
+
+  /** a handler with a state that is one function ({@link StateClause}): the state a value in its entry's cell,
+   * given to each clause, kept for each path */
+  static final class Stateful<F, S, A, B, R> extends Rows.Spec {
+    private final StateClause<F, S, B, R> clause;
+    private final java.util.function.BiFunction<? super S, ? super A, ? extends B> ret;
+
+    Stateful(StateClause<F, S, B, R> clause, java.util.function.BiFunction<? super S, ? super A, ? extends B> ret) {
+      super(true, false);
+      this.clause = clause;
+      this.ret = ret;
+    }
+
+    @Override
+    protected Object enter(Object init) {
+      return new Object[] {init};
+    }
+
+    @Override
+    protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
+      return okay.core.Comp.pure(ret.apply(trusted(((Object[]) entry)[0]), trusted(value)));
+    }
+
+    @Override
+    protected boolean keepsState() {
+      return true;
+    }
+
+    @Override
+    protected Object state(Object entry) {
+      return ((Object[]) entry)[0];
+    }
+
+    @Override
+    protected void state(Object entry, Object state) {
+      ((Object[]) entry)[0] = state;
+    }
+
+    @Override
+    protected Rows.Early early(Object entry, Object op) {
+      Object[] cell = (Object[]) entry;
+      KS<S, B, R> k = new KS<>(op);
+      return new Asked(k, clause.on(trusted(cell[0]), trusted(op), k).eff, cell);
     }
   }
 
@@ -81,8 +126,11 @@ final class Handlers {
   private static final class Asked extends Rows.Early {
     private final K<?, ?> k;
     private final okay.core.Comp<?, ?> made;
+    /** the state of the handler's entry, of a handler with a state; else {@code null} */
+    private final Object[] cell;
 
-    Asked(K<?, ?> k, okay.core.Comp<?, ?> made) {
+    Asked(K<?, ?> k, okay.core.Comp<?, ?> made, Object[] cell) {
+      this.cell = cell;
       this.k = k;
       this.made = made;
     }
@@ -91,6 +139,7 @@ final class Handlers {
     protected boolean answered() {
       if (made != k.first) return false;
       k.answeredInPlace = true;
+      if (k.firstGiven) cell[0] = k.firstState;
       return true;
     }
 

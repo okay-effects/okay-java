@@ -87,7 +87,20 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
 
 A clause (`Clause<F, A, R>`) whose program is `k.resume(op, x)` and nothing else is answered in place, nothing
 captured; one that goes on after the rest (`k.resume(c, yes).map(..)`), resumes twice, or leaves it
-(`k.unwind().map(..)`) is given the rest. The handler's value is the program's: it has no `ret`. An effect with
+(`k.unwind().map(..)`) is given the rest. The handler's value is the program's: it has no `ret`. A handler with a
+state is the same lambda with the state first (`StateClause`), resuming with the next state; the state is a value
+of each path:
+
+```java
+static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter<?>, R>> body) {
+  return handle(from, (state, op, k) -> switch (op) {
+    case Counter.Get g -> k.resume(g, state);
+    case Counter.Put p -> k.resume(p, null, p.value());
+  }, body);
+}
+```
+
+An effect with
 type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot tell `Get<S>` by an index.
 
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,

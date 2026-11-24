@@ -91,6 +91,17 @@ public final class Bench {
     }
   };
 
+  /** the state lane's loop over a GADT, its handler one function with a state */
+  sealed interface Counter<T> extends Operation<T, Counter<?>> {
+    record Get() implements Counter<Integer> {}
+    record Put(int value) implements Counter<Void> {}
+  }
+
+  static Comp<Integer, Eff<Counter<?>, ?>> counted(int n) {
+    if (n == 0) return perform(new Counter.Get());
+    return perform(new Counter.Get()).flatMap(s -> perform(new Counter.Put(s + 1))).flatMap(done -> counted(n - 1));
+  }
+
   static void measure(String name, int ops, Runnable body) {
     long best = Long.MAX_VALUE;
     for (int round = 0; round < 7; round++) {
@@ -113,6 +124,11 @@ public final class Bench {
       case Tick.Next next -> k.resume(next, 1);
     }, ticks(n, 0))));
     measure("general", n, () -> run(handle(Tick.class, TICK_GENERAL, ticks(n, 0))));
+    measure("stateful", 2 * n, () -> run(okay.rows.Effects.<Counter<?>, Integer, Integer, Pure>handle(0,
+        (state, op, k) -> switch (op) {
+          case Counter.Get g -> k.resume(g, state);
+          case Counter.Put p -> k.resume(p, null, p.value());
+        }, counted(n))));
     int m = 100_000;
     measure("after", m, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1).map(r -> r + 1);

@@ -12,7 +12,7 @@ import okay.core.Rows;
  * clause that neither resumes nor unwinds runs nothing of it: the rest is kept, and may be resumed later
  * ({@code Async}). A clause that does not go on with the rest says {@code k.unwind()} first, so that what the
  * program holds is released. */
-public final class K<B, R> {
+public sealed class K<B, R> permits KS {
   private final Object asked;
   /** taken already; or, of a clause called before its rest is taken (Effects.handle of a Clause), given when it is */
   private Rows.Rest rest;
@@ -21,6 +21,9 @@ public final class K<B, R> {
   okay.core.Comp<?, ?> first;
   Object firstAnswer;
   boolean answeredInPlace;
+  /** of a clause with a state: whether that first resumption says the state to go on with, and the state */
+  boolean firstGiven;
+  Object firstState;
   /** an interceptor's (by the class): it is no place, and leaves none when unwound */
   private final boolean place;
 
@@ -44,11 +47,24 @@ public final class K<B, R> {
   }
 
   private okay.core.Comp<?, ?> resumed(Object answer) {
+    return resumed(answer, false, null);
+  }
+
+  /** the operation asked, the witness of an answer's type: any other is refused */
+  final void witness(Object op) {
+    if (op != asked) throw new IllegalArgumentException("not the operation asked: " + op);
+  }
+
+  /** the rest resumed with the answer; {@code given}: its handler's state for that path {@code state} */
+  final okay.core.Comp<?, ?> resumed(Object answer, boolean given, Object state) {
     if (!late) return Comp.DOOR.resume(rest, answer);
-    okay.core.Comp<?, ?> c = okay.core.Comp.delay(() -> Handlers.trusted(Comp.DOOR.resume(taken(), answer)));
+    okay.core.Comp<?, ?> c = okay.core.Comp.delay(() -> Handlers.trusted(
+        Comp.DOOR.resume(given ? Comp.DOOR.with(taken(), state) : taken(), answer)));
     if (first == null) {
       first = c;
       firstAnswer = answer;
+      firstGiven = given;
+      firstState = state;
     }
     return c;
   }
