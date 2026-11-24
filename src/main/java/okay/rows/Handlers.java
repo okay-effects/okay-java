@@ -36,12 +36,12 @@ final class Handlers {
     }
 
     @Override
-    protected okay.core.Eff<?, ?> ret(Object entry, Object value) {
+    protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
       return h.ret(trusted(value)).eff;
     }
 
     @Override
-    protected okay.core.Eff<?, ?> on(Object op, Rows.Rest rest, int skip) {
+    protected okay.core.Comp<?, ?> on(Object op, Rows.Rest rest, int skip) {
       return h.on(trusted(op), new K<>(op, rest, row)).eff;
     }
 
@@ -80,7 +80,7 @@ final class Handlers {
     }
 
     @Override
-    protected okay.core.Eff<?, ?> ret(Object entry, Object value) {
+    protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
       Cell<S> cell = trusted(entry);
       return h.ret(cell.value, trusted(value)).eff;
     }

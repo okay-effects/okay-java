@@ -1,23 +1,23 @@
 # okay-java and okay-core
 
 okay-core is Scala 3 and okay-java is Java 25. Both are built on `shift0` and `$` — okay-core's one monad
-`Cont[R, I, O, A]` (its kernel, `okay.one`), okay-java's `Eff<L, A>` — and both run a program by a machine over an
+`Cont[R, I, O, A]` (its kernel, `okay.one`), okay-java's `Comp<L, A>` — and both run a program by a machine over an
 explicit stack of delimiters, `k` data, in constant stack. They make different choices where the languages differ,
 and they meet at okay-kernel: each implements the protocol natively (okay-core's `OnCore`, okay-java's `Kernel`),
 and a program of either runs under the other's handlers through it.
 
 | | okay-core | okay-java |
 |---|---|---|
-| A program | `A ! E1 + E2`: a row of effects in the type, the facade over `Cont[R, I, O, A]` | `Eff<L, A>`: a level in the type, the handlers in force where it runs |
+| A program | `A ! E1 + E2`: a row of effects in the type, the facade over `Cont[R, I, O, A]` | `Comp<L, A>`: a level in the type, the handlers in force where it runs |
 | The effects a program needs | the row, found by the compiler (`In`, a path to the effect) | capabilities as parameters, `State<L, S> st` |
 | An operation finds its handler | by its path in the row: `Here`, `There`, …; a `Deep` handler relocates the paths crossing it (`Removed`, `Again`) | by its prompt, the handler's identity; the handlers crossed are not looked at |
 | An effect inside a handler of the same effect | the nearest of its type, by path | the one its capability came from: two `State<Integer>` at once |
 | A capability out of its handler | no capability to take out: a path is not a value | a compile error, the body at a fresh level (rank-2) |
 | A tail-resumptive handler | `Answering`, the machine answers in place — a step per handler crossed | the capability itself, no prompt: the same cost across any handlers |
-| Answer-type modification | `Atm`, the answer moved with no row named; `PState` (the kernel's, lowered) | in `Cont` (`ContPState`, printf); `Eff`'s answers erased into prompts, a type that changes in a typestate (`PState`) |
+| Answer-type modification | `Atm`, the answer moved with no row named; `PState` (the kernel's, lowered) | in `Cont` (`ContPState`, printf); `Comp`'s answers erased into prompts, a type that changes in a typestate (`PState`) |
 | `shift` under a handler | `Shift % S`, control as an effect of the row: `shift0`'s body outside the `reset`, `shift`'s under it | `p.shift0`, `p.shift`: to the prompt, any delimiter, not the nearest |
 | Interception | `Intercept.at`/`by`: a handler of an effect handled further out, over `Removed.again` | a capability wrapped: forwarding is a plain program (no row to relocate) |
-| Failures | `Guard` in the kernel: `ensuring`, `recover`, `uncancelable`; a `Raise` of the machine | `Eff.recover`, `Eff.ensuring`, `Eff.uncancelable`, `Eff.failed`: the machine unwinds a throw of any function of the program's to the nearest guard |
+| Failures | `Guard` in the kernel: `ensuring`, `recover`, `uncancelable`; a `Raise` of the machine | `Comp.recover`, `Comp.ensuring`, `Comp.uncancelable`, `Comp.failed`: the machine unwinds a throw of any function of the program's to the nearest guard |
 | A handler's body | a context function, `(using c) ?=> …` | an anonymous class with a generic method: Java has no generic lambda |
 | The machine | one `eval` over `Meta`, the frames and delimiters data; JIT budget watched (the method's bytecode size) | a step a node, each kind's step a method of its own; the frames `Then`/`Mapped`, the delimiters `Seg`/`Take` |
 | okay-kernel | `OnCore`: every delimiter of the bridge a `Deep` handler of one request effect, the lookup by key a walk over them | `Kernel`: the delimiters' prompts carry a frame, the lookup by key a walk over the machine's own stack |

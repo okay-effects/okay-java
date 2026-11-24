@@ -26,12 +26,12 @@ public interface Observer<A, B, R> {
       }
 
       @Override
-      protected okay.core.Eff<?, ?> ret(Object entry, Object value) {
+      protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
         return o.ret(Handlers.<A>trusted(value)).eff;
       }
 
       @Override
-      protected okay.core.Eff<?, ?> on(Object op, Rows.Rest rest, int skip) {
+      protected okay.core.Comp<?, ?> on(Object op, Rows.Rest rest, int skip) {
         return o.on(new Seen<>(op, skip, rest)).eff;
       }
     }, null, p.eff));

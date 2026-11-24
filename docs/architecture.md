@@ -2,9 +2,9 @@
 
 okay-java has three layers, and a door:
 - the monad of delimited continuations, `Cont`, with `shift0`/`$` (the first port's monad of `shift`/`reset` is
-  gone; `Eff`'s `p.shift` is Danvy–Filinski's `shift`, and `ContTest` compares the two with it);
-- `Eff`, effects at a level, run by a machine with prompts;
-- `okay.std`, the effects written on `Eff`;
+  gone; `Comp`'s `p.shift` is Danvy–Filinski's `shift`, and `ContTest` compares the two with it);
+- `Comp`, effects at a level, run by a machine with prompts;
+- `okay.std`, the effects written on `Comp`;
 - `Kernel`, okay-kernel's protocol on the same nodes and the same machine (`kernel.md`).
 
 ## `Cont` (`Cont.java`, `Loop.java`)
@@ -14,17 +14,17 @@ outside the delimiter, so its answers are programs of the level outside, `Cont` 
 `value` are built on the two. Each delimiter runs its body in a loop of its own, to where it leaves (`Loop`). It is
 open: usable as a monad with raw `shift0` and `$`, as in `ContTest`, the printf, and `ContPState`.
 
-## `Eff` (`Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java`)
+## `Comp` (`Comp.java`, `Prompt.java`, `Nodes.java`, `Machine.java`)
 
-`Eff<L, A>` keeps `Cont`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
+`Comp<L, A>` keeps `Cont`'s semantics and moves the answer types into the delimiters' prompts. The level `L` stays
 in the type as a phantom.
 
 - **Two primitives.**
-  - `Eff.handle(body, ret)` is `ret $ body` under a prompt made fresh each time the handler runs. Its body is an
-    `Eff.Body`, a generic method `<M extends L> Eff<M, A> in(Prompt<L, M, R> p)`, at a level as fresh as its prompt.
+  - `Comp.handle(body, ret)` is `ret $ body` under a prompt made fresh each time the handler runs. Its body is an
+    `Comp.Body`, a generic method `<M extends L> Comp<M, A> in(Prompt<L, M, R> p)`, at a level as fresh as its prompt.
   - `p.shift0(clause)` is an operation at `M`: the rest up to `p`'s delimiter, the delimiter included, its clause
     run at `L`.
-  - `p.shift` and `p.reset` are built on them, and `Eff.reset` is a handler that answers nothing.
+  - `p.shift` and `p.reset` are built on them, and `Comp.reset` is a handler that answers nothing.
 - **Nodes** (`Nodes`).
   - `Return`, `Bind`, `Map`, `Delay` and `Sync` are a value, a bind, a map, a tail call and a value computed in
     place.
@@ -60,14 +60,14 @@ in the type as a phantom.
     delimiter, not the `Kont`, so a clause that applies `k` once leaves the `Kont` to escape analysis.
 - **Failures.** The loop runs in a `try`. A function of the program's that throws in a step is a failure
     (`Kernel.Fail`, stepped next), unwound from the stack as it is there to the nearest delimiter that takes it: a
-    guard of `Eff.recover`/`Eff.ensuring`, or the kernel's. Each step leaves the stack as the function it calls sees
+    guard of `Comp.recover`/`Comp.ensuring`, or the kernel's. Each step leaves the stack as the function it calls sees
     it — a clause outside its delimiter (the stack dropped to there before the clause is applied), a resumed rest
     under its delimiters again (put back in a `catch` of the first frame's call, the only place the machine applies a
     function before its delimiters are there). HotSpot compiles the handler as a table entry: the loop is the same,
     and nothing is allocated for a program that does not fail.
 - **The levels.** A handler's body is at a fresh type variable, so a capability, a prompt or a program does not
   leave it. A level further in is a subtype, so a program of a level further out runs inside: `flatMap` takes
-  `Eff<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
+  `Comp<? super L, B>`, and `.at()` moves a program in at the head of a chain. A lift is nothing at run time.
 - **How the machine got here** (2026-10-09 and 10, JDK 26, each against the code before). Before it, each
   delimiter's body ran in a Java frame of its own (`EffLoop`, up to commit `fcd3868`). That one overflowed the stack
   at about 1 000 nested handlers, and each handler crossed cost about 6 ns. The explicit stack was first one big
@@ -90,7 +90,7 @@ in the type as a phantom.
 ## `okay.std`
 
 Each effect is an interface at a level with an `at()`. Each handler takes a `Body` of its own, a generic method at a
-fresh level, and is written with `Eff.handle` and `p.shift0`. A clause of the form `k(v)` is answered in place by
+fresh level, and is written with `Comp.handle` and `p.shift0`. A clause of the form `k(v)` is answered in place by
 the capability itself, with no prompt: `Reader`, `Emit.forEach`, `State.cell`. `Writer` and `Choose.all` build their
 answers in a `Rope`, joined in constant time and turned into a list once at the end. `Emit.generate` gives each element with the rest, a program at its level, so a generator runs under effects still to be handled. `iterator` and `stream` are built on it at the top. `Async` resumes the run in the
 callback's thread, and the handlers inside go on with it, since `k` holds their delimiters by prompt.
@@ -98,7 +98,7 @@ callback's thread, and the handlers inside go on with it, since `k` holds their 
 ## Tests
 
 - **Written once, run on two backends** (`Backend`, `ContBackend`): the machine and a reference.
-  - `Ref` reads `Eff`'s nodes by the textbook. A body goes to its value or to a capture, and a delimiter takes its
+  - `Ref` reads `Comp`'s nodes by the textbook. A body goes to its value or to a capture, and a delimiter takes its
     own and passes another's on.
   - `ContRef` is the same for `Cont`.
   - `EffectsTest`, `ControlTest` and `ContTest` run on both.

@@ -2,8 +2,8 @@
 
 okay-java has two ways to write a program with effects. Both run on the same machine.
 
-- **The capability notation** (`okay.core.Eff<L, A>`, `okay.std`, [the guide](guide.md)) passes each effect to the
-  program as a capability at a level: `static <M> Eff<M, Integer> counter(State<M, Integer> st)`.
+- **The capability notation** (`okay.core.Comp<L, A>`, `okay.std`, [the guide](guide.md)) passes each effect to the
+  program as a capability at a level: `static <M> Comp<M, Integer> counter(State<M, Integer> st)`.
 - **The row notation** (`okay.rows`, this page) passes nothing. The program's type lists its effects as a nested
   type, the ROW: `Comp<Integer, Eff<State<Integer>, Eff<Choose, ?>>>`. An operation is data, and a handler takes
   the program itself and removes the first effect from the row.
@@ -106,11 +106,11 @@ operations of a program written in the other. `okay.rows.Bridge` does it (`Bridg
 
 ```java
 // a row program inside a capability program: handled whole, then a value there
-Eff<M, List<Final<Integer, Integer>>> inside = Bridge.eff(Choose.all(State.run(0, chosen())));
+okay.core.Comp<M, List<Final<Integer, Integer>>> inside = Bridge.eff(Choose.all(State.run(0, chosen())));
 
 // a capability handler answering a row program: okay.std's state answers the row's State operations
 okay.std.State.state(10, new okay.std.State.Body<Top, Integer, List<Integer>>() {
-  public <M extends Top> Eff<M, List<Integer>> in(okay.std.State<M, Integer> st) {
+  public <M extends Top> okay.core.Comp<M, List<Integer>> in(okay.std.State<M, Integer> st) {
     return Bridge.state(st, Choose.all(stateOutside()));          // Final(13, [11, 13])
   }
 });
@@ -221,7 +221,7 @@ a `Place`: the handler and, for one in place, its cell. A place is made each tim
 - **State per path.** A capture saves the states of the in-place handlers it takes into its rest. A resumption puts
   them back before it goes on.
 - **Unwinding.** A rest is resumed as a failure of its own, thrown where the operation was, under a delimiter that
-  ends it. The finalizers in the rest run as it passes them. `Comp.ensuring` is the guard of `okay.core.Eff.ensuring`.
+  ends it. The finalizers in the rest run as it passes them. `Comp.ensuring` is the guard of `okay.core.Comp.ensuring`.
   Where the handler that unwinds was stands a marker: gone, kept, or nothing. A value that comes out of a level of
   the rest goes on unwinding.
 - **What changed in `okay.core`.** Two node classes, a method on the run (`enter`), and the end of an unwinding in

@@ -30,12 +30,12 @@ import okay.kernel.Thunk;
 import okay.kernel.Type;
 
 /**
- * OKAY-JAVA AS AN IMPLEMENTATION OF OKAY-KERNEL ({@code docs/kernel.md}): {@link Effects} on {@link Eff}'s own nodes,
+ * OKAY-JAVA AS AN IMPLEMENTATION OF OKAY-KERNEL ({@code docs/kernel.md}): {@link Effects} on {@link Comp}'s own nodes,
  * the kernel's operations run by okay-java's machine — no wrapper, no translation. Its semantics are okay-kernel's
  * reference machine's ({@code Steps}), checked by okay-kernel's TCK.
  *
  * <ul>
- *   <li>A kernel program is an {@code Eff}: {@code pure}, {@code flatMap}, {@code delay} its nodes, a bind's kernel
+ *   <li>A kernel program is a {@code Comp}: {@code pure}, {@code flatMap}, {@code delay} its nodes, a bind's kernel
  *       function adapted by one closure.
  *   <li>A kernel handler, {@code dollar}, {@code recover}, {@code ensuring}, {@code uncancelable}, an imported
  *       program's operation, an export's root: each okay-java's {@link Handle}, a fresh prompt, the prompt carrying
@@ -91,8 +91,8 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   /** TRUSTED: a kernel program given to okay-java is one of its nodes; at the level {@code Object}, levels phantom */
   @SuppressWarnings("unchecked")
-  static <A> Eff<Object, A> eff(Prog<A> p) {
-    if (p instanceof Eff<?, ?> e) return (Eff<Object, A>) e;
+  static <A> Comp<Object, A> eff(Prog<A> p) {
+    if (p instanceof Comp<?, ?> e) return (Comp<Object, A>) e;
     throw new IllegalArgumentException("not a program of okay-java: " + p);
   }
 
@@ -108,13 +108,13 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   record KHandler(Handler<?, ?> h, Type effect) {}
 
-  /** a guard: the failure given to {@code h}, its program in the guard's place — {@link Eff#recover}'s, or the
+  /** a guard: the failure given to {@code h}, its program in the guard's place — {@link Comp#recover}'s, or the
    * kernel's with its program built guarded */
-  record KRecover(Function<? super Throwable, ? extends Eff<?, ?>> h) {}
+  record KRecover(Function<? super Throwable, ? extends Comp<?, ?>> h) {}
 
-  /** a guard: {@code fin}'s program run when the guard is left failing, then the failure on — {@link Eff#ensuring}'s,
-   * or the kernel's */
-  record KEnsuring(Supplier<? extends Eff<?, ?>> fin) {}
+  /** a guard: {@code fin}'s program run when the guard is left failing, then the failure on —
+   * {@link Comp#ensuring}'s, or the kernel's */
+  record KEnsuring(Supplier<? extends Comp<?, ?>> fin) {}
 
   record KForeign(Resume<?, ?> k) {}
 
@@ -177,7 +177,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
       this.op = op;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return performed(m, op);
     }
   }
@@ -191,7 +191,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
       this.body = body;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return shifted(m, body);
     }
   }
@@ -204,7 +204,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
       this.e = e;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return unwind(m, e);
     }
   }
@@ -217,7 +217,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
       this.s = s;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return signalled(m, s);
     }
   }
@@ -230,7 +230,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
       this.c = c;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return foreignStarted(m, c);
     }
   }
@@ -238,14 +238,14 @@ public final class Kernel implements Effects, okay.kernel.Control {
   // -- Effects
 
   public <A> Prog<A> pure(A a) {
-    return Eff.pure(a);
+    return Comp.pure(a);
   }
 
   public <A, B> Prog<B> flatMap(Prog<A> p, Fn<A, Prog<B>> f) {
     return eff(p).flatMap(a -> bound(f, a));
   }
 
-  private static <A, B> Eff<Object, B> bound(Fn<A, Prog<B>> f, A a) {
+  private static <A, B> Comp<Object, B> bound(Fn<A, Prog<B>> f, A a) {
     try {
       return eff(f.apply(a));
     } catch (Throwable t) {
@@ -258,16 +258,16 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return eff(p).flatMap(a -> mapped(f, a));
   }
 
-  private static <A, B> Eff<Object, B> mapped(Fn<A, B> f, A a) {
+  private static <A, B> Comp<Object, B> mapped(Fn<A, B> f, A a) {
     try {
-      return Eff.pure(f.apply(a));
+      return Comp.pure(f.apply(a));
     } catch (Throwable t) {
       return new Fail<>(nonFatal(t));
     }
   }
 
   public <A> Prog<A> delay(Thunk<Prog<A>> p) {
-    return Eff.<Object, A>delay(() -> {
+    return Comp.<Object, A>delay(() -> {
       try {
         return eff(p.get());
       } catch (Throwable t) {
@@ -277,7 +277,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   /** a program the program's code gives: its exception a failure where it is placed */
-  private static Eff<?, ?> builtAny(Supplier<? extends Prog<?>> p) {
+  private static Comp<?, ?> builtAny(Supplier<? extends Prog<?>> p) {
     try {
       return eff(p.get());
     } catch (Throwable t) {
@@ -294,9 +294,9 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   /** a kernel delimiter's body: the program built when the delimiter is entered */
-  private static <A, R> Eff.Body<Object, A, R> body(Program<A> program) {
-    return new Eff.Body<>() {
-      public <M> Eff<M, A> in(Prompt<Object, M, R> p) {
+  private static <A, R> Comp.Body<Object, A, R> body(Program<A> program) {
+    return new Comp.Body<>() {
+      public <M> Comp<M, A> in(Prompt<Object, M, R> p) {
         try {
           return eff(program.in(EFFECTS)).at();
         } catch (Throwable t) {
@@ -307,9 +307,9 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   /** a body already a program of okay-java's */
-  private static <A, R> Eff.Body<Object, A, R> body(Supplier<Eff<?, ?>> program) {
-    return new Eff.Body<>() {
-      public <M> Eff<M, A> in(Prompt<Object, M, R> p) {
+  private static <A, R> Comp.Body<Object, A, R> body(Supplier<Comp<?, ?>> program) {
+    return new Comp.Body<>() {
+      public <M> Comp<M, A> in(Prompt<Object, M, R> p) {
         return trust(program.get());
       }
     };
@@ -319,7 +319,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   private static <A, R> Function<? super A, ?> returned(Handler<A, R> h) {
     if (h instanceof Returning<A, R> r) return (A a) -> {
       try {
-        return Eff.pure(r.answer(a));
+        return Comp.pure(r.answer(a));
       } catch (Throwable t) {
         return new Fail<>(nonFatal(t));
       }
@@ -339,7 +339,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   public <A, I, O> Prog<O> dollar(Program<A> body, Fn<A, Prog<I>> k) {
-    Function<A, Eff<?, ?>> ret = a -> {
+    Function<A, Comp<?, ?>> ret = a -> {
       try {
         return eff(k.apply(a));
       } catch (Throwable t) {
@@ -358,11 +358,11 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   public <A> Prog<A> ensuring(Program<A> body, Program<Void> finalizer) {
-    Function<A, Eff<?, ?>> ret = a -> finalized(finalizer).then(Eff.pure(a));
+    Function<A, Comp<?, ?>> ret = a -> finalized(finalizer).then(Comp.pure(a));
     return new Handle<Object, A, A>(body(body), ret, new KEnsuring(() -> finalized(finalizer)));
   }
 
-  private static Eff<Object, Void> finalized(Program<Void> fin) {
+  private static Comp<Object, Void> finalized(Program<Void> fin) {
     try {
       return eff(fin.in(EFFECTS));
     } catch (Throwable t) {
@@ -395,7 +395,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return j < 0 ? -1 : i + j;
   }
 
-  private static Eff<?, ?> performed(Run m, Op<?> op) {
+  private static Comp<?, ?> performed(Run m, Op<?> op) {
     int i = handlerOf(m.ms, op.effect());
     if (i < 0) return unwind(m, new IllegalStateException("an operation of " + op.effect() + " with no handler in force"));
     Seg s = Machine.head(Machine.drop(m.ms, i));
@@ -423,14 +423,14 @@ public final class Kernel implements Effects, okay.kernel.Control {
     if (h instanceof Translating<?, ?> tr)
       // its program outside the handler, the rest of the body then resumed with its value: okay-java's capture (no
       // allocation a delimiter crossed), the rest resumed by a bind — no k given to anyone
-      return m.capture(s.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> translated(tr, op, k), m.k);
-    if (h instanceof General<?, ?> g) return m.capture(s.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> clause(g, op, k), m.k);
+      return m.capture(s.prompt(), (Function<Machine.Kont, Comp<?, ?>>) k -> translated(tr, op, k), m.k);
+    if (h instanceof General<?, ?> g) return m.capture(s.prompt(), (Function<Machine.Kont, Comp<?, ?>>) k -> clause(g, op, k), m.k);
     return unwind(m, new IllegalStateException("a handler of no shape: " + h));
   }
 
   /** a translating handler's program for {@code op}, in its place, then the rest with its value */
-  private static <X> Eff<?, ?> translated(Translating<?, ?> tr, Op<X> op, Machine.Kont k) {
-    Eff<Object, X> p;
+  private static <X> Comp<?, ?> translated(Translating<?, ?> tr, Op<X> op, Machine.Kont k) {
+    Comp<Object, X> p;
     try {
       p = eff(tr.translate(op).in(EFFECTS));
     } catch (Throwable t) {
@@ -440,7 +440,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   }
 
   /** a general handler's clause, in its place; {@code k} okay-java's continuation, a kernel {@code Fn} itself */
-  private static <A, R, X> Eff<?, ?> clause(General<A, R> g, Op<X> op, Machine.Kont k) {
+  private static <A, R, X> Comp<?, ?> clause(General<A, R> g, Op<X> op, Machine.Kont k) {
     try {
       return eff(g.apply(op, Kernel.<Fn<X, Prog<R>>>trust(k), EFFECTS));
     } catch (Throwable t) {
@@ -448,11 +448,11 @@ public final class Kernel implements Effects, okay.kernel.Control {
     }
   }
 
-  private static Eff<?, ?> shifted(Run m, Fn<Machine.Kont, ? extends Prog<?>> body) {
+  private static Comp<?, ?> shifted(Run m, Fn<Machine.Kont, ? extends Prog<?>> body) {
     int i = Machine.indexWhere(m.ms, Integer.MAX_VALUE, s -> s.prompt().frame instanceof KHandler || s.prompt().frame == Mark.DOLLAR);
     if (i < 0) return unwind(m, new IllegalStateException("shift0 with no delimiter around it"));
     Seg d = Machine.head(Machine.drop(m.ms, i));
-    return m.capture(d.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> builtAny(() -> body.apply(k)), m.k);
+    return m.capture(d.prompt(), (Function<Machine.Kont, Comp<?, ?>>) k -> builtAny(() -> body.apply(k)), m.k);
   }
 
   // -- unwinding: a failure, an abort, a cancellation to the nearest delimiter it concerns
@@ -465,7 +465,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
         : f instanceof KEnsuring || f instanceof KForeign || f instanceof KAfter || f == Mark.PENDING || f instanceof KRoot;
   }
 
-  static Eff<?, ?> unwind(Run m, Throwable t) {
+  static Comp<?, ?> unwind(Run m, Throwable t) {
     int i = Machine.indexWhere(m.ms, Integer.MAX_VALUE, s -> concerns(s, t));
     if (i < 0) {
       // no delimiter around that takes it: the run's failure, thrown out of it by Machine.run — the run ended here
@@ -480,15 +480,15 @@ public final class Kernel implements Effects, okay.kernel.Control {
     return switch (s.prompt().frame) {
       case KRecover(var h) -> h.apply(t);
       case KEnsuring(var fin) -> fin.get().then(new Fail<>(t));
-      case KHandler _ -> Eff.pure(((Abort) t).answer);
+      case KHandler _ -> Comp.pure(((Abort) t).answer);
       case KForeign(var fk) when t instanceof Control ->
           // an abort or a cancellation crossing it: it is cancelled, its finalizers' operations performed here, then
           // this goes on
-          new Handle<Object, Object, Object>(body(() -> stepped(fk::cancel)), (Function<Object, Eff<?, ?>>) _ -> new Fail<>(t), new KAfter(t));
+          new Handle<Object, Object, Object>(body(() -> stepped(fk::cancel)), (Function<Object, Comp<?, ?>>) _ -> new Fail<>(t), new KAfter(t));
       case KForeign(var fk) -> stepped(() -> fk.fail(t));
       case KAfter(var then) -> new Fail<>(then);
-      case Rows.End _ -> Eff.pure(null);
-      case KRoot _ -> Eff.pure(t instanceof Cancel ? new Step.Cancelled<>()
+      case Rows.End _ -> Comp.pure(null);
+      case KRoot _ -> Comp.pure(t instanceof Cancel ? new Step.Cancelled<>()
           : new Step.Failed<>(t instanceof Abort a ? new IllegalStateException("an abort with its handler gone", a) : t));
       default -> new Fail<>(CANCEL); // Mark.PENDING: the region ended, failed — the cancellation waiting goes on
     };
@@ -506,9 +506,9 @@ public final class Kernel implements Effects, okay.kernel.Control {
   /** a resumption while a cancellation waits for the region's end */
   private record SigPending(Object s) {}
 
-  private static final Function<Object, Eff<?, ?>> SIGNALLED = Signalled::new;
+  private static final Function<Object, Comp<?, ?>> SIGNALLED = Signalled::new;
 
-  private static Eff<?, ?> unhandled(Run m, Op<?> op, KRoot root, Seg s, int i) {
+  private static Comp<?, ?> unhandled(Run m, Op<?> op, KRoot root, Seg s, int i) {
     Answers host = root.host();
     Object v;
     try {
@@ -522,10 +522,10 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   /** a capture to the root: the step {@code Yield(op, k)}; {@code k} resumed with a signal, read where the operation
    * was */
-  private static <X> Eff<?, ?> handedOut(Run m, Op<X> op, Seg root, int i) {
+  private static <X> Comp<?, ?> handedOut(Run m, Op<X> op, Seg root, int i) {
     boolean region = Machine.indexWhere(m.ms, i, s -> s.prompt().frame == Mark.UNCANCELABLE) >= 0;
     return m.capture(root.prompt(),
-        (Function<Machine.Kont, Eff<?, ?>>) k -> Eff.pure(new Step.Yield<>(op, resumption(op, k, region, false))),
+        (Function<Machine.Kont, Comp<?, ?>>) k -> Comp.pure(new Step.Yield<>(op, resumption(op, k, region, false))),
         new Frames.Then(SIGNALLED, m.k));
   }
 
@@ -551,7 +551,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     };
   }
 
-  private static Eff<?, ?> signalled(Run m, Object s) {
+  private static Comp<?, ?> signalled(Run m, Object s) {
     return switch (s) {
       case SigValue(var x) -> m.value(x);
       case SigFail(var e) -> unwind(m, e);
@@ -560,8 +560,8 @@ public final class Kernel implements Effects, okay.kernel.Control {
         // the rest of the region captured, run under a delimiter that cancels when the region ends
         int u = Machine.indexWhere(m.ms, Integer.MAX_VALUE, x -> x.prompt().frame == Mark.UNCANCELABLE);
         Seg region = Machine.head(Machine.drop(m.ms, u));
-        yield m.capture(region.prompt(), (Function<Machine.Kont, Eff<?, ?>>) k -> new Handle<Object, Object, Object>(
-                body(() -> k.apply(on)), (Function<Object, Eff<?, ?>>) _ -> new Fail<>(CANCEL), Mark.PENDING),
+        yield m.capture(region.prompt(), (Function<Machine.Kont, Comp<?, ?>>) k -> new Handle<Object, Object, Object>(
+                body(() -> k.apply(on)), (Function<Object, Comp<?, ?>>) _ -> new Fail<>(CANCEL), Mark.PENDING),
             new Frames.Then(SIGNALLED, m.k));
       }
       default -> unwind(m, new IllegalStateException("a signal of no kind: " + s));
@@ -571,7 +571,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
   /** a run on okay-java's machine, to a step; an exception out of it (the machine's own) a failure. A run of its own
    * (isolated): an exported computation is started and resumed by whoever imports it, a step of that one's machine —
    * this one's too, importing its own ({@code foreignStarted}) */
-  private static Step<Object> run(Eff<?, ?> e) {
+  private static Step<Object> run(Comp<?, ?> e) {
     try {
       return trust(Machine.runIsolated(e));
     } catch (Throwable t) {
@@ -585,7 +585,7 @@ public final class Kernel implements Effects, okay.kernel.Control {
     Set<Type> row = Collections.unmodifiableSet(new HashSet<>(effects));
     return new Computation<>() {
       public Step<A> start(Answers host) {
-        Function<A, Eff<?, ?>> done = a -> Eff.pure(new Step.Done<Object>(a));
+        Function<A, Comp<?, ?>> done = a -> Comp.pure(new Step.Done<Object>(a));
         return trust(run(new Handle<Object, A, Step<Object>>(body(program), done, new KRoot(host))));
       }
 
@@ -613,14 +613,14 @@ public final class Kernel implements Effects, okay.kernel.Control {
 
   // -- import
 
-  private static Eff<?, ?> foreignStarted(Run m, Computation<?> c) {
+  private static Comp<?, ?> foreignStarted(Run m, Computation<?> c) {
     Answers here = answersHere(m.ms);
     return stepped(() -> c.start(here));
   }
 
   /** another's step, taken here: a value goes on, a failure fails here, a cancellation cancels here, an operation is
    * performed here — its value to the other's {@code k} */
-  private static Eff<?, ?> stepped(Supplier<? extends Step<?>> next) {
+  private static Comp<?, ?> stepped(Supplier<? extends Step<?>> next) {
     Step<?> s;
     try {
       s = next.get();
@@ -628,18 +628,18 @@ public final class Kernel implements Effects, okay.kernel.Control {
       return new Fail<>(nonFatal(t));
     }
     return switch (s) {
-      case Step.Done<?> d -> Eff.pure(d.value());
+      case Step.Done<?> d -> Comp.pure(d.value());
       case Step.Failed<?> f -> new Fail<>(f.error());
       case Step.Cancelled<?> _ -> new Fail<>(CANCEL);
       case Step.Yield<?, ?> y -> yielded(y);
     };
   }
 
-  private static <X, A> Eff<?, ?> yielded(Step.Yield<X, A> y) {
+  private static <X, A> Comp<?, ?> yielded(Step.Yield<X, A> y) {
     Resume<X, A> k = y.k();
     Op<X> op = y.op();
     return new Handle<Object, X, Object>(body(() -> new Perform<>(op)),
-        (Function<X, Eff<?, ?>>) x -> stepped(() -> k.resume(x)), new KForeign(k));
+        (Function<X, Comp<?, ?>>) x -> stepped(() -> k.resume(x)), new KForeign(k));
   }
 
   /** what an imported program is answered in place by: the nearest handler of the stack {@code ms}, if it answers in

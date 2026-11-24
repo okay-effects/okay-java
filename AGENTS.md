@@ -4,7 +4,9 @@
 
 okay-java is algebraic effects for Java 25 on delimited continuations (`shift0`): a program is a value that asks
 operations of declared effects, handlers answer them, and the host runs it. Two notations share one machine:
-the row notation `okay.rows` (`Comp<A, Row>`, the effects in the type) and the capability notation `okay.core.Eff`.
+the row notation `okay.rows` (`Comp<A, Row>`, the effects in the type) and the capability notation
+`okay.core.Comp<L, A>` (level first). Both are a program as data, `Comp`: import one package and name the other
+in full.
 
 Getting it: released 0.1.0, group `io.github.okay-effects`, Java 25. Repositories: Maven Central,
 https://okay-effects.github.io/okay-java/maven (okay-java's artifacts and plugins) and
@@ -66,8 +68,8 @@ A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
 value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Other words: `under`,
 `fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step` (docs/rows.md). The capability notation
-(`Eff<L, A>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is docs/guide.md;
-`okay.rows.Bridge` runs either notation inside the other.
+(`okay.core.Comp<L, A>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is
+docs/guide.md; `okay.rows.Bridge` runs either notation inside the other.
 
 ### Design rules
 
@@ -76,7 +78,7 @@ value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/ro
 - Real resources (DB, network, files, clock, keys) live only in handlers the host builds at the entry point.
   Programs get data, effects and ids, never live clients. `Clock.system(p)` in `main`, `Clock.at(() -> t, p)` in a test.
 - Run only at the entry (`main`, a test, a request handler). Never run inside a program: `Effects.run`/`step`,
-  `Eff.run`, `Kernel.run`, `okay.rows.std.Async.runBlocking` begun from a `flatMap`/`map`/`defer` or a handler's clause
+  `Comp.run`, `Kernel.run`, `okay.rows.std.Async.runBlocking` begun from a `flatMap`/`map`/`defer` or a handler's clause
   throw `okay.core.NestedRun` at once, before the first step. A nested run would be a second machine on the stack,
   seeing none of the program's handlers. Install the handler as part of the program instead: `State.run(s0, p)`,
   `handle(..)` are programs, so flatMap them:
@@ -88,7 +90,7 @@ value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/ro
   }
   ```
 
-  `Effects.runIsolated(p)` / `stepIsolated(p)` / `Eff.runIsolated(p)` exist only for a deliberately closed
+  `Effects.runIsolated(p)` / `stepIsolated(p)` / `Comp.runIsolated(p)` exist only for a deliberately closed
   sub-program run to its end as a run of its own (a conversion, a pure helper); it sees none of the outer handlers,
   and a plain run inside it is refused again. Not at each step of a loop.
 - Sensitive operations go under audit. The effect's author makes its operations `Sensitive.Op`s; a program asks
@@ -143,8 +145,8 @@ plugins check effectful (transformed) methods at build time: `guard` (a handler'
 - Unchecked casts and raw types defeat the guarantees (leaks, sensitive places); a `Pass` kept past its clause too.
 - `NestedRun`'s mark is per thread: a run on another thread (pool, virtual thread, callback) is a run of its own and
   allowed; the library's own `Async.start`/`toFuture`, `Emit.pull`, `runAsync` use `runIsolated` internally.
-- A Java exception thrown in a function is a program failure: `Comp.ensuring`/`Eff.ensuring` finalizers run, and
-  `run` rethrows it. JVM `Error`s are never caught.
+- A Java exception thrown in a function is a program failure: `okay.rows.Comp.ensuring`/`okay.core.Comp.ensuring`
+  finalizers run, and `run` rethrows it. JVM `Error`s are never caught.
 - Resumable: an effect class cannot have type arguments; JDK lambdas (`forEach`, streams) cannot perform; an IDE
   that compiles by itself transforms nothing (delegate build and tests to Gradle/Maven); Maven must run on JDK 24+;
   `synchronized` in a method that may suspend is refused; Kotlin/Scala/Groovy classes are not transformed;

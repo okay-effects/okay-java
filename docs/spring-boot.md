@@ -6,9 +6,9 @@ where its part of Spring is:
 
 | Part | On where | What it gives |
 |---|---|---|
-| `OkayWebMvcAutoConfiguration` | a servlet application with web MVC | a controller's method returns an `Eff` |
+| `OkayWebMvcAutoConfiguration` | a servlet application with web MVC | a controller's method returns a `Comp` |
 | `OkayWebFluxAutoConfiguration` | a reactive application with WebFlux | the same |
-| `OkayAsyncAutoConfiguration` | any application; in force where `@EnableAsync` is | an `@Async` method returns an `Eff` |
+| `OkayAsyncAutoConfiguration` | any application; in force where `@EnableAsync` is | an `@Async` method returns a `Comp` |
 | `OkayTransactionAutoConfiguration` | where there is one `PlatformTransactionManager` | `EffTransactions`: a program in a transaction |
 
 Any of them is off by `spring.autoconfigure.exclude=okay.spring.<name>`.
@@ -32,12 +32,12 @@ is the one used. It is built and tested on Spring Boot 4.1.1 (Spring Framework 7
 (the README's Install, `RELEASING.md`).
 
 Nothing else is needed outside these four parts. okay-java has no state to be a bean: no runtime, no pool, no
-configuration. `Eff.run` and `Async.runAsync` are called wherever a program is to run, in a service, a
+configuration. `Comp.run` and `Async.runAsync` are called wherever a program is to run, in a service, a
 `CommandLineRunner`, a `@Scheduled` method, a listener.
 
 ## Controllers
 
-A method may return a program at the top, `Eff<Eff.Top, A>`. Its value is the method's, as if the method had
+A method may return a program at the top, `Comp<Comp.Top, A>`. Its value is the method's, as if the method had
 returned it, so `A` decides how it is written: a body (JSON, a string), a `ResponseEntity` with its status and
 headers, a view's name. A failure no guard took is the method's throw and goes to the `@ExceptionHandler`s.
 
@@ -45,15 +45,15 @@ headers, a view's name. A failure no guard took is the method's throw and goes t
 @RestController
 class Orders {
   @GetMapping("/sum/{n}")
-  Eff<Eff.Top, Total> sum(@PathVariable("n") int n) {
-    return State.state(0, new State.Body<Eff.Top, Integer, String>() {
-      public <M extends Eff.Top> Eff<M, String> in(State<M, Integer> st) { … }
+  Comp<Comp.Top, Total> sum(@PathVariable("n") int n) {
+    return State.state(0, new State.Body<Comp.Top, Integer, String>() {
+      public <M extends Comp.Top> Comp<M, String> in(State<M, Integer> st) { … }
     }).map(f -> new Total(f.value(), f.state()));
   }
 
   @GetMapping("/created")
-  Eff<Eff.Top, ResponseEntity<String>> created() {
-    return Eff.<Eff.Top, String>pure("made").map(s -> ResponseEntity.status(HttpStatus.CREATED).body(s));
+  Comp<Comp.Top, ResponseEntity<String>> created() {
+    return Comp.<Comp.Top, String>pure("made").map(s -> ResponseEntity.status(HttpStatus.CREATED).body(s));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
@@ -68,7 +68,7 @@ WebFlux both take as they are:
 @GetMapping("/async")
 CompletableFuture<String> async() {
   return Async.runAsync(new Async.Body<String>() {
-    public <M extends Eff.Top> Eff<M, String> in(Async<M> as) { return as.blocking(() -> load()); }
+    public <M extends Comp.Top> Comp<M, String> in(Async<M> as) { return as.blocking(() -> load()); }
   });
 }
 ```
@@ -80,12 +80,12 @@ handler goes first among the adapter's. One added the usual way, by a `WebMvcCon
 
 **WebFlux** (`EffResultHandler`). The program runs when the response is subscribed to, on the thread that
 subscribes, an event loop's. Its value is handed to the other result handlers as of the type `A`. It is not a
-`ReactiveAdapter`: an adapted type's value is its first type argument, and an `Eff`'s first is its level. A program
+`ReactiveAdapter`: an adapted type's value is its first type argument, and a `Comp`'s first is its level. A program
 that blocks, a database or a file, belongs on `Async`'s `blocking`, not on the event loop.
 
 ## `@Async`
 
-With `@EnableAsync`, a method annotated `@Async` may return an `Eff<Eff.Top, A>`. The method and its program run on
+With `@EnableAsync`, a method annotated `@Async` may return a `Comp<Comp.Top, A>`. The method and its program run on
 the `@Async` executor: the one `@Async("name")` names, an `AsyncConfigurer`'s, or the application's `TaskExecutor`,
 as Spring chooses. The call returns at once with a program that is their result.
 
@@ -93,22 +93,22 @@ as Spring chooses. The call returns at once with a program that is their result.
 @Service
 class Reports {
   @Async
-  public Eff<Eff.Top, Report> build(Month m) { return … ; }
+  public Comp<Comp.Top, Report> build(Month m) { return … ; }
 }
 
-Eff<Eff.Top, Report> report = reports.build(m);   // started, not waited for
+Comp<Comp.Top, Report> report = reports.build(m);   // started, not waited for
 …
-Report r = Eff.run(report);                         // waits for it
+Report r = Comp.run(report);                         // waits for it
 ```
 
 The result run waits for the value, this thread blocked: on a virtual thread that costs no thread. It fails with the
-program's failure or the method's throw, so `Eff.recover` takes either. Run again, it gives the same value; the method
+program's failure or the method's throw, so `Comp.recover` takes either. Run again, it gives the same value; the method
 does not run twice.
 
 Spring's own `@Async` interceptor takes nothing but `void` and a `Future`, refusing any other type before the call,
-and it goes before every other advisor, so no advisor in front of it could take an `Eff`. The module puts an
+and it goes before every other advisor, so no advisor in front of it could take a `Comp`. The module puts an
 interceptor of its own in its place in each proxy (`EffAsyncPostProcessor`, `EffAsyncInterceptor`). Every method
-that does not return an `Eff` is handed to Spring's interceptor, as it was. A frozen proxy is left as it is.
+that does not return a `Comp` is handed to Spring's interceptor, as it was. A frozen proxy is left as it is.
 
 ## Transactions
 
@@ -120,9 +120,9 @@ class Checkout {
   private final EffTransactions txs;
   Checkout(EffTransactions txs) { this.txs = txs; }
 
-  Eff<Eff.Top, Order> save(Cart cart) { return Eff.sync(() -> repository.save(cart.order())); }
+  Comp<Comp.Top, Order> save(Cart cart) { return Comp.sync(() -> repository.save(cart.order())); }
 
-  <M extends Eff.Top> Eff<M, Order> place(State<M, Cart> st) {
+  <M extends Comp.Top> Comp<M, Order> place(State<M, Cart> st) {
     return st.get().flatMap(cart -> txs.transactional(save(cart)));
   }
 }
@@ -136,7 +136,7 @@ propagation, isolation and timeout; a `TransactionTemplate` is a definition. Wit
 
 **The body is a program at the top.** Its handlers are its own, and a capability of a handler outside it does not
 compile there. A handler outside could drop the rest of the body: a `Throws.raise` to a `catching` outside the
-transaction. A dropped rest runs no finalizer, `Eff.ensuring`'s included, so the transaction would be left open on
+transaction. A dropped rest runs no finalizer, `Comp.ensuring`'s included, so the transaction would be left open on
 the thread, and the next one there would join it. A handler inside the body drops nothing past it, and its raise
 caught inside commits the recovery. The transaction's value goes on at any level: a program at the top fits a
 bind's function anywhere, as in `place` above.
@@ -144,7 +144,7 @@ bind's function anywhere, as in `place` above.
 **The transaction is the thread's**, as Spring's are. A program of okay-java's own runs on one thread from the begin
 to the end. One that goes on in another thread, an `Async` callback's, leaves the transaction behind.
 
-**`@Transactional` on a method that returns an `Eff`** commits when the method returns, before the program runs. The
+**`@Transactional` on a method that returns a `Comp`** commits when the method returns, before the program runs. The
 program's transaction is `EffTransactions`'.
 
 ## Tests

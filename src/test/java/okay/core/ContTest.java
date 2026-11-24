@@ -112,12 +112,12 @@ class ContTest {
                 k2 -> k1.apply(1).flatMap(k2).flatMap(k2)))
             .map(x -> x + 10));
     assertEquals(44, value(reset0(inner.map(x -> x * 2))));
-    // with shift (Eff's, Danvy–Filinski's), k2 is the empty context under the reset the first body runs under: 11,
+    // with shift (Comp's, Danvy–Filinski's), k2 is the empty context under the reset the first body runs under: 11,
     // doubled once
-    assertEquals(22, (int) Eff.run(Eff.reset(new Eff.Body<Eff.Top, Integer, Integer>() {
-      public <M extends Eff.Top> Eff<M, Integer> in(Prompt<Eff.Top, M, Integer> outer) {
-        return Eff.reset(new Eff.Body<M, Integer, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Prompt<M, N, Integer> p) {
+    assertEquals(22, (int) Comp.run(Comp.reset(new Comp.Body<Comp.Top, Integer, Integer>() {
+      public <M extends Comp.Top> Comp<M, Integer> in(Prompt<Comp.Top, M, Integer> outer) {
+        return Comp.reset(new Comp.Body<M, Integer, Integer>() {
+          public <N extends M> Comp<N, Integer> in(Prompt<M, N, Integer> p) {
             return p.<Integer>shift(k1 -> p.<Integer>shift(k2 -> k1.apply(1).flatMap(k2).flatMap(k2).at())).map(x -> x + 10);
           }
         }).map(x -> x * 2);
@@ -133,11 +133,11 @@ class ContTest {
             .map(x -> x + 10));
     assertEquals(-1, value(reset0(inner.map(x -> x * 2))));
     // a shift gets out of one only
-    assertEquals(-2, (int) Eff.run(Eff.reset(new Eff.Body<Eff.Top, Integer, Integer>() {
-      public <M extends Eff.Top> Eff<M, Integer> in(Prompt<Eff.Top, M, Integer> outer) {
-        return Eff.reset(new Eff.Body<M, Integer, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Prompt<M, N, Integer> p) {
-            return p.<Integer>shift(_ -> p.<Integer>shift(_ -> Eff.pure(-1))).map(x -> x + 10);
+    assertEquals(-2, (int) Comp.run(Comp.reset(new Comp.Body<Comp.Top, Integer, Integer>() {
+      public <M extends Comp.Top> Comp<M, Integer> in(Prompt<Comp.Top, M, Integer> outer) {
+        return Comp.reset(new Comp.Body<M, Integer, Integer>() {
+          public <N extends M> Comp<N, Integer> in(Prompt<M, N, Integer> p) {
+            return p.<Integer>shift(_ -> p.<Integer>shift(_ -> Comp.pure(-1))).map(x -> x + 10);
           }
         }).map(x -> x * 2);
       }

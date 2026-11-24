@@ -3,17 +3,17 @@ package okay.core;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** {@link Eff}'S NODES, what a program is made of, and the frames a value goes through — run by the {@link Machine} */
+/** {@link Comp}'S NODES, what a program is made of, and the frames a value goes through — run by the {@link Machine} */
 @SuppressWarnings({"unchecked", "rawtypes"})
 final class Nodes {
   private Nodes() {}
 
   /** a node: its step the machine's, each kind's its own method (see {@link Machine#run}) — an abstract class, not an
    * interface, so the loop's call to it is a virtual call, one load, not an interface's search */
-  abstract static sealed class Node<L, A> implements Eff<L, A>
+  abstract static sealed class Node<L, A> implements Comp<L, A>
       permits Return, Bind, Map, Delay, Sync, Shift0, Suspend, Handle, Reset, Push, Machine.Resumption,
       Kernel.Perform, Kernel.Shift0K, Kernel.Fail, Kernel.Signalled, Kernel.Foreign, Rows.Ask, Rows.Enter, Rows.Here {
-    abstract Eff<?, ?> step(Machine.Run m);
+    abstract Comp<?, ?> step(Machine.Run m);
   }
 
   static final class Return<L, A> extends Node<L, A> {
@@ -26,65 +26,65 @@ final class Nodes {
     A value() {
       return value;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.value(value);
     }
   }
 
   static final class Bind<L, A, B> extends Node<L, B> {
-    private final Eff<L, A> m;
+    private final Comp<L, A> m;
     private final Function f;
 
-    Bind(Eff<L, A> m, Function f) {
+    Bind(Comp<L, A> m, Function f) {
       this.m = m;
       this.f = f;
     }
 
-    Eff<L, A> m() {
+    Comp<L, A> m() {
       return m;
     }
 
     Function f() {
       return f;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.bind(this);
     }
   }
 
   static final class Map<L, A, B> extends Node<L, B> {
-    private final Eff<L, A> m;
+    private final Comp<L, A> m;
     private final Function<? super A, ? extends B> f;
 
-    Map(Eff<L, A> m, Function<? super A, ? extends B> f) {
+    Map(Comp<L, A> m, Function<? super A, ? extends B> f) {
       this.m = m;
       this.f = f;
     }
 
-    Eff<L, A> m() {
+    Comp<L, A> m() {
       return m;
     }
 
     Function<? super A, ? extends B> f() {
       return f;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.map(this);
     }
   }
 
   /** a program built when the loop gets to it: a tail call, one node */
   static final class Delay<L, A> extends Node<L, A> {
-    private final Supplier<? extends Eff<?, A>> c;
+    private final Supplier<? extends Comp<?, A>> c;
 
-    Delay(Supplier<? extends Eff<?, A>> c) {
+    Delay(Supplier<? extends Comp<?, A>> c) {
       this.c = c;
     }
 
-    Supplier<? extends Eff<?, A>> c() {
+    Supplier<? extends Comp<?, A>> c() {
       return c;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return c.get();
     }
   }
@@ -100,7 +100,7 @@ final class Nodes {
     Supplier<? extends A> a() {
       return a;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.value(a.get());
     }
   }
@@ -121,13 +121,13 @@ final class Nodes {
     Function f() {
       return f;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.shift0(this);
     }
 
     /** an operation bound: one node, {@link Suspend} */
     @Override
-    public <B> Eff<M, B> flatMap(Function<? super X, ? extends Eff<? super M, B>> g) {
+    public <B> Comp<M, B> flatMap(Function<? super X, ? extends Comp<? super M, B>> g) {
       return new Suspend<>(prompt, f, g);
     }
   }
@@ -156,22 +156,22 @@ final class Nodes {
     Function k() {
       return k;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.suspend(this);
     }
   }
 
   static final class Handle<L, A, R> extends Node<L, R> {
-    private final Eff.Body<L, A, R> body;
+    private final Comp.Body<L, A, R> body;
     private final Function ret;
     /** a kernel delimiter's frame, given to its prompt; null for okay-java's own */
     private final Object frame;
 
-    Handle(Eff.Body<L, A, R> body, Function ret) {
+    Handle(Comp.Body<L, A, R> body, Function ret) {
       this(body, ret, null);
     }
 
-    Handle(Eff.Body<L, A, R> body, Function ret, Object frame) {
+    Handle(Comp.Body<L, A, R> body, Function ret, Object frame) {
       this.body = body;
       this.ret = ret;
       this.frame = frame;
@@ -181,22 +181,22 @@ final class Nodes {
       return frame;
     }
 
-    Eff.Body<L, A, R> body() {
+    Comp.Body<L, A, R> body() {
       return body;
     }
 
     Function ret() {
       return ret;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.handle(this, null);
     }
   }
 
   /** a body that is a program already, at the level outside — a guard's: no fresh level, nothing to give the prompt */
-  static <L, A, R> Eff.Body<L, A, R> plain(Eff<L, A> body) {
-    return new Eff.Body<>() {
-      public <M extends L> Eff<M, A> in(Prompt<L, M, R> p) {
+  static <L, A, R> Comp.Body<L, A, R> plain(Comp<L, A> body) {
+    return new Comp.Body<>() {
+      public <M extends L> Comp<M, A> in(Prompt<L, M, R> p) {
         return body.at();
       }
     };
@@ -205,9 +205,9 @@ final class Nodes {
   /** a delimiter under a prompt there already: {@code p.reset(body)}, its answer the body's value */
   static final class Reset<L, R> extends Node<L, R> {
     private final Prompt<?, ?, ?> prompt;
-    private final Eff<?, R> body;
+    private final Comp<?, R> body;
 
-    Reset(Prompt<?, ?, ?> prompt, Eff<?, R> body) {
+    Reset(Prompt<?, ?, ?> prompt, Comp<?, R> body) {
       this.prompt = prompt;
       this.body = body;
     }
@@ -216,37 +216,37 @@ final class Nodes {
       return prompt;
     }
 
-    Eff<?, R> body() {
+    Comp<?, R> body() {
       return body;
     }
-    Eff<?, ?> step(Machine.Run m) {
+    Comp<?, ?> step(Machine.Run m) {
       return m.reset(this);
     }
   }
 
   /** {@code m} with the rest as a stack already: what applying a captured k makes */
   static final class Push<L, B> extends Node<L, B> {
-    private final Eff<?, ?> m;
+    private final Comp<?, ?> m;
     private final Frames k;
 
-    Push(Eff<?, ?> m, Frames k) {
+    Push(Comp<?, ?> m, Frames k) {
       this.m = m;
       this.k = k;
     }
 
-    Eff<?, ?> m() {
+    Comp<?, ?> m() {
       return m;
     }
 
     Frames k() {
       return k;
     }
-    Eff<?, ?> step(Machine.Run run) {
+    Comp<?, ?> step(Machine.Run run) {
       return run.push(this);
     }
   }
 
-  sealed interface Frames extends Function<Object, Eff<?, ?>> {
+  sealed interface Frames extends Function<Object, Comp<?, ?>> {
     Frames END = new End();
 
     record End() implements Frames {}
@@ -256,10 +256,10 @@ final class Nodes {
     record Mapped(Function f, Frames next) implements Frames {}
 
     @Override
-    default Eff<?, ?> apply(Object a) {
+    default Comp<?, ?> apply(Object a) {
       return switch (this) {
         case End _ -> new Return<>(a);
-        case Then(var f, var next) -> next instanceof End ? (Eff) f.apply(a) : new Push<>((Eff) f.apply(a), next);
+        case Then(var f, var next) -> next instanceof End ? (Comp) f.apply(a) : new Push<>((Comp) f.apply(a), next);
         case Mapped(var f, var next) ->
             next instanceof End ? new Return<>(f.apply(a)) : new Push<>(new Return<>(f.apply(a)), next);
       };

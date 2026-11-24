@@ -1,6 +1,6 @@
 package okay.spring;
 
-import okay.core.Eff;
+import okay.core.Comp;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -13,12 +13,12 @@ import org.springframework.transaction.TransactionStatus;
  *
  * <p>The body is a program AT THE TOP, its handlers its own: a capability of a handler outside does not compile in
  * it. A handler outside could drop the rest of the body ({@code Throws.raise} to a {@code catching} outside it), and
- * a dropped rest runs no finalizer, {@code Eff.ensuring}'s included: the transaction would be left open on the
+ * a dropped rest runs no finalizer, {@code Comp.ensuring}'s included: the transaction would be left open on the
  * thread. A handler inside the body drops nothing past it.
  *
  * <p>Spring's transactions are the thread's: the program between the begin and the end runs on the thread that
  * began it — a program of okay-java's own does; one that goes on in another thread (an {@code Async}'s callback)
- * leaves the transaction behind. {@code @Transactional} on a method that returns an {@code Eff} commits when the
+ * leaves the transaction behind. {@code @Transactional} on a method that returns a {@code Comp} commits when the
  * method returns, before the program runs: the program's transaction is this.
  *
  * <p>Auto-configured where there is one {@link PlatformTransactionManager}; or {@code new EffTransactions(tm)}
@@ -31,19 +31,19 @@ public final class EffTransactions {
   }
 
   /** {@code body} in a transaction of Spring's defaults: {@code REQUIRED}, the manager's isolation and timeout */
-  public <A> Eff<Eff.Top, A> transactional(Eff<Eff.Top, A> body) {
+  public <A> Comp<Comp.Top, A> transactional(Comp<Comp.Top, A> body) {
     return transactional(TransactionDefinition.withDefaults(), body);
   }
 
   /** {@code body} in a transaction of {@code definition}: a {@code TransactionTemplate} is one */
-  public <A> Eff<Eff.Top, A> transactional(TransactionDefinition definition, Eff<Eff.Top, A> body) {
-    return Eff.delay(() -> {
+  public <A> Comp<Comp.Top, A> transactional(TransactionDefinition definition, Comp<Comp.Top, A> body) {
+    return Comp.delay(() -> {
       TransactionStatus tx = transactions.getTransaction(definition);
-      Eff<Eff.Top, A> committed = body.flatMap(a -> Eff.sync(() -> {
+      Comp<Comp.Top, A> committed = body.flatMap(a -> Comp.sync(() -> {
         transactions.commit(tx);
         return a;
       }));
-      return Eff.ensuring(committed, Eff.sync(() -> {
+      return Comp.ensuring(committed, Comp.sync(() -> {
         if (!tx.isCompleted()) transactions.rollback(tx);
         return null;
       }));

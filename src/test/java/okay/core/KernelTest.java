@@ -366,7 +366,7 @@ class KernelTest {
    * around it taking it — the machine unwinds its own failures too */
   @Test
   void okayJavasOwnFailureInsideAKernelProgramIsTheKernels() {
-    Program<Integer> body = _ -> Eff.<Object, Integer>pure(1).map(_ -> {
+    Program<Integer> body = _ -> Comp.<Object, Integer>pure(1).map(_ -> {
       throw new IllegalStateException("own");
     });
     assertEquals(3, KernelTest.<Integer>run(e -> e.recover(body, t -> e.pure(t.getMessage().length()))));

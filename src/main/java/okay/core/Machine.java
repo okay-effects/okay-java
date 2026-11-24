@@ -14,7 +14,7 @@ import okay.core.Nodes.Suspend;
 import okay.core.Nodes.Sync;
 
 /**
- * THE MACHINE: {@link Eff}'s nodes run by ONE LOOP over an explicit stack of delimiters — no Java frame a delimiter,
+ * THE MACHINE: {@link Comp}'s nodes run by ONE LOOP over an explicit stack of delimiters — no Java frame a delimiter,
  * so handlers nest as deep as the heap allows. The state: the program {@code c}, the frames of the innermost segment {@code k},
  * and the delimiters outside it, {@code ms}, innermost first — each with its prompt, its return and the frames
  * outside it. A capture walks {@code ms} to its prompt: no allocation per delimiter crossed. A resumption puts the
@@ -128,9 +128,9 @@ final class Machine {
 
   /** a captured continuation: the rest of the innermost segment ({@code k}, frames or a function), and the delimiters
    * crossed and the one captured up to — the first {@code n + 1} of {@code ms}. Applied, a resumption node */
-  record Kont(Function k, Meta ms, int n) implements Function<Object, Eff<?, ?>>, okay.kernel.Fn<Object, Eff<?, ?>> {
+  record Kont(Function k, Meta ms, int n) implements Function<Object, Comp<?, ?>>, okay.kernel.Fn<Object, Comp<?, ?>> {
     @Override
-    public Eff<?, ?> apply(Object x) {
+    public Comp<?, ?> apply(Object x) {
       // not itself kept: its delimiter, when none crossed — the usual — so a clause that only applies k once, most,
       // leaves the Kont to the JIT's escape analysis, never made
       return new Resumption<>(x, k, n == 0 && ms instanceof Seg up ? up : this);
@@ -167,17 +167,17 @@ final class Machine {
       return to;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return m.resume(this, null);
     }
   }
 
   /** the end of a run: its value in {@link Run#result} */
-  static final Eff<?, ?> DONE = new Return<>(null);
+  static final Comp<?, ?> DONE = new Return<>(null);
 
   /** A RUN, refused ({@link NestedRun}) while a program runs on this thread: from a program's function or a clause, a
    * run would be a second machine on the stack, under none of the program's handlers */
-  static <A> A run(Eff<?, A> program) {
+  static <A> A run(Comp<?, A> program) {
     Mark mark = MARKS.get();
     if (mark.on) throw new NestedRun();
     mark.on = true;
@@ -189,8 +189,8 @@ final class Machine {
   }
 
   /** the same, inside a running program too, on purpose: a closed program run to its end as a run of its own —
-   * {@link Eff#runIsolated}. Inside it, a run of its own is refused again */
-  static <A> A runIsolated(Eff<?, A> program) {
+   * {@link Comp#runIsolated}. Inside it, a run of its own is refused again */
+  static <A> A runIsolated(Comp<?, A> program) {
     Mark mark = MARKS.get();
     boolean was = mark.on;
     mark.on = true;
@@ -219,16 +219,16 @@ final class Machine {
 
   /** ONE STEP A NODE: the loop calls the node's own step, a method of its own — so C2 compiles each apart, small, its
    * calls to the program's functions profiled by that kind of node alone; the machine's state in the fields here */
-  private static <A> A loop(Eff<?, A> program) {
+  private static <A> A loop(Comp<?, A> program) {
     Run m = new Run();
-    Eff<?, ?> c = program;
+    Comp<?, ?> c = program;
     while (true) {
       try {
         while (c != DONE) c = ((Nodes.Node<?, ?>) c).step(m);
         break;
       } catch (Throwable t) {
         // a function of the program's threw, in a step: a FAILURE, unwound from the stack as it is there — to the
-        // nearest guard it concerns (Eff.recover, Eff.ensuring, the kernel's), or out of the run. HotSpot compiles
+        // nearest guard it concerns (Comp.recover, Comp.ensuring, the kernel's), or out of the run. HotSpot compiles
         // the handler as a table entry: the loop is the same. Each step leaves the stack as the function it calls
         // sees it: a clause outside its delimiter, a resumed rest under its delimiters again
         c = new Kernel.Fail<>(Kernel.nonFatal(t));
@@ -247,35 +247,35 @@ final class Machine {
     /** a failure no delimiter took: the run's, thrown out of it */
     Throwable failure;
 
-    Eff<?, ?> bind(Bind b) {
-      Eff m = b.m();
-      if (m instanceof Return r) return (Eff) b.f().apply(r.value());
-      if (m instanceof Sync s) return (Eff) b.f().apply(s.a().get());
+    Comp<?, ?> bind(Bind b) {
+      Comp m = b.m();
+      if (m instanceof Return r) return (Comp) b.f().apply(r.value());
+      if (m instanceof Sync s) return (Comp) b.f().apply(s.a().get());
       // a handler or a resumption bound: the function to its delimiter, no frame made
       if (m instanceof Resumption r) return resume(r, b.f());
       if (m instanceof Handle h) return handle(h, b.f());
       k = new Frames.Then(b.f(), k);
-      return m instanceof Delay d ? (Eff) d.c().get() : m;
+      return m instanceof Delay d ? (Comp) d.c().get() : m;
     }
 
-    Eff<?, ?> map(Map m) {
+    Comp<?, ?> map(Map m) {
       k = new Frames.Mapped(m.f(), k);
       // a delay under it, a recursion's tail: built here, no step of its own
-      return m.m() instanceof Delay d ? (Eff) d.c().get() : m.m();
+      return m.m() instanceof Delay d ? (Comp) d.c().get() : m.m();
     }
 
-    Eff<?, ?> push(Push p) {
+    Comp<?, ?> push(Push p) {
       k = k instanceof Frames.End ? p.k() : new Frames.Then(p.k(), k);
       return p.m();
     }
 
-    Eff<?, ?> reset(Reset r) {
+    Comp<?, ?> reset(Reset r) {
       ms = new Seg(r.prompt(), SAME, null, k, ms);
       k = Frames.END;
       return r.body();
     }
 
-    Eff<?, ?> handle(Handle h, Function then) {
+    Comp<?, ?> handle(Handle h, Function then) {
       Prompt<?, ?, ?> p = new Prompt<>(h.frame());
       ms = new Seg(p, h.ret(), then, k, ms);
       k = Frames.END;
@@ -283,24 +283,24 @@ final class Machine {
     }
 
     /** a delimiter of the row notation entered: its prompt made by the caller, its return {@code ret} */
-    Eff<?, ?> enter(Prompt<?, ?, ?> p, Function ret, Eff<?, ?> body) {
+    Comp<?, ?> enter(Prompt<?, ?, ?> p, Function ret, Comp<?, ?> body) {
       ms = new Seg(p, ret, null, k, ms);
       k = Frames.END;
       return body;
     }
 
-    Eff<?, ?> shift0(Shift0 s) {
+    Comp<?, ?> shift0(Shift0 s) {
       return capture(s.prompt(), s.f(), k);
     }
 
-    Eff<?, ?> suspend(Suspend s) {
+    Comp<?, ?> suspend(Suspend s) {
       return capture(s.prompt(), s.f(), k instanceof Frames.End ? s.k() : new Frames.Then(s.k(), k));
     }
 
     /** a capture of {@code kk} to {@code prompt}'s delimiter: the clause in its place — the nearest the usual one, no
      * walk, no drop */
-    Eff<?, ?> capture(Prompt<?, ?, ?> prompt, Function f, Function kk) {
-      Eff c;
+    Comp<?, ?> capture(Prompt<?, ?, ?> prompt, Function f, Function kk) {
+      Comp c;
       Seg d;
       Kont kont;
       if (ms instanceof Seg near && near.prompt() == prompt) {
@@ -314,10 +314,10 @@ final class Machine {
       }
       // the stack outside the delimiter first, then the clause: a failure of it is outside, as the clause is
       k = d.outer();
-      c = (Eff) f.apply(kont);
+      c = (Comp) f.apply(kont);
       if (d.then() != null) {
         // the clause's answer the delimiter's: to the function it is bound to — at once if a value
-        if (c instanceof Return a) c = (Eff) d.then().apply(a.value());
+        if (c instanceof Return a) c = (Comp) d.then().apply(a.value());
         else k = new Frames.Then(d.then(), k);
       }
       return atOnce(c, true);
@@ -325,7 +325,7 @@ final class Machine {
 
     /** the usual clauses, k(x) and k(x) bound: resumed right here, no step of the loop between — k(x) bound or
      * mapped only if {@code bound} */
-    Eff<?, ?> atOnce(Eff<?, ?> c, boolean bound) {
+    Comp<?, ?> atOnce(Comp<?, ?> c, boolean bound) {
       if (c instanceof Resumption r) return resume(r, null);
       if (!bound) return c;
       if (c instanceof Bind b && b.m() instanceof Resumption r) return resume(r, b.f());
@@ -339,14 +339,14 @@ final class Machine {
     /** a captured continuation resumed here: x through its rest, then its delimiters crossed and its delimiter again,
      * the frames here outside it — no delimiter made till a bind needs it. Its first frame (the operation's own) at a
      * call site of its own, the deeper at feed's */
-    Eff<?, ?> resume(Resumption r, Function then) {
+    Comp<?, ?> resume(Resumption r, Function then) {
       Object x = r.x();
       if (!(r.k() instanceof Frames fr)) {
         ms = again(r, then, k, ms);
         k = Frames.END;
-        return (Eff) r.k().apply(x);
+        return (Comp) r.k().apply(x);
       }
-      Eff next = null;
+      Comp next = null;
       try {
         if (fr instanceof Frames.Mapped m) {
           x = m.f().apply(x);
@@ -358,7 +358,7 @@ final class Machine {
             fr = fed.k();
           }
         } else if (fr instanceof Frames.Then t) {
-          next = (Eff) t.f().apply(x);
+          next = (Comp) t.f().apply(x);
           fr = t.next();
         }
       } catch (Throwable t) {
@@ -377,13 +377,13 @@ final class Machine {
         // its rest done, the delimiter next: the frames and delimiters here as they are, its return applied
         Function ret = up.ret();
         if (ret != SAME) {
-          Eff c = (Eff) ret.apply(x);
+          Comp c = (Comp) ret.apply(x);
           if (then == null) return c;
-          if (c instanceof Return a) return (Eff) then.apply(a.value());
+          if (c instanceof Return a) return (Comp) then.apply(a.value());
           k = new Frames.Then(then, k);
           return c;
         }
-        if (then != null) return (Eff) then.apply(x);
+        if (then != null) return (Comp) then.apply(x);
         return value(x);
       }
       ms = again(r, then, k, ms);
@@ -393,16 +393,16 @@ final class Machine {
 
     /** a value: through the maps to the first bind, or out of the segment — its delimiter's return, outside it; a
      * reset's the value itself, on at once. No Return made for it */
-    Eff<?, ?> value(Object v) {
+    Comp<?, ?> value(Object v) {
       while (true) {
         while (k instanceof Frames.Mapped m) {
           v = m.f().apply(v);
           k = m.next();
         }
-        Eff c;
+        Comp c;
         if (k instanceof Frames.Then t) {
           k = t.next();
-          c = (Eff) t.f().apply(v);
+          c = (Comp) t.f().apply(v);
         } else {
           Seg seg;
           if (ms instanceof Seg plain) {
@@ -419,14 +419,14 @@ final class Machine {
           if (seg.then() != null) {
             // a bound delimiter's answer: its return, then the function bound — at once if the return a value
             if (seg.ret() == SAME) {
-              c = (Eff) seg.then().apply(v);
+              c = (Comp) seg.then().apply(v);
             } else {
-              c = (Eff) seg.ret().apply(v);
-              if (c instanceof Return a) c = (Eff) seg.then().apply(a.value());
+              c = (Comp) seg.ret().apply(v);
+              if (c instanceof Return a) c = (Comp) seg.then().apply(a.value());
               else k = new Frames.Then(seg.then(), k);
             }
           } else if (seg.ret() != SAME) {
-            c = (Eff) seg.ret().apply(v);
+            c = (Comp) seg.ret().apply(v);
           } else {
             continue;
           }
@@ -440,7 +440,7 @@ final class Machine {
 
   /** a value through the maps on top of the frames, to the first bind — its program and the frames under it — or to
    * the end, {@code c} null */
-  record Fed(Eff<?, ?> c, Object v, Frames k) {}
+  record Fed(Comp<?, ?> c, Object v, Frames k) {}
 
   /** a resumed continuation's frames below its first: a method of its own, so the profile of its call to a frame's
    * function is the deeper frames' only — a capture's rest, maps over maps, one function mostly: inlined, as the old
@@ -450,7 +450,7 @@ final class Machine {
       x = m.f().apply(x);
       fr = m.next();
     }
-    return fr instanceof Frames.Then t ? new Fed((Eff) t.f().apply(x), null, t.next()) : new Fed(null, x, fr);
+    return fr instanceof Frames.Then t ? new Fed((Comp) t.f().apply(x), null, t.next()) : new Fed(null, x, fr);
   }
 
   /** a capture to a delimiter not the nearest: its index walked to */

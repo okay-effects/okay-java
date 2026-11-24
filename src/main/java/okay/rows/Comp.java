@@ -9,18 +9,18 @@ import okay.core.Rows;
  * {@code step}. Made by the functions of {@link Effects}, never directly. Whoever takes a computation takes one
  * that asks no more than the row at hand: {@code Comp<A, ? super R>}.
  *
- * <p>On okay-java's machine: a computation is a program of {@code okay.core}, {@link okay.core.Eff}'s nodes, the row
+ * <p>On okay-java's machine: a computation is a program of {@code okay.core}, {@link okay.core.Comp}'s nodes, the row
  * a phantom as the level is there. */
 public final class Comp<A, R> {
   /** the machine's door, given to this class alone */
   static final Rows.Door DOOR = Rows.door(MethodHandles.lookup());
 
   /** the program, at no level of its own: levels are phantom, the row stands for them here */
-  final okay.core.Eff<Object, A> eff;
+  final okay.core.Comp<Object, A> eff;
 
   @SuppressWarnings("unchecked") // the value is an A: the program was built typed, its row and level phantom
-  Comp(okay.core.Eff<?, ?> eff) {
-    this.eff = (okay.core.Eff<Object, A>) eff;
+  Comp(okay.core.Comp<?, ?> eff) {
+    this.eff = (okay.core.Comp<Object, A>) eff;
   }
 
   /** this, then what {@code f} makes of its value. The row {@code Q} is one that has the effects of both: the
@@ -47,16 +47,16 @@ public final class Comp<A, R> {
    * The finalizer is a program of the same row, made when it is run; its value is dropped. One that fails is left
    * as any program is: what waits beyond it is still unwound, and the failure goes to its handler. Not run: when
    * the rest of the program is kept and never resumed (an {@code Emit.pull} not read to its end). Run when a
-   * function of the program throws (okay-java's failure, {@link okay.core.Eff#ensuring}'s guard): the reference
+   * function of the program throws (okay-java's failure, {@link okay.core.Comp#ensuring}'s guard): the reference
    * runs none then. */
   public <Q extends R> Comp<A, Q> ensuring(Supplier<? extends Comp<?, ? super Q>> finalizer) {
     return new Comp<>(DOOR.ensuring(eff, () -> finalizer.get().eff));
   }
 
   /** a bind's function: the next computation's program */
-  private record Next<A, B>(Function<A, ? extends Comp<B, ?>> f) implements Function<A, okay.core.Eff<Object, B>> {
+  private record Next<A, B>(Function<A, ? extends Comp<B, ?>> f) implements Function<A, okay.core.Comp<Object, B>> {
     @Override
-    public okay.core.Eff<Object, B> apply(A a) {
+    public okay.core.Comp<Object, B> apply(A a) {
       return f.apply(a).eff;
     }
   }

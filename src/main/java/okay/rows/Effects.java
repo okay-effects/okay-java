@@ -14,7 +14,7 @@ public final class Effects {
   private Effects() {}
 
   /** a value: it asks nothing, and fits any row */
-  public static <A, R> Comp<A, R> pure(A a) { return new Comp<>(okay.core.Eff.pure(a)); }
+  public static <A, R> Comp<A, R> pure(A a) { return new Comp<>(okay.core.Comp.pure(a)); }
 
   /** an operation asked: its effect is the first of the row, whatever the rest. It goes to the handler of the
    * row's first effect: the nearest one put by {@code handle}. The operation's class {@code O} must be of the
@@ -51,7 +51,7 @@ public final class Effects {
 
   /** a computation built when it is reached: a call in tail position takes no stack */
   public static <A, R> Comp<A, R> defer(Supplier<? extends Comp<A, ? super R>> p) {
-    return new Comp<>(okay.core.Eff.delay(() -> p.get().eff));
+    return new Comp<>(okay.core.Comp.delay(() -> p.get().eff));
   }
 
   /** {@code acquire}d, used, {@code release}d when the use is left: {@code ensuring} of the use */

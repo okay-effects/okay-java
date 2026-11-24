@@ -223,7 +223,7 @@ class AuditTest {
   }
 
   /** a program of the capability notation, its state the row's: observed as any row program */
-  static <M> okay.core.Eff<M, Integer> counter(okay.std.State<M, Integer> st) {
+  static <M> okay.core.Comp<M, Integer> counter(okay.std.State<M, Integer> st) {
     return st.modify(x -> x + 1).then(st.get());
   }
 

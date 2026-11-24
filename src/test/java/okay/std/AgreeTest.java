@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import okay.core.Backend;
-import okay.core.Eff;
-import okay.core.Eff.Top;
+import okay.core.Comp;
+import okay.core.Comp.Top;
 import okay.core.Prompt;
 import org.junit.jupiter.api.Test;
 
@@ -50,9 +50,9 @@ class AgreeTest {
    * capabilities are kept as they come, of any level outside; each is cast back to its effect at this level — a
    * level further in, where a capability of a level outside is good: unchecked, so the generator can pick them */
   @SuppressWarnings("unchecked")
-  static <L> Eff<L, Integer> build(Prog p, List<Object> caps) {
+  static <L> Comp<L, Integer> build(Prog p, List<Object> caps) {
     return switch (p) {
-      case Prog.Pure(var n) -> Eff.pure(n);
+      case Prog.Pure(var n) -> Comp.pure(n);
       case Prog.Seq(var a, var b) -> AgreeTest.<L>build(a, caps).flatMap(x -> AgreeTest.<L>build(b, caps).map(y -> x * 3 + y));
       case Prog.Op(var i, var n) -> switch (caps.get(caps.size() - 1 - i)) {
         case Writer<?, ?> w -> ((Writer<L, Integer>) w).tell(n).map(_ -> n);
@@ -65,37 +65,37 @@ class AgreeTest {
       };
       case Prog.Handle(var k, var n, var body) -> switch (k) {
         case WRITER -> Writer.writer(new Writer.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(Writer<M, Integer> w) {
+          public <M extends L> Comp<M, Integer> in(Writer<M, Integer> w) {
             return build(body, with(caps, w));
           }
         }).map(l -> l.value() * 31 + l.log().stream().mapToInt(Integer::intValue).sum() * 7 + l.log().size());
         case STATE -> State.state(n, new State.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(State<M, Integer> s) {
+          public <M extends L> Comp<M, Integer> in(State<M, Integer> s) {
             return build(body, with(caps, s));
           }
         }).map(f -> f.state() * 31 + f.value());
         case CELL -> State.cell(n, new State.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(State<M, Integer> s) {
+          public <M extends L> Comp<M, Integer> in(State<M, Integer> s) {
             return build(body, with(caps, s));
           }
         }).map(f -> f.state() * 31 + f.value());
         case CHOOSE -> Choose.all(new Choose.Body<L, Integer>() {
-          public <M extends L> Eff<M, Integer> in(Choose<M> c) {
+          public <M extends L> Comp<M, Integer> in(Choose<M> c) {
             return build(body, with(caps, c));
           }
         }).map(l -> l.stream().reduce(17, (h, x) -> h * 31 + x));
         case THROWS -> Throws.catching(new Throws.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(Throws<M, Integer> t) {
+          public <M extends L> Comp<M, Integer> in(Throws<M, Integer> t) {
             return build(body, with(caps, t));
           }
-        }, e -> Eff.pure(-e));
+        }, e -> Comp.pure(-e));
         case READER -> Reader.reader(n, new Reader.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(Reader<M, Integer> rd) {
+          public <M extends L> Comp<M, Integer> in(Reader<M, Integer> rd) {
             return build(body, with(caps, rd));
           }
         });
-        case RESET -> Eff.reset(new Eff.Body<L, Integer, Integer>() {
-          public <M extends L> Eff<M, Integer> in(Prompt<L, M, Integer> pr) {
+        case RESET -> Comp.reset(new Comp.Body<L, Integer, Integer>() {
+          public <M extends L> Comp<M, Integer> in(Prompt<L, M, Integer> pr) {
             return build(body, with(caps, pr));
           }
         }).map(x -> x + n);

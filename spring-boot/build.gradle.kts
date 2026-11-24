@@ -18,7 +18,7 @@ repositories {
     maven("https://okay-effects.github.io/okay-kernel/maven")
 }
 
-// okay-java in Spring Boot (README.md): a controller's method returns an Eff, its value the response, in web MVC and
+// okay-java in Spring Boot (README.md): a controller's method returns a Comp, its value the response, in web MVC and
 // in WebFlux; an @Async method returns one; a program runs in a transaction. Spring compileOnly: the application's
 // own Spring Boot is the one used, none imposed; each auto-configuration is off where its part of Spring is not there
 publishing {

@@ -16,16 +16,16 @@ import org.junit.jupiter.api.Test;
  * transaction open — and the same body with the handler inside compiles */
 class TransactionLeakTest {
   static final String SNIPPET = """
-      import okay.core.Eff;
+      import okay.core.Comp;
       import okay.std.Throws;
       import okay.spring.EffTransactions;
       class Snippet {
-        static Eff<Eff.Top, String> f(EffTransactions txs) {
-          return Throws.catching(new Throws.Body<Eff.Top, String, String>() {
-            public <M extends Eff.Top> Eff<M, String> in(Throws<M, String> t) {
+        static Comp<Comp.Top, String> f(EffTransactions txs) {
+          return Throws.catching(new Throws.Body<Comp.Top, String, String>() {
+            public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
               return %s;
             }
-          }, e -> Eff.pure(e));
+          }, e -> Comp.pure(e));
         }
       }
       """;
@@ -52,6 +52,6 @@ class TransactionLeakTest {
 
   @Test
   void theTransactionInsideTheHandlerCompiles() throws Exception {
-    assertEquals(List.of(), errors("txs.transactional(Eff.<Eff.Top, String>pure(\"yes\")).<M>at()"));
+    assertEquals(List.of(), errors("txs.transactional(Comp.<Comp.Top, String>pure(\"yes\")).<M>at()"));
   }
 }

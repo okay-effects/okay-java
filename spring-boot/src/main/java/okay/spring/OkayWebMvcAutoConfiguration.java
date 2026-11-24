@@ -2,7 +2,7 @@ package okay.spring;
 
 import java.util.ArrayList;
 import java.util.List;
-import okay.core.Eff;
+import okay.core.Comp;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -12,14 +12,14 @@ import org.springframework.web.method.support.HandlerMethodReturnValueHandler;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 
 /**
- * okay-java in a servlet application of Spring Boot: a controller's method may return an {@link Eff}
+ * okay-java in a servlet application of Spring Boot: a controller's method may return a {@link Comp}
  * ({@link EffReturnValueHandler}). The handler goes FIRST among the adapter's: one added the usual way, by a
  * {@code WebMvcConfigurer}, comes after {@code @ResponseBody}'s, which would write the program itself as the body.
  * Off by {@code spring.autoconfigure.exclude}
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnClass({Eff.class, RequestMappingHandlerAdapter.class})
+@ConditionalOnClass({Comp.class, RequestMappingHandlerAdapter.class})
 public class OkayWebMvcAutoConfiguration {
 
   @Bean

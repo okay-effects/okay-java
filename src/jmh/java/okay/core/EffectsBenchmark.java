@@ -3,7 +3,7 @@ package okay.core;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import okay.core.Eff.Top;
+import okay.core.Comp.Top;
 import okay.std.Choose;
 import okay.std.State;
 import okay.std.Throws;
@@ -19,7 +19,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.Warmup;
 
-/** okay-core's EffectsBenchmark on {@link Eff}, {@code n} operations each:
+/** okay-core's EffectsBenchmark on {@link Comp}, {@code n} operations each:
  *  - stateGetPut: get then put, n times — functional; stateCellGetPut: answered in place from a cell, as okay-core's
  *  - writerTell: n tells, the log built on the way back
  *  - throwsRaise: n handlers of attempt, each body raising at once
@@ -43,13 +43,13 @@ public class EffectsBenchmark {
     for (int i = 0; i < n; i++) range.add(i);
   }
 
-  static <L> Eff<L, Integer> counting(State<L, Integer> st, int i) {
+  static <L> Comp<L, Integer> counting(State<L, Integer> st, int i) {
     return i == 0 ? st.get() : st.get().flatMap(x -> st.put(x + 1)).flatMap(_ -> counting(st, i - 1));
   }
 
   State.Body<Top, Integer, Integer> counting() {
     return new State.Body<>() {
-      public <M extends Top> Eff<M, Integer> in(State<M, Integer> st) {
+      public <M extends Top> Comp<M, Integer> in(State<M, Integer> st) {
         return counting(st, n);
       }
     };
@@ -57,31 +57,31 @@ public class EffectsBenchmark {
 
   @Benchmark
   public int stateGetPut() {
-    return Eff.run(State.state(0, counting())).state();
+    return Comp.run(State.state(0, counting())).state();
   }
 
   @Benchmark
   public int stateCellGetPut() {
-    return Eff.run(State.cell(0, counting())).state();
+    return Comp.run(State.cell(0, counting())).state();
   }
 
-  static <L> Eff<L, Void> telling(Writer<L, Integer> w, int i) {
-    return i == 0 ? Eff.pure(null) : w.tell(i).flatMap(_ -> telling(w, i - 1));
+  static <L> Comp<L, Void> telling(Writer<L, Integer> w, int i) {
+    return i == 0 ? Comp.pure(null) : w.tell(i).flatMap(_ -> telling(w, i - 1));
   }
 
   @Benchmark
   public int writerTell() {
-    return Eff.run(Writer.writer(new Writer.Body<Top, Integer, Void>() {
-      public <M extends Top> Eff<M, Void> in(Writer<M, Integer> w) {
+    return Comp.run(Writer.writer(new Writer.Body<Top, Integer, Void>() {
+      public <M extends Top> Comp<M, Void> in(Writer<M, Integer> w) {
         return telling(w, n);
       }
     })).log().size();
   }
 
-  static <L> Eff<L, Integer> raising(int i, int acc) {
-    if (i == 0) return Eff.pure(acc);
+  static <L> Comp<L, Integer> raising(int i, int acc) {
+    if (i == 0) return Comp.pure(acc);
     return Throws.attempt(new Throws.Body<L, String, Integer>() {
-      public <M extends L> Eff<M, Integer> in(Throws<M, String> t) {
+      public <M extends L> Comp<M, Integer> in(Throws<M, String> t) {
         return t.raise("no");
       }
     }).flatMap(r -> raising(i - 1, acc + switch (r) {
@@ -92,13 +92,13 @@ public class EffectsBenchmark {
 
   @Benchmark
   public int throwsRaise() {
-    return Eff.run(raising(n, 0));
+    return Comp.run(raising(n, 0));
   }
 
   @Benchmark
   public int chooseAmong() {
-    return Eff.run(Choose.all(new Choose.Body<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Choose<M> ch) {
+    return Comp.run(Choose.all(new Choose.Body<Top, Integer>() {
+      public <M extends Top> Comp<M, Integer> in(Choose<M> ch) {
         return ch.among(range).map(x -> x + 1);
       }
     })).size();

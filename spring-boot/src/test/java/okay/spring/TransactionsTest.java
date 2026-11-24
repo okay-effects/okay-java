@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import okay.core.Eff;
+import okay.core.Comp;
 import okay.std.State;
 import okay.std.Throws;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,65 +68,65 @@ class TransactionsTest {
     tm.log.clear();
   }
 
-  static Eff<Eff.Top, Boolean> active() {
-    return Eff.sync(TransactionSynchronizationManager::isActualTransactionActive);
+  static Comp<Comp.Top, Boolean> active() {
+    return Comp.sync(TransactionSynchronizationManager::isActualTransactionActive);
   }
 
   @Test
   void aValueCommits() {
-    assertTrue(Eff.run(txs.transactional(active())), "the program runs in the transaction");
+    assertTrue(Comp.run(txs.transactional(active())), "the program runs in the transaction");
     assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
     assertEquals(List.of("begin", "commit"), tm.log);
   }
 
   @Test
   void nothingBeginsBeforeTheRunGetsToIt() {
-    Eff<Eff.Top, Boolean> p = txs.transactional(active());
+    Comp<Comp.Top, Boolean> p = txs.transactional(active());
     assertEquals(List.of(), tm.log);
-    Eff.run(p.then(p));
+    Comp.run(p.then(p));
     assertEquals(List.of("begin", "commit", "begin", "commit"), tm.log);
   }
 
   @Test
   void aFailureRollsBackAndGoesOn() {
-    Eff<Eff.Top, String> p = txs.transactional(Eff.failed(new IllegalStateException("broken")));
-    assertEquals("broken", assertThrows(IllegalStateException.class, () -> Eff.run(p)).getMessage());
+    Comp<Comp.Top, String> p = txs.transactional(Comp.failed(new IllegalStateException("broken")));
+    assertEquals("broken", assertThrows(IllegalStateException.class, () -> Comp.run(p)).getMessage());
     assertEquals(List.of("begin", "rollback"), tm.log);
   }
 
   @Test
   void aRaiseCaughtInsideCommitsTheRecovery() {
-    Eff<Eff.Top, String> body = Throws.catching(new Throws.Body<Eff.Top, String, String>() {
-      public <M extends Eff.Top> Eff<M, String> in(Throws<M, String> t) {
+    Comp<Comp.Top, String> body = Throws.catching(new Throws.Body<Comp.Top, String, String>() {
+      public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
         return active().<M>at().flatMap(_ -> t.<String>raise("no"));
       }
-    }, e -> Eff.pure("caught " + e));
-    assertEquals("caught no", Eff.run(txs.transactional(body)));
+    }, e -> Comp.pure("caught " + e));
+    assertEquals("caught no", Comp.run(txs.transactional(body)));
     assertEquals(List.of("begin", "commit"), tm.log);
   }
 
   @Test
   void aRaiseNotCaughtInsideRollsBack() {
-    Eff<Eff.Top, Throws.Result<String, String>> body = Throws.attempt(new Throws.Body<Eff.Top, String, String>() {
-      public <M extends Eff.Top> Eff<M, String> in(Throws<M, String> t) {
+    Comp<Comp.Top, Throws.Result<String, String>> body = Throws.attempt(new Throws.Body<Comp.Top, String, String>() {
+      public <M extends Comp.Top> Comp<M, String> in(Throws<M, String> t) {
         return t.raise("no");
       }
     }).flatMap(r -> r instanceof Throws.Result.Failed<String, String> f
-        ? Eff.failed(new IllegalStateException(f.error())) : Eff.pure(r));
-    assertThrows(IllegalStateException.class, () -> Eff.run(txs.transactional(body)));
+        ? Comp.failed(new IllegalStateException(f.error())) : Comp.pure(r));
+    assertThrows(IllegalStateException.class, () -> Comp.run(txs.transactional(body)));
     assertEquals(List.of("begin", "rollback"), tm.log);
   }
 
   /** the value goes on at the handler's level: the transaction between two of its operations */
   @Test
   void inTheMiddleOfAProgramUnderAHandler() {
-    var p = State.state(1, new State.Body<Eff.Top, Integer, Boolean>() {
-      public <M extends Eff.Top> Eff<M, Boolean> in(State<M, Integer> st) {
+    var p = State.state(1, new State.Body<Comp.Top, Integer, Boolean>() {
+      public <M extends Comp.Top> Comp<M, Boolean> in(State<M, Integer> st) {
         return st.modify(s -> s + 41).then(txs.transactional(active())).flatMap(a -> st.modify(s -> s * 2).then(
-            Eff.pure(a)));
+            Comp.pure(a)));
       }
     });
-    assertEquals(new State.Final<>(84, true), Eff.run(p));
+    assertEquals(new State.Final<>(84, true), Comp.run(p));
     assertEquals(List.of("begin", "commit"), tm.log);
   }
 }

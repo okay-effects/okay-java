@@ -18,7 +18,7 @@ public final class Javac {
 
   private static final String PRELUDE = """
       import okay.core.*;
-      import okay.core.Eff.Top;
+      import okay.core.Comp.Top;
       import okay.std.*;
       import okay.std.State.Final;
       import java.util.List;

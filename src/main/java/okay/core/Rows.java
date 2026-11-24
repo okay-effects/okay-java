@@ -11,7 +11,7 @@ import okay.core.Machine.Seg;
 import okay.core.Nodes.Frames;
 
 /**
- * THE MACHINE'S SIDE OF THE ROW NOTATION ({@code okay.rows}): its operations, handlers and finalizers as {@link Eff}'s
+ * THE MACHINE'S SIDE OF THE ROW NOTATION ({@code okay.rows}): its operations, handlers and finalizers as {@link Comp}'s
  * nodes and delimiters, run by the same machine. Not for programs: the door ({@link Door}) is given once, to
  * {@code okay.rows.Comp}, so a program cannot answer an operation past the types of {@code okay.rows}.
  *
@@ -26,7 +26,7 @@ import okay.core.Nodes.Frames;
  *   <li>STATE PER PATH: a capture saves the states of the handlers in place it takes into its rest; a resumption
  *       puts them back before it goes on — so each path starts from the states its rest was taken with.
  *   <li>UNWINDING a rest: resumed as a failure of its own ({@link Unwinding}) thrown where the operation was, under
- *       a delimiter that ends it ({@link End}); the finalizers in the rest ({@code ensuring}, {@link Eff#ensuring}'s
+ *       a delimiter that ends it ({@link End}); the finalizers in the rest ({@code ensuring}, {@link Comp#ensuring}'s
  *       guard) run as the failure passes them, where they were installed; a value coming out of a level of the rest
  *       goes on unwinding; where the handler that unwinds was stands {@link Gone}.
  * </ul>
@@ -53,18 +53,18 @@ public final class Rows {
     private Door() {}
 
     /** the operation {@code op}, to the handler {@code skip} row places past the nearest */
-    public Eff<?, ?> ask(Object op, int skip) {
+    public Comp<?, ?> ask(Object op, int skip) {
       return new Ask<>(op, skip);
     }
 
     /** {@code body} under the handler {@code spec}, its state in place made from {@code init} when entered */
-    public Eff<?, ?> handle(Spec spec, Object init, Eff<?, ?> body) {
+    public Comp<?, ?> handle(Spec spec, Object init, Comp<?, ?> body) {
       return new Enter<>(spec, init, body);
     }
 
     /** {@code c}, its operations that skip {@code keep} places or more skipping one more: an operation alone by its
      * count, anything else under a marker; two markers of one kind one */
-    public Eff<?, ?> lift(Eff<?, ?> c, int keep) {
+    public Comp<?, ?> lift(Comp<?, ?> c, int keep) {
       if (c instanceof Nodes.Return) return c;
       if (c instanceof Ask<?, ?> a) return a.skip < keep ? a : new Ask<>(a.op, a.skip + 1);
       if (c instanceof Nodes.Handle<?, ?, ?> h && h.frame() instanceof Marker mk && mk.keep == keep)
@@ -72,23 +72,23 @@ public final class Rows {
       return new Nodes.Handle<>(Nodes.plain(c), Machine.SAME, new Marker(keep, 1));
     }
 
-    /** {@code body}, and the finalizer made by {@code fin} when it is left: {@link Eff#ensuring}'s guard */
-    public Eff<?, ?> ensuring(Eff<?, ?> body, Supplier<? extends Eff<?, ?>> fin) {
-      Function<Object, Eff<?, ?>> ret = a -> fin.get().then(Eff.pure(a));
+    /** {@code body}, and the finalizer made by {@code fin} when it is left: {@link Comp#ensuring}'s guard */
+    public Comp<?, ?> ensuring(Comp<?, ?> body, Supplier<? extends Comp<?, ?>> fin) {
+      Function<Object, Comp<?, ?>> ret = a -> fin.get().then(Comp.pure(a));
       return new Nodes.Handle<>(Nodes.plain(body), ret, new Kernel.KEnsuring(fin));
     }
 
     /** the rest resumed with {@code x}: the states it was taken with put back first */
-    public Eff<?, ?> resume(Rest rest, Object x) {
+    public Comp<?, ?> resume(Rest rest, Object x) {
       Kont k = rest.kont;
       if (rest.root) {
         // a stepped program's rest: its root is the next step's, a delimiter of nothing stands in its place
         k = new Kont(k.k(), Machine.take(k.ms(), k.n(), new Seg(new Prompt<>(), Machine.SAME, null, null,
             Machine.TOP)), k.n());
       }
-      Eff<?, ?> r = k.apply(x);
+      Comp<?, ?> r = k.apply(x);
       if (rest.saved == null) return r;
-      return Eff.delay(() -> {
+      return Comp.delay(() -> {
         restore(rest.saved);
         return r;
       });
@@ -96,10 +96,10 @@ public final class Rows {
 
     /** the rest UNWOUND: its finalizers run, nothing else of it; then {@code null}. {@code mode}: what stands where
      * its handler was — {@link #GONE}, {@link #KEPT}, {@link #NONE}; or the handler itself, {@link #STAYS} */
-    public Eff<?, ?> unwind(Rest rest, int mode) {
+    public Comp<?, ?> unwind(Rest rest, int mode) {
       Unwinding u = new Unwinding();
       Kont k = rest.kont;
-      Function<Object, Eff<?, ?>> on = _ -> new Kernel.Fail<>(u);
+      Function<Object, Comp<?, ?>> on = _ -> new Kernel.Fail<>(u);
       Frames onFrames = new Frames.Then(on, Frames.END);
       Seg[] crossed = first(k.ms(), k.n());
       // its delimiters again, each with nothing outside it but the unwinding's going on, and its handler gone
@@ -107,43 +107,43 @@ public final class Rows {
       Meta levels = new Seg(at, on, null, Frames.END, Machine.TOP);
       for (int i = crossed.length - 1; i >= 0; i--)
         levels = new Seg(crossed[i].prompt(), crossed[i].ret(), null, onFrames, levels);
-      Eff<?, ?> r = new Kont(on, levels, k.n()).apply(null);
-      Eff<?, ?> run = rest.saved == null ? r : Eff.delay(() -> {
+      Comp<?, ?> r = new Kont(on, levels, k.n()).apply(null);
+      Comp<?, ?> run = rest.saved == null ? r : Comp.delay(() -> {
         restore(rest.saved);
         return r;
       });
       // a rest taken from a probing stack whose frames wait elsewhere (Probe.resumeHere): theirs first, innermost
       if (k.k() instanceof Frames.Then t && t.f() instanceof Probe.Mark mk && mk.unwound != null) {
-        Eff<?, ?> then = run;
-        run = Eff.delay(() -> (Eff) mk.unwound.get()).then(then);
+        Comp<?, ?> then = run;
+        run = Comp.delay(() -> (Comp) mk.unwound.get()).then(then);
       }
       return new Nodes.Handle<>(Nodes.plain(run), Machine.SAME, new End(u));
     }
 
     /** {@code c}, then the rest resumed with its value; if {@code c} is left by an unwinding, the rest unwound there
      * too, its handler staying, and the unwinding goes on: the rest a finalizer of {@code c}'s */
-    public Eff<?, ?> after(Rest rest, Eff<?, ?> c) {
-      Function<Object, Eff<?, ?>> ret = x -> resume(rest, x);
+    public Comp<?, ?> after(Rest rest, Comp<?, ?> c) {
+      Function<Object, Comp<?, ?>> ret = x -> resume(rest, x);
       return new Nodes.Handle<>(Nodes.plain(c), ret, new Kernel.KEnsuring(() -> unwind(rest, STAYS)));
     }
 
     /** {@code body} run to its value, as {@code done} makes it, or to an operation no handler in it answers, as
      * {@code asked} makes it of the operation and the rest. A failure no guard took is thrown */
-    public Object step(Eff<?, ?> body, Function<Object, Object> done, BiFunction<Object, Rest, Object> asked) {
-      Function<Object, Eff<?, ?>> ret = a -> Eff.pure(done.apply(a));
+    public Object step(Comp<?, ?> body, Function<Object, Object> done, BiFunction<Object, Rest, Object> asked) {
+      Function<Object, Comp<?, ?>> ret = a -> Comp.pure(done.apply(a));
       return Machine.run(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
     }
 
-    /** the same, inside a running program too, on purpose: a run of its own ({@link Eff#runIsolated}) */
-    public Object stepIsolated(Eff<?, ?> body, Function<Object, Object> done, BiFunction<Object, Rest, Object> asked) {
-      Function<Object, Eff<?, ?>> ret = a -> Eff.pure(done.apply(a));
+    /** the same, inside a running program too, on purpose: a run of its own ({@link Comp#runIsolated}) */
+    public Object stepIsolated(Comp<?, ?> body, Function<Object, Object> done, BiFunction<Object, Rest, Object> asked) {
+      Function<Object, Comp<?, ?>> ret = a -> Comp.pure(done.apply(a));
       return Machine.runIsolated(new Nodes.Handle<>(Nodes.plain(body), ret, new Root(asked)));
     }
 
     /** {@code body}, given when it is run a {@link Probe}: what it may ask, while it runs on this Java stack, of the
      * handlers in force there. For direct-style code (okay-java-resumable): an operation a handler in place answers is
      * answered at once, with nothing captured */
-    public Eff<?, ?> here(Function<Probe, ? extends Eff<?, ?>> body) {
+    public Comp<?, ?> here(Function<Probe, ? extends Comp<?, ?>> body) {
       return new Here<>(body);
     }
 
@@ -192,7 +192,7 @@ public final class Rows {
     }
 
     /** the body's value, outside the handler */
-    protected abstract Eff<?, ?> ret(Object entry, Object value);
+    protected abstract Comp<?, ?> ret(Object entry, Object value);
 
     /** in place: the answer to {@code op}, the state in {@code entry} changed as the handler says */
     protected Object answer(Object entry, Object op) {
@@ -219,7 +219,7 @@ public final class Rows {
 
     /** general: the clause for {@code op}, outside the handler; {@code skip} the places the operation had still to
      * pass when it came here — an observer's, for the operation passed on */
-    protected Eff<?, ?> on(Object op, Rest rest, int skip) {
+    protected Comp<?, ?> on(Object op, Rest rest, int skip) {
       throw new IllegalStateException("not a general handler");
     }
   }
@@ -227,7 +227,7 @@ public final class Rows {
   // -- frames: what a delimiter of the row notation is for
 
   /** a row handler entered: its prompt's frame and its return */
-  static final class Place implements Function<Object, Eff<?, ?>> {
+  static final class Place implements Function<Object, Comp<?, ?>> {
     final Spec spec;
     final Object entry;
 
@@ -237,7 +237,7 @@ public final class Rows {
     }
 
     @Override
-    public Eff<?, ?> apply(Object v) {
+    public Comp<?, ?> apply(Object v) {
       return spec.ret(entry, v);
     }
   }
@@ -264,7 +264,7 @@ public final class Rows {
   /** the root of a step: an operation no handler answers is asked here */
   record Root(BiFunction<Object, Rest, Object> asked) {}
 
-  /** an unwinding: a failure no guard of {@link Eff#recover}'s takes, ended by its {@link End} */
+  /** an unwinding: a failure no guard of {@link Comp#recover}'s takes, ended by its {@link End} */
   static final class Unwinding extends Kernel.Control {
     Unwinding() {
       super("an unwinding");
@@ -282,7 +282,7 @@ public final class Rows {
       this.skip = skip;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       return asked(m, op, skip);
     }
   }
@@ -290,15 +290,15 @@ public final class Rows {
   static final class Enter<L, A> extends Nodes.Node<L, A> {
     private final Spec spec;
     private final Object init;
-    private final Eff<?, ?> body;
+    private final Comp<?, ?> body;
 
-    Enter(Spec spec, Object init, Eff<?, ?> body) {
+    Enter(Spec spec, Object init, Comp<?, ?> body) {
       this.spec = spec;
       this.init = init;
       this.body = body;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       Place p = new Place(spec, spec.enter(init));
       return m.enter(new Prompt<>(p), p, body);
     }
@@ -306,13 +306,13 @@ public final class Rows {
 
   /** a program given a probe of the handlers in force where it runs; the probe dies when the program is made */
   static final class Here<L, A> extends Nodes.Node<L, A> {
-    private final Function<Probe, ? extends Eff<?, ?>> body;
+    private final Function<Probe, ? extends Comp<?, ?>> body;
 
-    Here(Function<Probe, ? extends Eff<?, ?>> body) {
+    Here(Function<Probe, ? extends Comp<?, ?>> body) {
       this.body = body;
     }
 
-    Eff<?, ?> step(Run m) {
+    Comp<?, ?> step(Run m) {
       Probe p = new Probe(m);
       try {
         return body.apply(p);
@@ -368,7 +368,7 @@ public final class Rows {
      * was and {@code x} is returned: the operation was answered here, nothing to suspend. Otherwise a
      * {@link Pending}: the stack is now the clause's, and its program must be what the probing program goes on
      * with — {@code later} is given the answer when the rest is resumed */
-    public Object resumeHere(Object op, int skip, Function<Object, ? extends Eff<?, ?>> later) {
+    public Object resumeHere(Object op, int skip, Function<Object, ? extends Comp<?, ?>> later) {
       return resumeHere(op, skip, later, null, true);
     }
 
@@ -378,12 +378,12 @@ public final class Rows {
      * the resumption itself: nothing of the clause is left to resume the rest again. {@code unwound}, if not null,
      * the finalizer of what {@code later} would resume: run first when the rest is unwound, as the innermost of the
      * rest's finalizers */
-    public Object resumeHere(Object op, int skip, Function<Object, ? extends Eff<?, ?>> later,
-        Supplier<? extends Eff<?, ?>> unwound, boolean once) {
+    public Object resumeHere(Object op, int skip, Function<Object, ? extends Comp<?, ?>> later,
+        Supplier<? extends Comp<?, ?>> unwound, boolean once) {
       Mark mk = new Mark(later, unwound);
       Frames k0 = m.k;
       m.k = new Frames.Then(mk, k0);
-      Eff<?, ?> next;
+      Comp<?, ?> next;
       try {
         next = asked(m, op, skip);
         // a clause made where it runs: made here, and resumed here as the machine's capture would
@@ -399,30 +399,30 @@ public final class Rows {
 
     /** a finalizer made by {@code fin}, from here on: the program that probes and all it goes on with are under it,
      * as under {@link Door#ensuring} — entered now, while it runs, so that a rest taken after this has it */
-    public void ensure(Supplier<? extends Eff<?, ?>> fin) {
-      Function<Object, Eff<?, ?>> ret = a -> fin.get().then(Eff.pure(a));
+    public void ensure(Supplier<? extends Comp<?, ?>> fin) {
+      Function<Object, Comp<?, ?>> ret = a -> fin.get().then(Comp.pure(a));
       m.ms = new Seg(new Prompt<>(new Kernel.KEnsuring(fin)), ret, null, m.k, m.ms);
       m.k = Frames.END;
     }
 
     /** the operation asked by {@link #resumeHere} and not answered at once: the program to go on with */
-    public record Pending(Eff<?, ?> next) {}
+    public record Pending(Comp<?, ?> next) {}
 
     /** the top of the rest {@link #resumeHere} gives the handler: resumed while the clause is called, it notes the
      * answer and leaves the rest as it was put back; resumed later, {@code later} goes on */
-    static final class Mark implements Function<Object, Eff<?, ?>> {
-      final Function<Object, ? extends Eff<?, ?>> later;
-      final Supplier<? extends Eff<?, ?>> unwound;
+    static final class Mark implements Function<Object, Comp<?, ?>> {
+      final Function<Object, ? extends Comp<?, ?>> later;
+      final Supplier<? extends Comp<?, ?>> unwound;
       boolean here = true;
       Object x;
 
-      Mark(Function<Object, ? extends Eff<?, ?>> later, Supplier<? extends Eff<?, ?>> unwound) {
+      Mark(Function<Object, ? extends Comp<?, ?>> later, Supplier<? extends Comp<?, ?>> unwound) {
         this.later = later;
         this.unwound = unwound;
       }
 
       @Override
-      public Eff<?, ?> apply(Object x) {
+      public Comp<?, ?> apply(Object x) {
         if (!here) return later.apply(x);
         here = false;
         this.x = x;
@@ -431,7 +431,7 @@ public final class Rows {
     }
 
     /** answered at once: never stepped, only compared */
-    private static final Eff<?, ?> HIT = new Nodes.Return<>(null);
+    private static final Comp<?, ?> HIT = new Nodes.Return<>(null);
 
     private Object route(Object op, int skip) {
       if (m == null) return ELSEWHERE;
@@ -484,7 +484,7 @@ public final class Rows {
   // -- an operation, in the machine
 
   /** the operation's handler, by its place: walked to from the innermost delimiter */
-  private static Eff<?, ?> asked(Run m, Object op, int skip) {
+  private static Comp<?, ?> asked(Run m, Object op, int skip) {
     Meta rest = m.ms;
     Walk w = null;
     int depth = 0;
@@ -509,7 +509,7 @@ public final class Rows {
           if (p.spec.inPlace) return m.value(p.spec.answer(p.entry, op));
           Object[] saved = saved(m.ms, depth);
           int left = skip;
-          return m.capture(s.prompt(), (Function<Kont, Eff<?, ?>>) k ->
+          return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);
         }
       } else if (f instanceof Marker mk) {
@@ -522,8 +522,8 @@ public final class Rows {
         if (g.mode == KEPT && skip >= 1) skip--;
       } else if (f instanceof Root r) {
         Object[] saved = saved(m.ms, depth);
-        return m.capture(s.prompt(), (Function<Kont, Eff<?, ?>>) k ->
-            Eff.pure(r.asked.apply(op, new Rest(k, saved, true))), m.k);
+        return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
+            Comp.pure(r.asked.apply(op, new Rest(k, saved, true))), m.k);
       }
       depth++;
     }

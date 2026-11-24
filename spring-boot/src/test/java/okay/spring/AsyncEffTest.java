@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import okay.core.Eff;
+import okay.core.Comp;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -41,19 +41,19 @@ class AsyncEffTest {
 
     /** waits for the test to let it go: the call has returned by then */
     @Async
-    public Eff<Eff.Top, String> slow() throws InterruptedException {
+    public Comp<Comp.Top, String> slow() throws InterruptedException {
       assertTrue(go.await(10, TimeUnit.SECONDS));
       ranOn = Thread.currentThread().getName();
-      return Eff.sync(() -> Thread.currentThread().getName());
+      return Comp.sync(() -> Thread.currentThread().getName());
     }
 
     @Async
-    public Eff<Eff.Top, String> failing() {
-      return Eff.failed(new IllegalStateException("broken"));
+    public Comp<Comp.Top, String> failing() {
+      return Comp.failed(new IllegalStateException("broken"));
     }
 
     @Async
-    public Eff<Eff.Top, String> throwing() {
+    public Comp<Comp.Top, String> throwing() {
       throw new IllegalArgumentException("before the program");
     }
 
@@ -69,27 +69,27 @@ class AsyncEffTest {
 
   @Test
   void theCallReturnsAtOnceTheMethodAndItsProgramOnTheExecutor() throws Exception {
-    Eff<Eff.Top, String> result = work.slow();
+    Comp<Comp.Top, String> result = work.slow();
     work.release();
-    String programRanOn = Eff.run(result);
+    String programRanOn = Comp.run(result);
     assertEquals(work.ranOn(), programRanOn);
     assertNotEquals(Thread.currentThread().getName(), programRanOn);
-    assertEquals(programRanOn, Eff.run(result), "the result run again: the same value, not a second run");
+    assertEquals(programRanOn, Comp.run(result), "the result run again: the same value, not a second run");
   }
 
   @Test
   void theProgramsFailureIsTheResultsFailure() {
-    Eff<Eff.Top, String> result = work.failing();
-    assertEquals("broken", assertThrows(IllegalStateException.class, () -> Eff.run(result)).getMessage());
-    Eff<Eff.Top, String> recovered = Eff.recover(result, e -> Eff.pure("recovered " + e.getMessage()));
-    assertEquals("recovered broken", Eff.run(recovered));
+    Comp<Comp.Top, String> result = work.failing();
+    assertEquals("broken", assertThrows(IllegalStateException.class, () -> Comp.run(result)).getMessage());
+    Comp<Comp.Top, String> recovered = Comp.recover(result, e -> Comp.pure("recovered " + e.getMessage()));
+    assertEquals("recovered broken", Comp.run(recovered));
   }
 
   @Test
   void theMethodsThrowIsTheResultsFailure() {
-    Eff<Eff.Top, String> result = work.throwing();
+    Comp<Comp.Top, String> result = work.throwing();
     assertEquals("before the program",
-        assertThrows(IllegalArgumentException.class, () -> Eff.run(result)).getMessage());
+        assertThrows(IllegalArgumentException.class, () -> Comp.run(result)).getMessage());
   }
 
   @Test

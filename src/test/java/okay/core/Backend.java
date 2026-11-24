@@ -2,21 +2,21 @@ package okay.core;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-/** what runs a program: the machine, {@link Eff#run}, or the reference, {@link Ref#run} — on a thread of a large
+/** what runs a program: the machine, {@link Comp#run}, or the reference, {@link Ref#run} — on a thread of a large
  * stack, recursive as it is. The tests written once run on each, and must agree */
 public enum Backend {
   MACHINE {
-    public <A> A run(Eff<Eff.Top, A> p) {
-      return Eff.run(p);
+    public <A> A run(Comp<Comp.Top, A> p) {
+      return Comp.run(p);
     }
   },
   REF {
-    public <A> A run(Eff<Eff.Top, A> p) {
+    public <A> A run(Comp<Comp.Top, A> p) {
       return onLargeStack(() -> Ref.run(p));
     }
   };
 
-  public abstract <A> A run(Eff<Eff.Top, A> p);
+  public abstract <A> A run(Comp<Comp.Top, A> p);
 
   interface Body<A> {
     A get();

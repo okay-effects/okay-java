@@ -61,15 +61,15 @@ The plugins' setup (`pluginManagement`, `<pluginRepositories>`, okay-audit's rep
 | File | What is in it |
 |---|---|
 | `Cont.java`, `Loop.java` | `Cont<I, O, A>`: `shift0` and `$` (Materzok–Biernacki), `reset0`, `lift`, the levels typed in the answers — okay-core's `Cont`, without the rows |
-| `Eff.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Eff<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows; failures unwound to a guard (`recover`, `ensuring`) |
-| `Kernel.java` | okay-kernel's `Effects` and `Control` on `Eff`'s nodes: a kernel program is an `Eff`, the machine runs the kernel's operations itself ([docs/kernel.md](docs/kernel.md)) |
+| `Comp.java`, `Prompt.java`, `Nodes.java`, `Machine.java` | `Comp<L, A>`: effects on `shift0` by prompt at a level `L`, a handler's body at a fresh one; the answer types erased into the prompts; a step a node over an explicit stack of delimiters, so handlers nest as deep as the heap allows; failures unwound to a guard (`recover`, `ensuring`) |
+| `Kernel.java` | okay-kernel's `Effects` and `Control` on `Comp`'s nodes: a kernel program is a `Comp`, the machine runs the kernel's operations itself ([docs/kernel.md](docs/kernel.md)) |
 
-### `okay.std`: effects written on `Eff`
+### `okay.std`: effects written on `Comp`
 
 Each effect is an interface at a level, `E<L, …>`, with an `at()` that moves a capability to a level further in.
-Each handler takes a `Body` whose method `<M extends L> Eff<M, A> in(E<M, …> cap)` is the handler's body at its
+Each handler takes a `Body` whose method `<M extends L> Comp<M, A> in(E<M, …> cap)` is the handler's body at its
 fresh level. A body is an anonymous class, or a method of your own by reference, `State.state(0, X::counter)` with
-`static <M> Eff<M, Integer> counter(State<M, Integer> st)`: a lambda cannot implement a generic method, a method
+`static <M> Comp<M, Integer> counter(State<M, Integer> st)`: a lambda cannot implement a generic method, a method
 reference can.
 
 | Effect | Operations | Handlers |
@@ -100,8 +100,8 @@ way past it a compile error;
 ### okay-kernel: okay-java implements its API
 
 okay-java depends on `io.github.okay-effects:okay-kernel-api` (0.1.0, from okay-kernel's Maven repository on
-GitHub Pages: interfaces and a few records, no dependency of their own) and implements it itself, with no wrapper: `Eff` is a kernel `Prog`, and `okay.core.Kernel.EFFECTS` is the
-kernel's `Effects` in `Eff`'s own nodes. The machine runs the kernel's operations: it finds an operation's handler on
+GitHub Pages: interfaces and a few records, no dependency of their own) and implements it itself, with no wrapper: `Comp` is a kernel `Prog`, and `okay.core.Kernel.EFFECTS` is the
+kernel's `Effects` in `Comp`'s own nodes. The machine runs the kernel's operations: it finds an operation's handler on
 its own stack of delimiters, where the operation runs, and unwinds failures, aborts and cancellations to the
 delimiters they concern. `computation` and `foreign` are the protocol's export and import. The design, and what it
 costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.md). `KernelTest` is okay-kernel's
@@ -112,16 +112,16 @@ costs okay-java's own API (nothing measurable): [`docs/kernel.md`](docs/kernel.m
 
 A module of its own, `io.github.okay-effects:okay-java-spring-boot`; okay-java itself depends on nothing of Spring's. On the
 classpath of an application of Spring Boot 4.x, it lets a controller's method return a program at the top,
-`Eff<Eff.Top, A>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
+`Comp<Comp.Top, A>`, in web MVC and in WebFlux alike; an `@Async` method return one; and a program run in a
 transaction. A controller's program's value is the method's, as if the method had returned it: a body, a
 `ResponseEntity`, a view's name. A failure no guard took goes to the `@ExceptionHandler`s. A program that waits
 needs nothing of the module: `Async.runAsync`'s `CompletableFuture` is Spring's own in both.
 
 ```java
 @GetMapping("/sum/{n}")
-Eff<Eff.Top, Integer> sum(@PathVariable("n") int n) {
-  return State.state(0, new State.Body<Eff.Top, Integer, Void>() {
-    public <M extends Eff.Top> Eff<M, Void> in(State<M, Integer> st) { … }
+Comp<Comp.Top, Integer> sum(@PathVariable("n") int n) {
+  return State.state(0, new State.Body<Comp.Top, Integer, Void>() {
+    public <M extends Comp.Top> Comp<M, Void> in(State<M, Integer> st) { … }
   }).map(State.Final::state);
 }
 ```
@@ -131,12 +131,12 @@ Eff<Eff.Top, Integer> sum(@PathVariable("n") int n) {
   which would otherwise write the program itself as JSON.
 - **WebFlux** (`OkayWebFluxAutoConfiguration`): the program runs when the response is subscribed to, on the event
   loop's thread, its value handed to the other result handlers as of the type `A`. It is not a `ReactiveAdapter`,
-  because an adapted type's value is its first type argument and an `Eff`'s first is its level. A program that blocks
+  because an adapted type's value is its first type argument and a `Comp`'s first is its level. A program that blocks
   belongs on `Async`'s `blocking`, not on the event loop.
 
 Outside the web, in any application:
 
-- **`@Async`** (`OkayAsyncAutoConfiguration`, where `@EnableAsync` is): a method may return an `Eff<Eff.Top, A>`.
+- **`@Async`** (`OkayAsyncAutoConfiguration`, where `@EnableAsync` is): a method may return a `Comp<Comp.Top, A>`.
   The method and its program run on the `@Async` executor, the call returning at once with a program that is their
   result. Run, that program waits for their value, or fails with their failure, the method's throw included. Spring's
   own interceptor takes nothing but `void` and a `Future`, and goes before every other advisor, so the module puts
@@ -145,11 +145,11 @@ Outside the web, in any application:
   `txs.transactional(body)` begins a transaction when the run gets to it, commits after the body's value, and rolls
   back however else the body is left. The body is a program at the top, so a capability of a handler outside it does
   not compile there: such a handler could drop the body's rest, and a dropped rest runs no finalizer, not even
-  `Eff.ensuring`'s. Its value goes on at any level. The transaction is the thread's, as Spring's are, and
-  `@Transactional` on a method returning an `Eff` commits before the program runs.
+  `Comp.ensuring`'s. Its value goes on at any level. The transaction is the thread's, as Spring's are, and
+  `@Transactional` on a method returning a `Comp` commits before the program runs.
 
 ```java
-Eff<M, Order> placed = st.get().flatMap(cart -> txs.transactional(save(cart)));   // save: Eff<Eff.Top, Order>
+Comp<M, Order> placed = st.get().flatMap(cart -> txs.transactional(save(cart)));   // save: Comp<Comp.Top, Order>
 ```
 
 Spring is `compileOnly`, so the application's own Spring Boot is used. Each configuration is on only where its part
@@ -159,9 +159,9 @@ application not of the web. The whole of it: [`docs/spring-boot.md`](docs/spring
 
 ## Effects on `shift0`
 
-A program is `Eff<L, A>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
-`Eff.handle(body, ret)` is `ret $ body` under a prompt that is fresh each time the handler runs. Its body is a
-generic method at a level of its own, also fresh: `<M extends L> Eff<M, A> in(Prompt<L, M, R> p)`.
+A program is `Comp<L, A>`: of value `A`, at the level `L`, which is the handlers in force. There are two primitives.
+`Comp.handle(body, ret)` is `ret $ body` under a prompt that is fresh each time the handler runs. Its body is a
+generic method at a level of its own, also fresh: `<M extends L> Comp<M, A> in(Prompt<L, M, R> p)`.
 `p.shift0(k -> clause)` is an operation at `M`. It captures the rest up to the prompt's delimiter, the delimiter
 included, and runs the clause outside the delimiter, at `L`, in its place.
 
@@ -169,23 +169,23 @@ An effect is an interface at a level. A handler is an implementation of it over 
 capability at its fresh level:
 
 ```java
-interface Ask<L> { Eff<L, Integer> number(); }
-interface Asked<L, A> { <M extends L> Eff<M, A> in(Ask<M> a); }   // a handler's body: a level of its own
+interface Ask<L> { Comp<L, Integer> number(); }
+interface Asked<L, A> { <M extends L> Comp<M, A> in(Ask<M> a); }   // a handler's body: a level of its own
 
-static <L, A> Eff<L, A> asking(int n, Asked<L, A> body) {
-  return Eff.handle(new Eff.Body<L, A, A>() {
-    public <M extends L> Eff<M, A> in(Prompt<L, M, A> p) { return body.in(() -> p.shift0(k -> k.apply(n))); }
-  }, Eff::pure);
+static <L, A> Comp<L, A> asking(int n, Asked<L, A> body) {
+  return Comp.handle(new Comp.Body<L, A, A>() {
+    public <M extends L> Comp<M, A> in(Prompt<L, M, A> p) { return body.in(() -> p.shift0(k -> k.apply(n))); }
+  }, Comp::pure);
 }
 
-static <L> Eff<L, Integer> step(State<L, Integer> st, Choose<L> ch) {   // the row: what it is given, at its level
+static <L> Comp<L, Integer> step(State<L, Integer> st, Choose<L> ch) {   // the row: what it is given, at its level
   return ch.among(List.of(1, 2)).flatMap(x -> st.modify(v -> v + x)).then(st.get());
 }
 
-Eff.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
-  public <M extends Top> Eff<M, List<Integer>> in(State<M, Integer> st) {
+Comp.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
+  public <M extends Top> Comp<M, List<Integer>> in(State<M, Integer> st) {
     return Choose.all(new Choose.Body<M, Integer>() {
-      public <N extends M> Eff<N, Integer> in(Choose<N> ch) { return step(st.at(), ch); }
+      public <N extends M> Comp<N, Integer> in(Choose<N> ch) { return step(st.at(), ch); }
     });
   }
 }));                                                                     // Final(3, [1, 3])
@@ -211,7 +211,7 @@ An operation goes to its own handler by prompt, and any nearer handlers are cros
 
 The trade-offs:
 
-- **No answer-type modification in `Eff`.** The handler's answer is erased into its prompt, so there is nothing to
+- **No answer-type modification in `Comp`.** The handler's answer is erased into its prompt, so there is nothing to
   modify. A type that changes moves into the capability, see `PState` below. Full ATM is `Cont`'s, see printf.
 - **Crossing a handler costs a lift.** An operation allocates 96 B under its handler and 48 B more per handler
   crossed. An operation answered in place allocates 64 B however many handlers it crosses.
@@ -220,7 +220,7 @@ The trade-offs:
 
 ## No leaks: a fresh level for each handler
 
-A row in Cont is the nesting of its answer types: each handler is a delimiter, one level more. `Eff<L, A>` keeps
+A row in Cont is the nesting of its answer types: each handler is a delimiter, one level more. `Comp<L, A>` keeps
 that nesting and drops the answers. A handler's body is at a level of its own, `M extends L`, a type variable that
 nobody outside the body can name (runST's rank-2 trick). Its capabilities and its prompt are at `M`. So whatever
 leaves the body, a capability, a prompt or a program built there, is at a level no program outside is at. Each of
@@ -239,7 +239,7 @@ capability out. The prompt then catches a general operation at run time
 
 Levels go one way. A level further in is a subtype, `M extends L`, so a program of a level outside runs inside as
 it is:
-- In a bind's function it fits on its own, `flatMap(Function<A, Eff<? super L, B>>)`.
+- In a bind's function it fits on its own, `flatMap(Function<A, Comp<? super L, B>>)`.
 - At the head of a chain, `.at()` moves it in, for example `outer.get().<N>at().flatMap(…)`.
 - A capability goes in with its own `at()`: `step(st.at(), ch)`.
 
@@ -250,7 +250,7 @@ top, outside the reader. With an answering capability there was no prompt to not
 
 ## One run a thread: `NestedRun`
 
-A top-level runner — `okay.rows.Effects.run` and `step`, `okay.core.Eff.run`, `Kernel.run`,
+A top-level runner — `okay.rows.Effects.run` and `step`, `okay.core.Comp.run`, `Kernel.run`,
 `okay.rows.std.Async.runBlocking` — is for the host: `main`, a test, a request handler that runs a program to its
 end. Called INSIDE a running program — from a `flatMap`, a `map`, a `defer`, a handler's clause — it would start a
 second machine on the Java stack: that run sees none of the program's handlers, a capture cannot cross it, and done at
@@ -269,7 +269,7 @@ static Comp<Integer, Pure> each(int i, int acc) {
 ```
 
 What is a run of its own on purpose — a conversion, a pure helper evaluated whole — says so:
-`Effects.runIsolated(p)`, `Effects.stepIsolated(p)`, `Eff.runIsolated(p)` run it inside a running program too, a
+`Effects.runIsolated(p)`, `Effects.stepIsolated(p)`, `Comp.runIsolated(p)` run it inside a running program too, a
 plain run inside it refused again. The library's own runs of their own do: `Async.start` and `toFuture` (a run started
 by a step — `both`, `race` start theirs inside a wait's registration — and resumed by a callback, wherever it is
 called), `Emit.pull` (`zip`, `merge` pull inside a program), okay.std's `runAsync` and `Emit.iterator`, and the
@@ -286,10 +286,10 @@ its program: a run it begins is refused there, after a resumption on another thr
 ## Failures
 
 A function of the program's that throws — a bind's, a map's, a clause, a handler's return — is a failure of the
-program, and `Eff.failed(e)` is one as a program. The machine unwinds it from where it was, through the handlers in
-force, to the nearest guard that takes it: `Eff.recover(body, h)`, the failure given to `h` and its program run in
-the body's place; `Eff.ensuring(body, fin)`, `fin` run however the body is left, then on the same way. None taking
-it, `Eff.run` throws it as before. A clause's failure is outside its handler, a resumed rest's under its delimiters
+program, and `Comp.failed(e)` is one as a program. The machine unwinds it from where it was, through the handlers in
+force, to the nearest guard that takes it: `Comp.recover(body, h)`, the failure given to `h` and its program run in
+the body's place; `Comp.ensuring(body, fin)`, `fin` run however the body is left, then on the same way. None taking
+it, `Comp.run` throws it as before. A clause's failure is outside its handler, a resumed rest's under its delimiters
 again, and a `shift0` across a guard keeps the guard in `k`. The guards are the same delimiters okay-kernel's
 `recover`, `ensuring` and `uncancelable` are, so a kernel program and an okay-java one guard each other's parts
 (`docs/kernel.md`). Errors of the JVM are never caught. `GuardTest`.
@@ -300,7 +300,7 @@ again, and a `shift0` across a guard keeps the guard in `k`. The guards are the 
   answer from `T` into `Integer -> T`, so `reset0("a=" + %d + ", b=" + %s)` is a
   `Function<Integer, Function<String, String>>`. `ContPState` is okay-core's `PState`: the state's type is carried in
   the answer type, and a `get` of the wrong type doesn't compile.
-- **On `Eff`, as a typestate.** What ATM is mostly used for is a state whose type changes (okay-core's `PState`).
+- **On `Comp`, as a typestate.** What ATM is mostly used for is a state whose type changes (okay-core's `PState`).
   Here the type is in the capability: `put` of a `T` gives a `PState<L, T>`, and the old capability is stale. Java has
   no linear types, so a stale use is an `IllegalStateException`, checked by a generation that the state carries
   and that backtracks with it.
@@ -317,7 +317,7 @@ machine: okay-java's machine, a step a node (2026-10-09 20:40, `bench.d/monads-s
 okay-core `bb01100` (08:45). JMH, 2 forks, 3+5 iterations, `-prof gc`. The CSVs are in `bench.d/`. Numbers are per
 operation, `n = 1000`, except captures, which are per run.
 
-| | Java `Eff` | okay-core `cont` | okay-core `zero` |
+| | Java `Comp` | okay-core `cont` | okay-core `zero` |
 |---|---|---|---|
 | pure binds | 3.50 ns, 56 B | 3.29 ns, 64 B | 3.24 ns, 64 B |
 | left binds / left maps | 6.89 / 5.61 ns | 8.29 / 4.85 ns | 8.42 / 4.86 ns |
@@ -342,7 +342,7 @@ operation, `n = 1000`, except captures, which are per run.
 The same program with the total a cell (`ordersCell`), as okay-core's `state` is, against okay-core's own
 `MixedBenchmark` on master's std (its branch `mixed-bench`), all on JDK 26, JMH (`bench.d/mixed-jdk26.csv`):
 
-| an order | Java `Eff` | okay-core `cont` | okay-core `zero` |
+| an order | Java `Comp` | okay-core `cont` | okay-core `zero` |
 |---|---|---|---|
 | time, allocation | 102 ns, 1025 B | 137 ns, 1472 B | 136 ns, 1370 B |
 | with no type profiles | 153 ns | 149 ns | 141 ns |

@@ -3,7 +3,7 @@ package okay.core;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import okay.core.Eff.Top;
+import okay.core.Comp.Top;
 import okay.std.Choose;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -16,7 +16,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-/** okay-core's EffBenchmark on {@link Eff}: {@code n} operations of {@code Tick}, each answered {@code k(a)} by its
+/** okay-core's EffBenchmark on {@link Comp}: {@code n} operations of {@code Tick}, each answered {@code k(a)} by its
  * handler, crossing {@code crossed} handlers of {@code Skip}. {@code clause}: {@code general}, a capture each;
  * {@code answering}, the capability its own handler, no prompt. And queens, a resumption per safe square */
 @State(Scope.Thread)
@@ -37,7 +37,7 @@ public class EffBenchmark {
   public String clause;
 
   interface Tick<L> {
-    Eff<L, Integer> tick(int a);
+    Comp<L, Integer> tick(int a);
 
     @SuppressWarnings("unchecked")
     default <N extends L> Tick<N> at() {
@@ -45,33 +45,33 @@ public class EffBenchmark {
     }
   }
 
-  static <L> Eff<L, Integer> ticks(Tick<L> t, int i, int acc) {
-    return i == 0 ? Eff.pure(acc) : t.tick(1).flatMap(x -> ticks(t, i - 1, acc + x));
+  static <L> Comp<L, Integer> ticks(Tick<L> t, int i, int acc) {
+    return i == 0 ? Comp.pure(acc) : t.tick(1).flatMap(x -> ticks(t, i - 1, acc + x));
   }
 
   /** a handler of Tick: the body at a fresh level, given the capability */
-  Eff<Top, Integer> ticking() {
-    return Eff.handle(new Eff.Body<Top, Integer, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Prompt<Top, M, Integer> p) {
-        Tick<M> t = clause.equals("answering") ? Eff::pure : a -> p.shift0(k -> k.apply(a));
+  Comp<Top, Integer> ticking() {
+    return Comp.handle(new Comp.Body<Top, Integer, Integer>() {
+      public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> p) {
+        Tick<M> t = clause.equals("answering") ? Comp::pure : a -> p.shift0(k -> k.apply(a));
         return nest(t, crossed);
       }
-    }, Eff::pure);
+    }, Comp::pure);
   }
 
   /** {@code d} handlers of another effect, each a general clause, never asked */
-  <L> Eff<L, Integer> nest(Tick<L> t, int d) {
+  <L> Comp<L, Integer> nest(Tick<L> t, int d) {
     if (d == 0) return ticks(t, n, 0);
-    return Eff.handle(new Eff.Body<L, Integer, Integer>() {
-      public <M extends L> Eff<M, Integer> in(Prompt<L, M, Integer> p) {
+    return Comp.handle(new Comp.Body<L, Integer, Integer>() {
+      public <M extends L> Comp<M, Integer> in(Prompt<L, M, Integer> p) {
         return nest(t.at(), d - 1);
       }
-    }, Eff::pure);
+    }, Comp::pure);
   }
 
   @Benchmark
   public int opsEff() {
-    return Eff.run(ticking());
+    return Comp.run(ticking());
   }
 
   @State(Scope.Thread)
@@ -84,8 +84,8 @@ public class EffBenchmark {
     @Param("8")
     public int size;
 
-    <L> Eff<L, List<Integer>> place(Choose<L> ch, int row, List<Integer> placed) {
-      if (row == size) return Eff.pure(placed);
+    <L> Comp<L, List<Integer>> place(Choose<L> ch, int row, List<Integer> placed) {
+      if (row == size) return Comp.pure(placed);
       List<Integer> safe = new ArrayList<>();
       for (int col = 0; col < size; col++) if (safe(col, placed)) safe.add(col);
       return ch.among(safe).flatMap(col -> {
@@ -106,8 +106,8 @@ public class EffBenchmark {
 
     @Benchmark
     public int queensEff() {
-      return Eff.run(Choose.all(new Choose.Body<Top, List<Integer>>() {
-        public <M extends Top> Eff<M, List<Integer>> in(Choose<M> ch) {
+      return Comp.run(Choose.all(new Choose.Body<Top, List<Integer>>() {
+        public <M extends Top> Comp<M, List<Integer>> in(Choose<M> ch) {
           return place(ch, 0, List.of());
         }
       })).size();

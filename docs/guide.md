@@ -8,8 +8,8 @@ that starts with `// run` is executed, and its `check(actual, expected)` calls m
 `// does not compile` is compiled on its own and must fail.
 
 ```java
-import okay.core.*;           // Eff, Prompt, Cont
-import okay.core.Eff.Top;     // the level outside every handler
+import okay.core.*;           // Comp, Prompt, Cont
+import okay.core.Comp.Top;     // the level outside every handler
 import okay.std.*;            // the standard effects
 import okay.std.State.Final;
 import okay.std.Writer.Log;
@@ -19,45 +19,45 @@ import java.util.List;
 
 ## Programs and their level
 
-A program is a value of `Eff<L, A>`, a program of value `A` at the level `L`. The level stands for the handlers in
+A program is a value of `Comp<L, A>`, a program of value `A` at the level `L`. The level stands for the handlers in
 force where the program runs. `Top` is the level outside every handler. Each handler's body is at a level of its
 own, fresh, one further in. A program that needs no particular handler is generic in its level:
 
 ```java
-static <L> Eff<L, Integer> twice(int x) {
-  return Eff.<L, Integer>pure(x).map(y -> y * 2);
+static <L> Comp<L, Integer> twice(int x) {
+  return Comp.<L, Integer>pure(x).map(y -> y * 2);
 }
 
-static <L> Eff<L, Boolean> even(int i) {   // a tail call in constant stack: delay builds the rest when run
-  return i == 0 ? Eff.pure(true) : Eff.delay(() -> odd(i - 1));
+static <L> Comp<L, Boolean> even(int i) {   // a tail call in constant stack: delay builds the rest when run
+  return i == 0 ? Comp.pure(true) : Comp.delay(() -> odd(i - 1));
 }
 
-static <L> Eff<L, Boolean> odd(int i) {
-  return i == 0 ? Eff.pure(false) : Eff.delay(() -> even(i - 1));
+static <L> Comp<L, Boolean> odd(int i) {
+  return i == 0 ? Comp.pure(false) : Comp.delay(() -> even(i - 1));
 }
 ```
 
 - `flatMap`, `map` and `then` compose programs. `pure(a)` is a value as a program. `delay(() -> p)` builds `p` when
   it is run.
-- `Eff.run` runs a program at the top and gives its value. Only a program at `Top` runs, so a program with a handler
+- `Comp.run` runs a program at the top and gives its value. Only a program at `Top` runs, so a program with a handler
   still missing does not compile.
 
 ```java
 // run
-check(Eff.run(Guide.<Top>twice(21)), 42);
-check(Eff.run(Guide.<Top>even(100_001)), false);
+check(Comp.run(Guide.<Top>twice(21)), 42);
+check(Comp.run(Guide.<Top>even(100_001)), false);
 ```
 
 ## The standard effects
 
 Each effect is an interface at a level, its capability. A handler gives the capability to a body, which is an
-object with one generic method, `<M extends L> Eff<M, A> in(Capability<M, …> c)`. `M` is the body's own level. Java
+object with one generic method, `<M extends L> Comp<M, A> in(Capability<M, …> c)`. `M` is the body's own level. Java
 writes a generic method as an anonymous class, not a lambda:
 
 ```java
 // run
-Log<String, Integer> log = Eff.run(Writer.writer(new Writer.Body<Top, String, Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Writer<M, String> w) {
+Log<String, Integer> log = Comp.run(Writer.writer(new Writer.Body<Top, String, Integer>() {
+  public <M extends Top> Comp<M, Integer> in(Writer<M, String> w) {
     return w.tell("a").then(w.tell("b")).map(_ -> 2);
   }
 }));
@@ -81,14 +81,14 @@ A lambda cannot implement a generic method, but a method reference can. So a bod
 generic in its level, and a handler is given it by reference. Its level is inferred:
 
 ```java
-static <M> Eff<M, Integer> counter(State<M, Integer> st) {
+static <M> Comp<M, Integer> counter(State<M, Integer> st) {
   return st.modify(x -> x + 1).then(st.get());
 }
 ```
 
 ```java
 // run
-check(Eff.run(State.state(0, Guide::counter)), new Final<>(1, 1));
+check(Comp.run(State.state(0, Guide::counter)), new Final<>(1, 1));
 ```
 
 A body that needs a capability from outside keeps it in a record, and the record's method is at the level in.
@@ -100,7 +100,7 @@ for a body that needs local variables.
 A program that needs several effects takes their capabilities, all at its level. Its parameters are its row:
 
 ```java
-static <L> Eff<L, Integer> step(State<L, Integer> st, Choose<L> ch) {
+static <L> Comp<L, Integer> step(State<L, Integer> st, Choose<L> ch) {
   return ch.among(List.of(1, 2)).flatMap(x -> st.modify(s -> s + x)).then(st.get());
 }
 ```
@@ -111,10 +111,10 @@ handlers is the meaning of the program:
 ```java
 // run
 // the state outside the choice: one state, threaded through the paths in turn
-Final<Integer, List<Integer>> threaded = Eff.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
-  public <M extends Top> Eff<M, List<Integer>> in(State<M, Integer> st) {
+Final<Integer, List<Integer>> threaded = Comp.run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
+  public <M extends Top> Comp<M, List<Integer>> in(State<M, Integer> st) {
     return Choose.all(new Choose.Body<M, Integer>() {
-      public <N extends M> Eff<N, Integer> in(Choose<N> ch) {
+      public <N extends M> Comp<N, Integer> in(Choose<N> ch) {
         return step(st.at(), ch);
       }
     });
@@ -123,10 +123,10 @@ Final<Integer, List<Integer>> threaded = Eff.run(State.state(0, new State.Body<T
 check(threaded, new Final<>(3, List.of(1, 3)));
 
 // the choice outside the state: a state per path
-List<Final<Integer, Integer>> perPath = Eff.run(Choose.all(new Choose.Body<Top, Final<Integer, Integer>>() {
-  public <M extends Top> Eff<M, Final<Integer, Integer>> in(Choose<M> ch) {
+List<Final<Integer, Integer>> perPath = Comp.run(Choose.all(new Choose.Body<Top, Final<Integer, Integer>>() {
+  public <M extends Top> Comp<M, Final<Integer, Integer>> in(Choose<M> ch) {
     return State.state(0, new State.Body<M, Integer, Integer>() {
-      public <N extends M> Eff<N, Integer> in(State<N, Integer> st) {
+      public <N extends M> Comp<N, Integer> in(State<N, Integer> st) {
         return step(st, ch.at());
       }
     });
@@ -143,10 +143,10 @@ from, not to the nearest of its type:
 
 ```java
 // run
-Final<Integer, Final<Integer, Integer>> two = Eff.run(State.state(0, new State.Body<Top, Integer, Final<Integer, Integer>>() {
-  public <M extends Top> Eff<M, Final<Integer, Integer>> in(State<M, Integer> outer) {
+Final<Integer, Final<Integer, Integer>> two = Comp.run(State.state(0, new State.Body<Top, Integer, Final<Integer, Integer>>() {
+  public <M extends Top> Comp<M, Final<Integer, Integer>> in(State<M, Integer> outer) {
     return State.state(100, new State.Body<M, Integer, Integer>() {
-      public <N extends M> Eff<N, Integer> in(State<N, Integer> inner) {
+      public <N extends M> Comp<N, Integer> in(State<N, Integer> inner) {
         return outer.put(1).<N>at().then(inner.modify(x -> x + 1)).then(outer.get()).flatMap(a -> inner.get().map(b -> a + b));
       }
     });
@@ -162,7 +162,7 @@ fresh level:
 
 ```java
 interface Ask<L> {
-  Eff<L, Integer> number();
+  Comp<L, Integer> number();
 
   @SuppressWarnings("unchecked")
   default <N extends L> Ask<N> at() {
@@ -171,29 +171,29 @@ interface Ask<L> {
 }
 
 interface Asked<L, A> {
-  <M extends L> Eff<M, A> in(Ask<M> a);
+  <M extends L> Comp<M, A> in(Ask<M> a);
 }
 ```
 
-A handler is `Eff.handle(body, ret)`, a delimiter under a fresh prompt. Its body gets the prompt, a `Prompt<L, M, R>`:
+A handler is `Comp.handle(body, ret)`, a delimiter under a fresh prompt. Its body gets the prompt, a `Prompt<L, M, R>`:
 the handler at `L`, its body at `M`, its answer `R`. An operation is `p.shift0(k -> clause)`. `k` is the rest of
 the body up to the handler, the handler included, and the clause runs outside the handler, at `L`, in its place:
 
 ```java
 /** every number answered n, the body's value doubled */
-static <L> Eff<L, Integer> asking(int n, Asked<L, Integer> body) {
-  return Eff.handle(new Eff.Body<L, Integer, Integer>() {
-    public <M extends L> Eff<M, Integer> in(Prompt<L, M, Integer> p) {
+static <L> Comp<L, Integer> asking(int n, Asked<L, Integer> body) {
+  return Comp.handle(new Comp.Body<L, Integer, Integer>() {
+    public <M extends L> Comp<M, Integer> in(Prompt<L, M, Integer> p) {
       return body.in(() -> p.shift0(k -> k.apply(n)));
     }
-  }, a -> Eff.pure(a * 2));
+  }, a -> Comp.pure(a * 2));
 }
 ```
 
 ```java
 // run
-check(Eff.run(asking(20, new Asked<Top, Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+check(Comp.run(asking(20, new Asked<Top, Integer>() {
+  public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
     return a.number().flatMap(x -> a.number().map(y -> x + y + 2));
   }
 })), 84);
@@ -210,16 +210,16 @@ return the value. No capture is made, and the operation costs the same however m
 its handler:
 
 ```java
-static <L, A> Eff<L, A> answering(int n, Asked<L, A> body) {
-  Eff<L, Integer> v = Eff.pure(n);
+static <L, A> Comp<L, A> answering(int n, Asked<L, A> body) {
+  Comp<L, Integer> v = Comp.pure(n);
   return body.<L>in(() -> v);
 }
 ```
 
 ```java
 // run
-check(Eff.run(answering(41, new Asked<Top, Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+check(Comp.run(answering(41, new Asked<Top, Integer>() {
+  public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
     return a.number().map(x -> x + 1);
   }
 })), 42);
@@ -235,10 +235,10 @@ capability returned from its handler can only be typed `State<?, Integer>` outsi
 
 ```java
 // does not compile
-State<?, Integer> leaked = Eff.run(State.state(0, new State.Body<Top, Integer, State<?, Integer>>() {
-  public <M extends Top> Eff<M, State<?, Integer>> in(State<M, Integer> st) { return Eff.pure(st); }
+State<?, Integer> leaked = Comp.run(State.state(0, new State.Body<Top, Integer, State<?, Integer>>() {
+  public <M extends Top> Comp<M, State<?, Integer>> in(State<M, Integer> st) { return Comp.pure(st); }
 })).value();
-Integer n = Eff.run(leaked.get());   // a level no program is at
+Integer n = Comp.run(leaked.get());   // a level no program is at
 ```
 
 The same holds in another handler's body at the same place: its level is another variable. A body by method
@@ -252,8 +252,8 @@ Danvy–Filinski's `shift` to it. `k` is the rest up to the reset, and the body 
 
 ```java
 // run
-check(Eff.run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Prompt<Top, M, Integer> p) {
+check(Comp.run(Comp.reset(new Comp.Body<Top, Integer, Integer>() {
+  public <M extends Top> Comp<M, Integer> in(Prompt<Top, M, Integer> p) {
     return p.<Integer>shift(k -> k.apply(10).flatMap(k).at()).map(x -> x + 1);
   }
 })), 12);
@@ -268,24 +268,24 @@ check(Eff.run(Eff.reset(new Eff.Body<Top, Integer, Integer>() {
 ## Failures
 
 A function of the program's that throws — a bind's, a map's, a clause — is a failure of the program: it unwinds from
-where it was, through the handlers in force, to the nearest guard that takes it. `Eff.recover(body, h)` gives the
-failure to `h`, whose program runs in the body's place. `Eff.ensuring(body, fin)` runs `fin` after the body whatever
-way it is left, then goes on the same way. `Eff.failed(e)` is a failure as a program. A failure no guard takes leaves
-`Eff.run` thrown, as before:
+where it was, through the handlers in force, to the nearest guard that takes it. `Comp.recover(body, h)` gives the
+failure to `h`, whose program runs in the body's place. `Comp.ensuring(body, fin)` runs `fin` after the body whatever
+way it is left, then goes on the same way. `Comp.failed(e)` is a failure as a program. A failure no guard takes leaves
+`Comp.run` thrown, as before:
 
 ```java
 // run
-Eff<Top, Integer> failing = Eff.<Top, Integer>pure(1).map(x -> {
+Comp<Top, Integer> failing = Comp.<Top, Integer>pure(1).map(x -> {
   throw new IllegalStateException("boom");
 });
-check(Eff.run(Eff.recover(failing, t -> Eff.pure(t.getMessage().length()))), 4);
+check(Comp.run(Comp.recover(failing, t -> Comp.pure(t.getMessage().length()))), 4);
 
 List<String> log = new ArrayList<>();
-Eff<Top, Void> fin = Eff.sync(() -> {
+Comp<Top, Void> fin = Comp.sync(() -> {
   log.add("fin");
   return null;
 });
-check(Eff.run(Eff.recover(Eff.ensuring(failing, fin), t -> Eff.pure(-1))), -1);
+check(Comp.run(Comp.recover(Comp.ensuring(failing, fin), t -> Comp.pure(-1))), -1);
 check(log, List.of("fin"));
 ```
 
@@ -295,7 +295,7 @@ check(log, List.of("fin"));
   resumption.
 - A failing handler of `recover`, or a failing `fin`, is a failure in the guard's place: the next guard out takes it.
 - Errors of the JVM (`VirtualMachineError`, `LinkageError`) are not failures and are never caught.
-- `Eff.uncancelable(body)` is for programs of the kernel's (`docs/kernel.md`): a cancellation of a handed-out
+- `Comp.uncancelable(body)` is for programs of the kernel's (`docs/kernel.md`): a cancellation of a handed-out
   operation waits for the region to end. Nothing of okay-java's own cancels.
 
 ## A state whose type changes
@@ -305,8 +305,8 @@ from then on. Using a stale capability fails at run time, because Java has no li
 
 ```java
 // run
-Final<String, Integer> r = Eff.run(PState.pstate(7, new PState.Body<Top, Integer, String, Integer>() {
-  public <M extends Top> Eff<M, Final<String, Integer>> in(PState<M, Integer> st) {
+Final<String, Integer> r = Comp.run(PState.pstate(7, new PState.Body<Top, Integer, String, Integer>() {
+  public <M extends Top> Comp<M, Final<String, Integer>> in(PState<M, Integer> st) {
     return st.get().flatMap(n -> st.put("x".repeat(n))).flatMap(st2 -> st2.get().flatMap(s -> st2.done(s.length())));
   }
 }));
@@ -323,7 +323,7 @@ wrong type does not compile.
 as an `Iterator`:
 
 ```java
-static <L> Eff<L, Void> naturals(Emit<L, Integer> e, int i) {
+static <L> Comp<L, Void> naturals(Emit<L, Integer> e, int i) {
   return e.emit(i).flatMap(_ -> naturals(e, i + 1));
 }
 ```
@@ -331,7 +331,7 @@ static <L> Eff<L, Void> naturals(Emit<L, Integer> e, int i) {
 ```java
 // run
 List<Integer> squares = Emit.stream(new Emit.Body<Top, Integer, Void>() {
-  public <M extends Top> Eff<M, Void> in(Emit<M, Integer> e) {
+  public <M extends Top> Comp<M, Void> in(Emit<M, Integer> e) {
     return naturals(e, 0);
   }
 }).map(x -> x * x).limit(4).toList();
@@ -344,28 +344,28 @@ handlers as the rest is run:
 
 ```java
 sealed interface Gen<L> {
-  record More<L>(int x, Eff<L, Gen<L>> rest) implements Gen<L> {}
+  record More<L>(int x, Comp<L, Gen<L>> rest) implements Gen<L> {}
   record End<L>() implements Gen<L> {}
 }
 
-static <L> Eff<L, Integer> sumOf(int n, Eff<L, Gen<L>> g) {   // the first n, the rest run only as far as asked
-  return n == 0 ? Eff.pure(0) : g.flatMap(gen -> switch (gen) {
+static <L> Comp<L, Integer> sumOf(int n, Comp<L, Gen<L>> g) {   // the first n, the rest run only as far as asked
+  return n == 0 ? Comp.pure(0) : g.flatMap(gen -> switch (gen) {
     case Gen.More<L>(var x, var rest) -> sumOf(n - 1, rest).map(s -> s + x);
-    case Gen.End<L> _ -> Eff.pure(0);
+    case Gen.End<L> _ -> Comp.pure(0);
   });
 }
 
-static <L> Eff<L, Void> told(Writer<L, String> w, Emit<L, Integer> e, int i) {
+static <L> Comp<L, Void> told(Writer<L, String> w, Emit<L, Integer> e, int i) {
   return w.tell("made " + i).then(e.emit(i)).flatMap(_ -> told(w, e, i + 1));
 }
 ```
 
 ```java
 // run
-Log<String, Integer> two = Eff.run(Writer.writer(new Writer.Body<Top, String, Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Writer<M, String> w) {
+Log<String, Integer> two = Comp.run(Writer.writer(new Writer.Body<Top, String, Integer>() {
+  public <M extends Top> Comp<M, Integer> in(Writer<M, String> w) {
     return sumOf(2, Emit.generate(new Emit.Body<M, Integer, Void>() {
-      public <N extends M> Eff<N, Void> in(Emit<N, Integer> e) {
+      public <N extends M> Comp<N, Void> in(Emit<N, Integer> e) {
         return told(w.at(), e, 1);
       }
     }, Gen.More::new, new Gen.End<>()));
@@ -383,7 +383,7 @@ handlers inside go on with it:
 ```java
 // run
 check(Async.runAsync(new Async.Body<Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+  public <M extends Top> Comp<M, Integer> in(Async<M> as) {
     return as.async(() -> 20).flatMap(a -> as.await(java.util.concurrent.CompletableFuture.supplyAsync(() -> a + 1)));
   }
 }).join(), 21);
@@ -396,9 +396,9 @@ its own on a virtual thread, and `await(future)` joins it:
 ```java
 // run
 check(Async.runAsync(new Async.Body<Integer>() {
-  public <M extends Top> Eff<M, Integer> in(Async<M> as) {
+  public <M extends Top> Comp<M, Integer> in(Async<M> as) {
     return as.fork(new Async.Body<Integer>() {
-      public <N extends Top> Eff<N, Integer> in(Async<N> other) {
+      public <N extends Top> Comp<N, Integer> in(Async<N> other) {
         return other.blocking(() -> { Thread.sleep(10); return 40; });
       }
     }).flatMap(f -> as.blocking(() -> 2).flatMap(b -> as.await(f).map(a -> a + b)));

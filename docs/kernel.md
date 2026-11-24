@@ -1,15 +1,15 @@
 # okay-java as an implementation of okay-kernel
 
 okay-java implements okay-kernel's API (`io.github.okay-effects:okay-kernel-api`, 0.1.0) directly. There is no wrapper
-and no translation layer: a kernel program is an `Eff`, and okay-java's machine runs kernel operations itself. The
+and no translation layer: a kernel program is a `Comp`, and okay-java's machine runs kernel operations itself. The
 kernel's protocol and semantics are okay-kernel's (`docs/design.md` there; its reference machine `Steps`, its TCK).
 
 ## The design
 
 - **A dependency.** The library depends on `okay-kernel-api`: a jar of interfaces and a few records, with no
-  dependency of its own. `Eff<L, A>` extends `okay.kernel.Prog<A>`, so every program of okay-java is a kernel
+  dependency of its own. `Comp<L, A>` extends `okay.kernel.Prog<A>`, so every program of okay-java is a kernel
   program as it is.
-- **`okay.core.Kernel.EFFECTS`** implements `okay.kernel.Effects`. `pure`, `flatMap`, `map` and `delay` are `Eff`'s
+- **`okay.core.Kernel.EFFECTS`** implements `okay.kernel.Effects`. `pure`, `flatMap`, `map` and `delay` are `Comp`'s
   own nodes; a bind's kernel function is adapted to okay-java's `Function` by one closure. A kernel handler, a
   `dollar`, `recover`, `ensuring` and `uncancelable` are each okay-java's `Handle` node: a delimiter with a fresh
   prompt. The prompt carries what the delimiter is for (its *frame*: a handler and its effect, a dollar, a recover…);
@@ -27,9 +27,9 @@ kernel's protocol and semantics are okay-kernel's (`docs/design.md` there; its r
 - **Failures in the machine.** The run loop catches an exception of any step and unwinds: it walks the delimiters
   to the nearest one the exception concerns, drops the rest, and goes on in that delimiter's place. `recover` answers
   a failure; `ensuring` runs its finalizer and throws on; an aborting handler takes its own abort; the export's root
-  makes it a `Failed` step. If nothing concerns it, the exception leaves `Eff.run` as before. `failed(e)` is a node
+  makes it a `Failed` step. If nothing concerns it, the exception leaves `Comp.run` as before. `failed(e)` is a node
   that unwinds. Aborts and cancellations are unwound the same way, and no `recover` catches them. The guards are
-  okay-java's own too — `Eff.recover`, `Eff.ensuring`, `Eff.uncancelable`, `Eff.failed` make the same delimiters — so
+  okay-java's own too — `Comp.recover`, `Comp.ensuring`, `Comp.uncancelable`, `Comp.failed` make the same delimiters — so
   an okay-java program inside a kernel program fails to the kernel's `recover`, and the other way round.
 - **Cancellation.** A handed-out `k` is resumed with a signal: a value, `k.fail`'s failure (thrown where the
   operation was) or `k.cancel`'s cancellation (finalizers only). Inside `uncancelable`, `cancel` answers the same

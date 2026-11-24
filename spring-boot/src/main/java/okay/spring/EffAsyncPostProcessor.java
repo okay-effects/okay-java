@@ -15,7 +15,7 @@ import org.springframework.scheduling.annotation.AsyncConfigurer;
 /**
  * {@code @Async}'s advisor, in each proxy it was put in, replaced by one of the same pointcut whose interceptor is
  * {@link EffAsyncInterceptor}: Spring's own takes nothing but {@code void} and a {@code Future}, refusing any other
- * type before the call, and goes before every other advisor — so none in front of it could take an {@code Eff}.
+ * type before the call, and goes before every other advisor — so none in front of it could take a {@code Comp}.
  *
  * <p>Of no order: it runs after Spring's {@code AsyncAnnotationBeanPostProcessor}, an ordered one, on each bean, the
  * advisor already there. The executor is Spring's choice: an {@link AsyncConfigurer}'s, the application's

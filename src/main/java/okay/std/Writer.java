@@ -1,13 +1,13 @@
 package okay.std;
 
 import java.util.List;
-import okay.core.Eff;
+import okay.core.Comp;
 import okay.core.Prompt;
 
 /** a log to tell: each {@code tell} the rest's log with {@code w} in front */
 @FunctionalInterface
 public interface Writer<L, W> {
-  Eff<L, Void> tell(W w);
+  Comp<L, Void> tell(W w);
 
   /** this capability at a level further in */
   @SuppressWarnings("unchecked")
@@ -19,15 +19,15 @@ public interface Writer<L, W> {
 
   /** the body of a writer: at a fresh level, given the capability there */
   interface Body<L, W, A> {
-    <M extends L> Eff<M, A> in(Writer<M, W> w);
+    <M extends L> Comp<M, A> in(Writer<M, W> w);
   }
 
-  static <L, W, A> Eff<L, Log<W, A>> writer(Body<L, W, A> body) {
-    return Eff.handle(new Eff.Body<L, A, Built<W, A>>() {
-      public <M extends L> Eff<M, A> in(Prompt<L, M, Built<W, A>> p) {
+  static <L, W, A> Comp<L, Log<W, A>> writer(Body<L, W, A> body) {
+    return Comp.handle(new Comp.Body<L, A, Built<W, A>>() {
+      public <M extends L> Comp<M, A> in(Prompt<L, M, Built<W, A>> p) {
         return body.in(w -> p.shift0(k -> k.apply(null).map(r -> new Built<>(new Rope.Cons<>(w, r.log()), r.value()))));
       }
-    }, a -> Eff.pure(new Built<>(Rope.<W>empty(), a))).map(b -> new Log<>(b.log().toList(), b.value()));
+    }, a -> Comp.pure(new Built<>(Rope.<W>empty(), a))).map(b -> new Log<>(b.log().toList(), b.value()));
   }
 
   /** the log while it is built: each tell in front, in constant time */

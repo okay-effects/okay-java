@@ -8,7 +8,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import okay.core.Eff;
+import okay.core.Comp;
 
 /**
  * a program that waits — on a computation suspended, {@link #async}, or on a callback, {@link #await}. Its failure
@@ -21,18 +21,18 @@ import okay.core.Eff;
  */
 public interface Async<L> extends Throws<L, Throwable> {
   /** a computation, suspended: run when the run gets to it */
-  <A> Eff<L, A> async(Supplier<A> a);
+  <A> Comp<L, A> async(Supplier<A> a);
 
   /** the value a callback is called with, once: {@code (value, null)} or {@code (null, failure)} */
-  <A> Eff<L, A> await(Consumer<BiConsumer<A, Throwable>> register);
+  <A> Comp<L, A> await(Consumer<BiConsumer<A, Throwable>> register);
 
-  default <A> Eff<L, A> await(CompletionStage<A> stage) {
+  default <A> Comp<L, A> await(CompletionStage<A> stage) {
     return await(cb -> stage.whenComplete(cb));
   }
 
   /** a BLOCKING computation — a database call, a file, a socket — on a virtual thread of its own: the run waits for
    * it without holding a thread, and goes on in the virtual thread when it is done. Its throw is the run's failure */
-  default <A> Eff<L, A> blocking(Callable<A> a) {
+  default <A> Comp<L, A> blocking(Callable<A> a) {
     return await(cb -> Thread.ofVirtual().start(() -> {
       A v;
       try {
@@ -46,7 +46,7 @@ public interface Async<L> extends Throws<L, Throwable> {
   }
 
   /** a run of its own, {@code body}, started on a virtual thread: its future, to {@link #await} — fork and join */
-  default <A> Eff<L, CompletableFuture<A>> fork(Body<A> body) {
+  default <A> Comp<L, CompletableFuture<A>> fork(Body<A> body) {
     return async(() -> {
       CompletableFuture<A> done = new CompletableFuture<>();
       Thread.ofVirtual().start(() -> runAsync(body).whenComplete((v, e) -> {
@@ -65,7 +65,7 @@ public interface Async<L> extends Throws<L, Throwable> {
 
   /** the body of an async run: at a fresh level under the top, given the capability there */
   interface Body<A> {
-    <M extends Eff.Top> Eff<M, A> in(Async<M> as);
+    <M extends Comp.Top> Comp<M, A> in(Async<M> as);
   }
 
   /** the body run, its value or its failure the future's */
@@ -74,10 +74,10 @@ public interface Async<L> extends Throws<L, Throwable> {
   }
 
   /** the body's value, this thread waiting for it — at the edge of a program only; its failure raised to {@code t} */
-  static <L, A> Eff<L, A> run(Throws<L, Throwable> t, Body<A> body) {
-    return Eff.delay(() -> {
+  static <L, A> Comp<L, A> run(Throws<L, Throwable> t, Body<A> body) {
+    return Comp.delay(() -> {
       try {
-        return Eff.pure(runAsync(body).join());
+        return Comp.pure(runAsync(body).join());
       } catch (CompletionException e) {
         return t.raise(e.getCause());
       }

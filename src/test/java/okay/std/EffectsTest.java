@@ -1,6 +1,6 @@
 package okay.std;
 
-import static okay.core.Eff.pure;
+import static okay.core.Comp.pure;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import okay.core.Backend;
-import okay.core.Eff;
-import okay.core.Eff.Top;
+import okay.core.Comp;
+import okay.core.Comp.Top;
 import okay.core.Prompt;
 import okay.std.State.Final;
 import okay.std.Writer.Log;
@@ -21,7 +21,7 @@ import org.junit.jupiter.params.Parameter;
 import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** okay-core's TestEff on {@link Eff}: an effect an interface at a level, a handler a prompt and an implementation of
+/** okay-core's TestEff on {@link Comp}: an effect an interface at a level, a handler a prompt and an implementation of
  * it, its body at a fresh level — and what a row cannot say: two handlers of one effect at once. Run on the machine
  * and on the reference, {@link Backend} */
 @ParameterizedClass
@@ -32,13 +32,13 @@ class EffectsTest {
   @Parameter
   Backend backend;
 
-  <A> A run(Eff<Top, A> p) {
+  <A> A run(Comp<Top, A> p) {
     return backend.run(p);
   }
 
   /** effects of the test's own: an interface each, at a level */
   interface Ask<L> {
-    Eff<L, Integer> number();
+    Comp<L, Integer> number();
 
     @SuppressWarnings("unchecked")
     default <N extends L> Ask<N> at() {
@@ -47,7 +47,7 @@ class EffectsTest {
   }
 
   interface Say<L> {
-    Eff<L, Void> line(String s);
+    Comp<L, Void> line(String s);
 
     @SuppressWarnings("unchecked")
     default <N extends L> Say<N> at() {
@@ -57,32 +57,32 @@ class EffectsTest {
 
   /** a body given an {@code Ask}, at a fresh level */
   interface Asked<L, A> {
-    <M extends L> Eff<M, A> in(Ask<M> a);
+    <M extends L> Comp<M, A> in(Ask<M> a);
   }
 
   interface Said<L, A> {
-    <M extends L> Eff<M, A> in(Say<M> s);
+    <M extends L> Comp<M, A> in(Say<M> s);
   }
 
   /** every {@code number} answered {@code n}: a general handler, a capture each */
-  static <L, A> Eff<L, A> asking(int n, Asked<L, A> body) {
-    return Eff.handle(new Eff.Body<L, A, A>() {
-      public <M extends L> Eff<M, A> in(Prompt<L, M, A> p) {
+  static <L, A> Comp<L, A> asking(int n, Asked<L, A> body) {
+    return Comp.handle(new Comp.Body<L, A, A>() {
+      public <M extends L> Comp<M, A> in(Prompt<L, M, A> p) {
         return body.in(() -> p.shift0(k -> k.apply(n)));
       }
-    }, Eff::pure);
+    }, Comp::pure);
   }
 
   /** the same answered in place: the capability its own handler, no prompt */
-  static <L, A> Eff<L, A> answering(int n, Asked<L, A> body) {
-    Eff<L, Integer> v = pure(n);
+  static <L, A> Comp<L, A> answering(int n, Asked<L, A> body) {
+    Comp<L, Integer> v = pure(n);
     return body.<L>in(() -> v);
   }
 
   /** the lines said, in order */
-  static <L, A> Eff<L, Log<String, A>> saying(Said<L, A> body) {
+  static <L, A> Comp<L, Log<String, A>> saying(Said<L, A> body) {
     return Writer.writer(new Writer.Body<L, String, A>() {
-      public <M extends L> Eff<M, A> in(Writer<M, String> w) {
+      public <M extends L> Comp<M, A> in(Writer<M, String> w) {
         return body.in(w::tell);
       }
     });
@@ -91,37 +91,37 @@ class EffectsTest {
   @Test
   void anOperationAnsweredByItsHandler() {
     assertEquals((Integer) 42, run(asking(41, new Asked<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
         return a.number().map(x -> x + 1);
       }
     })));
     assertEquals((Integer) 42, run(answering(41, new Asked<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
         return a.number().map(x -> x + 1);
       }
     })));
   }
 
   /** a program needing both effects: at any level the two capabilities are at */
-  static <L> Eff<L, Integer> twoEffects(Ask<L> a, Say<L> s) {
+  static <L> Comp<L, Integer> twoEffects(Ask<L> a, Say<L> s) {
     return a.number().flatMap(n -> s.line(n.toString()).map(_ -> n + 1));
   }
 
   @Test
   void twoEffectsTheHandlersInEitherOrder() {
     assertEquals(new Log<>(List.of("41"), 42), run(saying(new Said<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Say<M> s) {
+      public <M extends Top> Comp<M, Integer> in(Say<M> s) {
         return asking(41, new Asked<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Ask<N> a) {
+          public <N extends M> Comp<N, Integer> in(Ask<N> a) {
             return twoEffects(a, s.at());
           }
         });
       }
     })));
     assertEquals(new Log<>(List.of("41"), 42), run(asking(41, new Asked<Top, Log<String, Integer>>() {
-      public <M extends Top> Eff<M, Log<String, Integer>> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Log<String, Integer>> in(Ask<M> a) {
         return saying(new Said<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Say<N> s) {
+          public <N extends M> Comp<N, Integer> in(Say<N> s) {
             return twoEffects(a.at(), s);
           }
         });
@@ -129,16 +129,16 @@ class EffectsTest {
     })));
   }
 
-  static <L> Eff<L, Integer> chosen(Choose<L> ch, Say<L> s) {
+  static <L> Comp<L, Integer> chosen(Choose<L> ch, Say<L> s) {
     return ch.among(List.of(1, 2)).flatMap(x -> s.line("x=" + x).map(_ -> x * 10));
   }
 
   @Test
   void aSayCrossesChooseChooseResumesSaysHandlerInEachPath() {
     assertEquals(new Log<>(List.of("x=1", "x=2"), List.of(10, 20)), run(saying(new Said<Top, List<Integer>>() {
-      public <M extends Top> Eff<M, List<Integer>> in(Say<M> s) {
+      public <M extends Top> Comp<M, List<Integer>> in(Say<M> s) {
         return Choose.all(new Choose.Body<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Choose<N> ch) {
+          public <N extends M> Comp<N, Integer> in(Choose<N> ch) {
             return chosen(ch, s.at());
           }
         });
@@ -146,9 +146,9 @@ class EffectsTest {
     })));
     assertEquals(List.of(new Log<>(List.of("x=1"), 10), new Log<>(List.of("x=2"), 20)),
         run(Choose.all(new Choose.Body<Top, Log<String, Integer>>() {
-          public <M extends Top> Eff<M, Log<String, Integer>> in(Choose<M> ch) {
+          public <M extends Top> Comp<M, Log<String, Integer>> in(Choose<M> ch) {
             return saying(new Said<M, Integer>() {
-              public <N extends M> Eff<N, Integer> in(Say<N> s) {
+              public <N extends M> Comp<N, Integer> in(Say<N> s) {
                 return chosen(ch.at(), s);
               }
             });
@@ -156,16 +156,16 @@ class EffectsTest {
         })));
   }
 
-  static <L> Eff<L, Integer> loop(Ask<L> a, int n, int acc) {
+  static <L> Comp<L, Integer> loop(Ask<L> a, int n, int acc) {
     return n == 0 ? pure(acc) : a.number().flatMap(x -> loop(a, n - 1, acc + x));
   }
 
   /** the body under two writers, the ask's handler outside both */
-  static <L> Eff<L, Log<String, Log<String, Integer>>> twoWriters(Ask<L> a, int n) {
+  static <L> Comp<L, Log<String, Log<String, Integer>>> twoWriters(Ask<L> a, int n) {
     return saying(new Said<L, Log<String, Integer>>() {
-      public <M extends L> Eff<M, Log<String, Integer>> in(Say<M> s1) {
+      public <M extends L> Comp<M, Log<String, Integer>> in(Say<M> s1) {
         return saying(new Said<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Say<N> s2) {
+          public <N extends M> Comp<N, Integer> in(Say<N> s2) {
             return loop(a.at(), n, 0);
           }
         });
@@ -176,26 +176,26 @@ class EffectsTest {
   @Test
   void operationsUnderAHandlerAndCrossingTwoInConstantStack() {
     assertEquals((Integer) 100_000, run(asking(1, new Asked<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
         return loop(a, 100_000, 0);
       }
     })));
     Log<String, Log<String, Integer>> nothingSaid = new Log<>(List.of(), new Log<>(List.of(), 100_000));
     assertEquals(nothingSaid, run(asking(1, new Asked<Top, Log<String, Log<String, Integer>>>() {
-      public <M extends Top> Eff<M, Log<String, Log<String, Integer>>> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Log<String, Log<String, Integer>>> in(Ask<M> a) {
         return twoWriters(a, 100_000);
       }
     })));
     assertEquals(nothingSaid, run(answering(1, new Asked<Top, Log<String, Log<String, Integer>>>() {
-      public <M extends Top> Eff<M, Log<String, Log<String, Integer>>> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Log<String, Log<String, Integer>>> in(Ask<M> a) {
         return twoWriters(a, 100_000);
       }
     })));
   }
 
-  static <L> Eff<L, Integer> deep(Ask<L> a, int d) {
+  static <L> Comp<L, Integer> deep(Ask<L> a, int d) {
     return d == 0 ? loop(a, 1000, 0) : saying(new Said<L, Integer>() {
-      public <M extends L> Eff<M, Integer> in(Say<M> s) {
+      public <M extends L> Comp<M, Integer> in(Say<M> s) {
         return deep(a.at(), d - 1);
       }
     }).map(Log::value);
@@ -204,15 +204,15 @@ class EffectsTest {
   @Test
   void operationsEachCrossingFiveHundredHandlersOutAndBack() {
     assertEquals((Integer) 1000, run(asking(1, new Asked<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
         return deep(a, 500);
       }
     })));
   }
 
-  static <L> Eff<L, Integer> deeper(Ask<L> a, int d) {
+  static <L> Comp<L, Integer> deeper(Ask<L> a, int d) {
     return d == 0 ? loop(a, 10, 0) : saying(new Said<L, Integer>() {
-      public <M extends L> Eff<M, Integer> in(Say<M> s) {
+      public <M extends L> Comp<M, Integer> in(Say<M> s) {
         return deeper(a.at(), d - 1);
       }
     }).map(Log::value);
@@ -224,7 +224,7 @@ class EffectsTest {
     // recursive, on fewer
     int d = backend == Backend.REF ? 1_000 : 100_000;
     assertEquals((Integer) 10, run(asking(1, new Asked<Top, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Ask<M> a) {
+      public <M extends Top> Comp<M, Integer> in(Ask<M> a) {
         return deeper(a, d);
       }
     })));
@@ -234,11 +234,11 @@ class EffectsTest {
   void answeredInPlaceUnderMultiShotChooseAndSay() {
     assertEquals(List.of(new Log<>(List.of("15"), 5), new Log<>(List.of("25"), 10)),
         run(answering(5, new Asked<Top, List<Log<String, Integer>>>() {
-          public <M extends Top> Eff<M, List<Log<String, Integer>>> in(Ask<M> a) {
+          public <M extends Top> Comp<M, List<Log<String, Integer>>> in(Ask<M> a) {
             return Choose.all(new Choose.Body<M, Log<String, Integer>>() {
-              public <N extends M> Eff<N, Log<String, Integer>> in(Choose<N> ch) {
+              public <N extends M> Comp<N, Log<String, Integer>> in(Choose<N> ch) {
                 return saying(new Said<N, Integer>() {
-                  public <O extends N> Eff<O, Integer> in(Say<O> s) {
+                  public <O extends N> Comp<O, Integer> in(Say<O> s) {
                     // an outer capability's operation in a bind's function as it is: a level out runs in; at the
                     // head of a chain, moved in by at()
                     return ch.among(List.of(1, 2)).<O>at().flatMap(x -> a.number().<O>at().flatMap(n -> s.line("" + x + n).map(_ -> x * n)));
@@ -251,7 +251,7 @@ class EffectsTest {
   }
 
   /** a choice, the state moved by it, the state read */
-  static <L> Eff<L, Integer> step(State<L, Integer> st, Choose<L> ch) {
+  static <L> Comp<L, Integer> step(State<L, Integer> st, Choose<L> ch) {
     return ch.among(List.of(1, 2)).flatMap(x -> st.modify(s -> s + x)).then(st.get());
   }
 
@@ -259,9 +259,9 @@ class EffectsTest {
   void stateAndChooseTheOrderIsTheMeaning() {
     // state outside: one state threaded through the paths, in turn
     assertEquals(new Final<>(3, List.of(1, 3)), run(State.state(0, new State.Body<Top, Integer, List<Integer>>() {
-      public <M extends Top> Eff<M, List<Integer>> in(State<M, Integer> st) {
+      public <M extends Top> Comp<M, List<Integer>> in(State<M, Integer> st) {
         return Choose.all(new Choose.Body<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Choose<N> ch) {
+          public <N extends M> Comp<N, Integer> in(Choose<N> ch) {
             return step(st.at(), ch);
           }
         });
@@ -269,9 +269,9 @@ class EffectsTest {
     })));
     // choose outside: a state per path, k resuming the state of its time
     assertEquals(List.of(new Final<>(1, 1), new Final<>(2, 2)), run(Choose.all(new Choose.Body<Top, Final<Integer, Integer>>() {
-      public <M extends Top> Eff<M, Final<Integer, Integer>> in(Choose<M> ch) {
+      public <M extends Top> Comp<M, Final<Integer, Integer>> in(Choose<M> ch) {
         return State.state(0, new State.Body<M, Integer, Integer>() {
-          public <N extends M> Eff<N, Integer> in(State<N, Integer> st) {
+          public <N extends M> Comp<N, Integer> in(State<N, Integer> st) {
             return step(st, ch.at());
           }
         });
@@ -280,18 +280,18 @@ class EffectsTest {
   }
 
   /** a handler's body as a method of its own, generic in its level: passed by reference, its level inferred */
-  static <M> Eff<M, Integer> counter(State<M, Integer> st) {
+  static <M> Comp<M, Integer> counter(State<M, Integer> st) {
     return st.modify(x -> x + 1).then(st.get());
   }
 
   /** a body that needs a capability from outside: a record keeping it, its method at the level in */
   record Stepping<M>(State<M, Integer> st) {
-    <N extends M> Eff<N, Integer> in(Choose<N> ch) {
+    <N extends M> Comp<N, Integer> in(Choose<N> ch) {
       return step(st.at(), ch);
     }
   }
 
-  static <M> Eff<M, List<Integer>> stepping(State<M, Integer> st) {
+  static <M> Comp<M, List<Integer>> stepping(State<M, Integer> st) {
     return Choose.<M, Integer>all(new Stepping<>(st)::in);
   }
 
@@ -305,9 +305,9 @@ class EffectsTest {
   void twoHandlersOfOneEffectAtOnceEachOperationToItsOwn() {
     // a row picks the nearest State % Int; a capability names its handler
     Final<Integer, Final<Integer, Integer>> r = run(State.state(0, new State.Body<Top, Integer, Final<Integer, Integer>>() {
-      public <M extends Top> Eff<M, Final<Integer, Integer>> in(State<M, Integer> outer) {
+      public <M extends Top> Comp<M, Final<Integer, Integer>> in(State<M, Integer> outer) {
         return State.state(100, new State.Body<M, Integer, Integer>() {
-          public <N extends M> Eff<N, Integer> in(State<N, Integer> inner) {
+          public <N extends M> Comp<N, Integer> in(State<N, Integer> inner) {
             return outer.put(1).<N>at().then(inner.modify(x -> x + 1)).then(outer.get()).flatMap(a -> inner.get().map(b -> a + b));
           }
         });
@@ -319,9 +319,9 @@ class EffectsTest {
   @Test
   void aClauseRunsOutsideItsHandlerARaiseInARecoveryGoesOut() {
     assertEquals("a!", run(Throws.catching(new Throws.Body<Top, String, String>() {
-      public <M extends Top> Eff<M, String> in(Throws<M, String> outer) {
+      public <M extends Top> Comp<M, String> in(Throws<M, String> outer) {
         return Throws.catching(new Throws.Body<M, String, String>() {
-          public <N extends M> Eff<N, String> in(Throws<N, String> inner) {
+          public <N extends M> Comp<N, String> in(Throws<N, String> inner) {
             return inner.raise("a");
           }
         }, e -> outer.raise(e + "!"));
@@ -330,8 +330,8 @@ class EffectsTest {
   }
 
   /** the effects of {@code f} pass through it, whatever they are, at whatever level */
-  static <L, X, Y> Eff<L, List<Y>> traverse(List<X> xs, Function<X, Eff<L, Y>> f) {
-    Eff<L, List<Y>> acc = pure(new ArrayList<>());
+  static <L, X, Y> Comp<L, List<Y>> traverse(List<X> xs, Function<X, Comp<L, Y>> f) {
+    Comp<L, List<Y>> acc = pure(new ArrayList<>());
     for (X x : xs) acc = acc.flatMap(l -> f.apply(x).map(y -> { List<Y> r = new ArrayList<>(l); r.add(y); return r; }));
     return acc;
   }
@@ -339,12 +339,12 @@ class EffectsTest {
   @Test
   void anEffectPolymorphicFunctionKnowsNothingOfTheEffects() {
     assertEquals(List.of(-1), run(Throws.catching(new Throws.Body<Top, String, List<Integer>>() {
-      public <M extends Top> Eff<M, List<Integer>> in(Throws<M, String> t) {
+      public <M extends Top> Comp<M, List<Integer>> in(Throws<M, String> t) {
         return traverse(List.of(1, 2, 3, 4), x -> x == 3 ? t.raise("three") : pure(x * 10));
       }
     }, _ -> pure(List.of(-1)))));
     assertEquals(new Log<>(List.of("1", "2", "3"), List.of(1, 2, 3)), run(Writer.writer(new Writer.Body<Top, String, List<Integer>>() {
-      public <M extends Top> Eff<M, List<Integer>> in(Writer<M, String> w) {
+      public <M extends Top> Comp<M, List<Integer>> in(Writer<M, String> w) {
         return traverse(List.of(1, 2, 3), x -> w.tell(x.toString()).map(_ -> x));
       }
     })));
@@ -354,7 +354,7 @@ class EffectsTest {
   void aCapabilityForcedOutByAnUncheckedCastHasNoneToReach() {
     // the types do not let it out; a raw cast does, and then the prompt catches its use at run time still
     State<?, Integer> leaked = run(State.state(0, new State.Body<Top, Integer, State<?, Integer>>() {
-      public <M extends Top> Eff<M, State<?, Integer>> in(State<M, Integer> st) {
+      public <M extends Top> Comp<M, State<?, Integer>> in(State<M, Integer> st) {
         return pure(st);
       }
     })).value();
@@ -368,7 +368,7 @@ class EffectsTest {
   void aStateWhoseTypeChangesTheCapabilityItsType() {
     // an Integer, then a String: the capability put by is stale, the one given in force
     Final<String, Integer> r = run(PState.pstate(1, new PState.Body<Top, Integer, String, Integer>() {
-      public <M extends Top> Eff<M, Final<String, Integer>> in(PState<M, Integer> st) {
+      public <M extends Top> Comp<M, Final<String, Integer>> in(PState<M, Integer> st) {
         return st.get().flatMap(n -> st.put("s" + n)).flatMap(st2 -> st2.get().flatMap(s -> st2.done(s.length())));
       }
     }));
@@ -379,7 +379,7 @@ class EffectsTest {
   void aStaleStateCapabilityFailsAtItsUse() {
     IllegalStateException e = assertThrows(IllegalStateException.class, () -> run(PState.pstate(1,
         new PState.Body<Top, Integer, String, Integer>() {
-          public <M extends Top> Eff<M, Final<String, Integer>> in(PState<M, Integer> st) {
+          public <M extends Top> Comp<M, Final<String, Integer>> in(PState<M, Integer> st) {
             return st.put("s").flatMap(st2 -> st.get().flatMap(n -> st2.done(n)));
           }
         })));
@@ -390,9 +390,9 @@ class EffectsTest {
   void aStateWhoseTypeChangesUnderChoiceAPathEach() {
     // choose outside: each path its own state, its own generations
     assertEquals(List.of(new Final<>("1!", 1), new Final<>("2!", 2)), run(Choose.all(new Choose.Body<Top, Final<String, Integer>>() {
-      public <M extends Top> Eff<M, Final<String, Integer>> in(Choose<M> ch) {
+      public <M extends Top> Comp<M, Final<String, Integer>> in(Choose<M> ch) {
         return PState.pstate(0, new PState.Body<M, Integer, String, Integer>() {
-          public <N extends M> Eff<N, Final<String, Integer>> in(PState<N, Integer> st) {
+          public <N extends M> Comp<N, Final<String, Integer>> in(PState<N, Integer> st) {
             return ch.among(List.of(1, 2)).<N>at().flatMap(x -> st.put(x + "!").flatMap(st2 -> st2.done(x)));
           }
         });
@@ -404,7 +404,7 @@ class EffectsTest {
   void aGeneratorAsALazyIterator() {
     int[] emitted = {0};
     Iterator<Integer> it = Emit.iterator(new Emit.Body<Top, Integer, Void>() {
-      public <M extends Top> Eff<M, Void> in(Emit<M, Integer> em) {
+      public <M extends Top> Comp<M, Void> in(Emit<M, Integer> em) {
         return naturals(em, 0, emitted);
       }
     });
@@ -419,7 +419,7 @@ class EffectsTest {
   void aGeneratorAsALazyJavaStream() {
     int[] emitted = {0};
     List<Integer> squares = Emit.stream(new Emit.Body<Top, Integer, Void>() {
-      public <M extends Top> Eff<M, Void> in(Emit<M, Integer> em) {
+      public <M extends Top> Comp<M, Void> in(Emit<M, Integer> em) {
         return naturals(em, 0, emitted);
       }
     }).map(x -> x * x).limit(4).toList();
@@ -429,13 +429,13 @@ class EffectsTest {
 
   /** a generator's consumer type: an element and the rest, a program at the consumer's level, or the end */
   sealed interface Gen<L> {
-    record More<L>(int x, Eff<L, Gen<L>> rest) implements Gen<L> {}
+    record More<L>(int x, Comp<L, Gen<L>> rest) implements Gen<L> {}
 
     record End<L>() implements Gen<L> {}
   }
 
   /** the first {@code n} elements summed, the rest run only as far as asked */
-  static <L> Eff<L, Integer> take(int n, Eff<L, Gen<L>> g) {
+  static <L> Comp<L, Integer> take(int n, Comp<L, Gen<L>> g) {
     return n == 0 ? pure(0) : g.flatMap(gen -> switch (gen) {
       case Gen.More<L>(var x, var rest) -> take(n - 1, rest).map(s -> s + x);
       case Gen.End<L> _ -> pure(0);
@@ -446,9 +446,9 @@ class EffectsTest {
   void aGeneratorUnderAnEffectStillToBeHandledItsRestAProgramThere() {
     // the body tells before each element, to a writer outside the generator; two elements pulled, two told
     Log<String, Integer> r = run(Writer.writer(new Writer.Body<Top, String, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Writer<M, String> w) {
-        Eff<M, Gen<M>> g = Emit.generate(new Emit.Body<M, Integer, Void>() {
-          public <N extends M> Eff<N, Void> in(Emit<N, Integer> e) {
+      public <M extends Top> Comp<M, Integer> in(Writer<M, String> w) {
+        Comp<M, Gen<M>> g = Emit.generate(new Emit.Body<M, Integer, Void>() {
+          public <N extends M> Comp<N, Void> in(Emit<N, Integer> e) {
             return counting(w.at(), e, 1);
           }
         }, Gen.More::new, new Gen.End<>());
@@ -458,32 +458,32 @@ class EffectsTest {
     assertEquals(new Log<>(List.of("made 1", "made 2"), 3), r);
   }
 
-  static <L> Eff<L, Void> counting(Writer<L, String> w, Emit<L, Integer> e, int i) {
+  static <L> Comp<L, Void> counting(Writer<L, String> w, Emit<L, Integer> e, int i) {
     return w.tell("made " + i).then(e.emit(i)).flatMap(_ -> counting(w, e, i + 1));
   }
 
-  static <L> Eff<L, Void> naturals(Emit<L, Integer> em, int i, int[] emitted) {
-    return Eff.<L, Void>delay(() -> { emitted[0]++; return em.emit(i); }).then(Eff.delay(() -> naturals(em, i + 1, emitted)));
+  static <L> Comp<L, Void> naturals(Emit<L, Integer> em, int i, int[] emitted) {
+    return Comp.<L, Void>delay(() -> { emitted[0]++; return em.emit(i); }).then(Comp.delay(() -> naturals(em, i + 1, emitted)));
   }
 
   /** 1, 2, 3 emitted, the value its own */
-  static <L, A> Eff<L, A> oneTwoThree(Emit<L, Integer> em, A a) {
+  static <L, A> Comp<L, A> oneTwoThree(Emit<L, Integer> em, A a) {
     return em.emit(1).then(em.emit(2)).then(em.emit(3)).map(_ -> a);
   }
 
   @Test
   void eachEmittedValueToTheContextOutsideAnsweredInPlace() {
     assertEquals(new Log<>(List.of(1, 2, 3), "done"), run(Writer.writer(new Writer.Body<Top, Integer, String>() {
-      public <M extends Top> Eff<M, String> in(Writer<M, Integer> w) {
+      public <M extends Top> Comp<M, String> in(Writer<M, Integer> w) {
         return Emit.forEach(new Emit.Body<M, Integer, String>() {
-          public <N extends M> Eff<N, String> in(Emit<N, Integer> em) {
+          public <N extends M> Comp<N, String> in(Emit<N, Integer> em) {
             return oneTwoThree(em, "done");
           }
         }, w::tell);
       }
     })));
     assertEquals(List.of(1, 2, 3), run(Emit.collect(new Emit.Body<Top, Integer, Void>() {
-      public <M extends Top> Eff<M, Void> in(Emit<M, Integer> em) {
+      public <M extends Top> Comp<M, Void> in(Emit<M, Integer> em) {
         return oneTwoThree(em, null);
       }
     })));
@@ -492,7 +492,7 @@ class EffectsTest {
   /** every placing of the queens, by a choice per row */
   static Choose.Body<Top, List<Integer>> queens() {
     return new Choose.Body<>() {
-      public <M extends Top> Eff<M, List<Integer>> in(Choose<M> ch) {
+      public <M extends Top> Comp<M, List<Integer>> in(Choose<M> ch) {
         return place(ch, 8, 0, List.of());
       }
     };
@@ -505,7 +505,7 @@ class EffectsTest {
     assertEquals(Optional.of(List.of(3, 1, 6, 2, 5, 7, 4, 0)), first);
   }
 
-  static <L> Eff<L, List<Integer>> place(Choose<L> ch, int size, int row, List<Integer> placed) {
+  static <L> Comp<L, List<Integer>> place(Choose<L> ch, int size, int row, List<Integer> placed) {
     if (row == size) return pure(placed);
     List<Integer> safe = new ArrayList<>();
     for (int col = 0; col < size; col++) if (safe(col, placed)) safe.add(col);
@@ -528,7 +528,7 @@ class EffectsTest {
   @Test
   void readerAsksInPlace() {
     assertEquals(6, (int) run(Reader.reader(5, new Reader.Body<Top, Integer, Integer>() {
-      public <M extends Top> Eff<M, Integer> in(Reader<M, Integer> r) {
+      public <M extends Top> Comp<M, Integer> in(Reader<M, Integer> r) {
         return r.ask().map(x -> x + 1);
       }
     })));
@@ -539,11 +539,11 @@ class EffectsTest {
     assertEquals(false, run(even(100_001)));
   }
 
-  static <L> Eff<L, Boolean> even(int i) {
-    return i == 0 ? pure(true) : Eff.delay(() -> odd(i - 1));
+  static <L> Comp<L, Boolean> even(int i) {
+    return i == 0 ? pure(true) : Comp.delay(() -> odd(i - 1));
   }
 
-  static <L> Eff<L, Boolean> odd(int i) {
-    return i == 0 ? pure(false) : Eff.delay(() -> even(i - 1));
+  static <L> Comp<L, Boolean> odd(int i) {
+    return i == 0 ? pure(false) : Comp.delay(() -> even(i - 1));
   }
 }

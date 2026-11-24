@@ -3,15 +3,15 @@ package okay.std;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
-import okay.core.Eff;
+import okay.core.Comp;
 import okay.core.Prompt;
 
 /** a choice among values, MULTI-SHOT: the rest run for each. Two handlers of it: every value the body comes to,
  * {@link #all}, or the first, {@link #first} — the same program a search either way */
 public interface Choose<L> {
-  <X> Eff<L, X> among(List<X> xs);
+  <X> Comp<L, X> among(List<X> xs);
 
-  default <X> Eff<L, X> fail() {
+  default <X> Comp<L, X> fail() {
     return among(List.of());
   }
 
@@ -23,40 +23,40 @@ public interface Choose<L> {
 
   /** the body of a handler of choices: at a fresh level, given the capability there */
   interface Body<L, A> {
-    <M extends L> Eff<M, A> in(Choose<M> ch);
+    <M extends L> Comp<M, A> in(Choose<M> ch);
   }
 
-  static <L, A> Eff<L, List<A>> all(Body<L, A> body) {
-    return Eff.handle(new Eff.Body<L, A, Rope<A>>() {
-      public <M extends L> Eff<M, A> in(Prompt<L, M, Rope<A>> p) {
+  static <L, A> Comp<L, List<A>> all(Body<L, A> body) {
+    return Comp.handle(new Comp.Body<L, A, Rope<A>>() {
+      public <M extends L> Comp<M, A> in(Prompt<L, M, Rope<A>> p) {
         return body.in(new Choose<M>() {
-          public <X> Eff<M, X> among(List<X> xs) {
+          public <X> Comp<M, X> among(List<X> xs) {
             return p.shift0(k -> {
-              Eff<L, Rope<A>> acc = Eff.pure(Rope.empty());
+              Comp<L, Rope<A>> acc = Comp.pure(Rope.empty());
               for (X x : xs) acc = acc.flatMap(l -> k.apply(x).map(r -> Rope.cat(l, r)));
               return acc;
             });
           }
         });
       }
-    }, a -> Eff.pure(new Rope.Leaf<>(a))).map(Rope::toList);
+    }, a -> Comp.pure(new Rope.Leaf<>(a))).map(Rope::toList);
   }
 
   /** the first value the body comes to, its choices tried in order, the rest not tried */
-  static <L, A> Eff<L, Optional<A>> first(Body<L, A> body) {
-    return Eff.handle(new Eff.Body<L, A, Optional<A>>() {
-      public <M extends L> Eff<M, A> in(Prompt<L, M, Optional<A>> p) {
+  static <L, A> Comp<L, Optional<A>> first(Body<L, A> body) {
+    return Comp.handle(new Comp.Body<L, A, Optional<A>>() {
+      public <M extends L> Comp<M, A> in(Prompt<L, M, Optional<A>> p) {
         return body.in(new Choose<M>() {
-          public <X> Eff<M, X> among(List<X> xs) {
+          public <X> Comp<M, X> among(List<X> xs) {
             return p.shift0(k -> tryEach(k, xs, 0));
           }
         });
       }
-    }, a -> Eff.pure(Optional.of(a)));
+    }, a -> Comp.pure(Optional.of(a)));
   }
 
-  private static <L, X, A> Eff<L, Optional<A>> tryEach(Function<X, Eff<L, Optional<A>>> k, List<X> xs, int i) {
-    return i == xs.size() ? Eff.pure(Optional.empty())
-        : k.apply(xs.get(i)).flatMap(r -> r.isPresent() ? Eff.pure(r) : tryEach(k, xs, i + 1));
+  private static <L, X, A> Comp<L, Optional<A>> tryEach(Function<X, Comp<L, Optional<A>>> k, List<X> xs, int i) {
+    return i == xs.size() ? Comp.pure(Optional.empty())
+        : k.apply(xs.get(i)).flatMap(r -> r.isPresent() ? Comp.pure(r) : tryEach(k, xs, i + 1));
   }
 }

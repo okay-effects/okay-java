@@ -52,8 +52,9 @@ class NestedRunTest {
       Effects.step(Effects.<Integer, Pure>pure(x));
       return pure(x);
     })));
-    assertThrows(NestedRun.class, () -> okay.core.Eff.run(okay.core.Eff.<okay.core.Eff.Top, Integer>pure(1).flatMap(x ->
-        okay.core.Eff.pure(okay.core.Eff.run(okay.core.Eff.<okay.core.Eff.Top, Integer>pure(x))))));
+    assertThrows(NestedRun.class, () -> okay.core.Comp.run(
+        okay.core.Comp.<okay.core.Comp.Top, Integer>pure(1).flatMap(x ->
+        okay.core.Comp.pure(okay.core.Comp.run(okay.core.Comp.<okay.core.Comp.Top, Integer>pure(x))))));
   }
 
   @Test
@@ -81,8 +82,8 @@ class NestedRunTest {
     int after = run(Effects.<Integer, Pure>pure(1).flatMap(x -> Effects.<Integer, Pure>pure(runIsolated(pure(x))))
         .map(y -> y + 2));
     assertEquals(3, after);
-    assertEquals(1, (int) okay.core.Eff.run(okay.core.Eff.<okay.core.Eff.Top, Integer>pure(1).flatMap(x ->
-        okay.core.Eff.pure(okay.core.Eff.runIsolated(okay.core.Eff.<okay.core.Eff.Top, Integer>pure(x))))));
+    assertEquals(1, (int) okay.core.Comp.run(okay.core.Comp.<okay.core.Comp.Top, Integer>pure(1).flatMap(x ->
+        okay.core.Comp.pure(okay.core.Comp.runIsolated(okay.core.Comp.<okay.core.Comp.Top, Integer>pure(x))))));
   }
 
   static Comp<Void, Eff<State<Integer>, Pure>> counting(int i) {

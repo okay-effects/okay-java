@@ -2,7 +2,7 @@ package okay.core;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import okay.core.Eff.Top;
+import okay.core.Comp.Top;
 import okay.std.Choose;
 import okay.std.Reader;
 import okay.std.State;
@@ -35,13 +35,13 @@ public class MixedBenchmark {
   static final List<Integer> SUPPLIERS = List.of(0, 1, 2);
 
   /** one order: its price, or its failure in the log; the total moved by its price */
-  static <L> Eff<L, Void> order(Reader<L, Integer> r, State<L, Integer> st, Writer<L, String> w, int i) {
+  static <L> Comp<L, Void> order(Reader<L, Integer> r, State<L, Integer> st, Writer<L, String> w, int i) {
     return r.ask().flatMap(base -> Throws.attempt(new Throws.Body<L, String, Integer>() {
-      public <M extends L> Eff<M, Integer> in(Throws<M, String> t) {
+      public <M extends L> Comp<M, Integer> in(Throws<M, String> t) {
         if (i % 13 == 0) return t.raise("no stock");
         return Choose.first(new Choose.Body<M, Integer>() {
-          public <N extends M> Eff<N, Integer> in(Choose<N> ch) {
-            return ch.among(SUPPLIERS).flatMap(s -> (i + s) % 3 == 0 ? Eff.pure(base + i % 7 + s) : ch.fail());
+          public <N extends M> Comp<N, Integer> in(Choose<N> ch) {
+            return ch.among(SUPPLIERS).flatMap(s -> (i + s) % 3 == 0 ? Comp.pure(base + i % 7 + s) : ch.fail());
           }
         }).map(o -> o.orElse(0));
       }
@@ -51,8 +51,8 @@ public class MixedBenchmark {
     });
   }
 
-  static <L> Eff<L, Void> orders(Reader<L, Integer> r, State<L, Integer> st, Writer<L, String> w, int i, int n) {
-    return i == n ? Eff.pure(null) : order(r, st, w, i).flatMap(_ -> orders(r, st, w, i + 1, n));
+  static <L> Comp<L, Void> orders(Reader<L, Integer> r, State<L, Integer> st, Writer<L, String> w, int i, int n) {
+    return i == n ? Comp.pure(null) : order(r, st, w, i).flatMap(_ -> orders(r, st, w, i + 1, n));
   }
 
   @Benchmark
@@ -67,13 +67,13 @@ public class MixedBenchmark {
   }
 
   int orders(boolean cell) {
-    Writer.Log<String, State.Final<Integer, Void>> out = Eff.run(Reader.reader(100, new Reader.Body<Top, Integer,
+    Writer.Log<String, State.Final<Integer, Void>> out = Comp.run(Reader.reader(100, new Reader.Body<Top, Integer,
         Writer.Log<String, State.Final<Integer, Void>>>() {
-      public <M extends Top> Eff<M, Writer.Log<String, State.Final<Integer, Void>>> in(Reader<M, Integer> r) {
+      public <M extends Top> Comp<M, Writer.Log<String, State.Final<Integer, Void>>> in(Reader<M, Integer> r) {
         return Writer.writer(new Writer.Body<M, String, State.Final<Integer, Void>>() {
-          public <N extends M> Eff<N, State.Final<Integer, Void>> in(Writer<N, String> w) {
+          public <N extends M> Comp<N, State.Final<Integer, Void>> in(Writer<N, String> w) {
             State.Body<N, Integer, Void> total = new State.Body<>() {
-              public <O extends N> Eff<O, Void> in(State<O, Integer> st) {
+              public <O extends N> Comp<O, Void> in(State<O, Integer> st) {
                 return orders(r.at(), st, w.at(), 0, n);
               }
             };

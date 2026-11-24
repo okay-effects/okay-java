@@ -14,7 +14,7 @@ import java.util.function.Supplier;
  * {@code ret $ K[shift0 k. e]} is {@code e[k := λx. ret $ K[x]]} — the body where the delimiter was. So
  * {@code shift k. e = shift0 k. reset0 e}, and a {@code shift0} in a {@code shift0}'s body reaches the next delimiter out.
  *
- * <p>okay-core's {@code Cont}, without the effects: those are {@link Eff}'s, by prompt, the answer types erased.
+ * <p>okay-core's {@code Cont}, without the effects: those are {@link Comp}'s, by prompt, the answer types erased.
  */
 public sealed interface Cont<I, O, A>
     permits Cont.Return, Cont.Bind, Cont.Map, Cont.Shift0, Cont.Dollar, Loop.Push, Loop.Resume {
