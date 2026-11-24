@@ -92,7 +92,10 @@ type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot 
 
 A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
 `k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
-value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Other words: `under`,
+value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Loops take an `Iterable`,
+the machine is the loop: `fold(cart, 0L, (sum, item) -> perform(new Prices.Price(item)).map(p -> sum + p))`,
+`forEach(xs, x -> c)`, `collect(xs, x -> c)` — lazy, constant stack, right under a continuation resumed twice.
+Other words: `under`,
 `fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step` (docs/rows.md). The capability notation
 (`okay.core.Comp<A, L>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is
 docs/guide.md; `okay.rows.Bridge` runs either notation inside the other.

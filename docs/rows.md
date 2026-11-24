@@ -128,6 +128,21 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
 Measured on `rowsBench` (one run, ns an operation): a handler in place 14.1, a clause that only resumes 18.3, a
 general handler 25.5.
 
+Loops take an `Iterable`; the machine is the loop, in constant stack:
+
+```java
+Comp<Long, Eff<Prices<?>, ?>> total =
+    fold(cart, 0L, (sum, item) -> perform(new Prices.Price(item)).map(p -> sum + p));
+```
+
+- `forEach(xs, x -> c)` runs `c` for each element; `fold(xs, zero, (acc, x) -> c)` carries a value through;
+  `collect(xs, x -> c)` gives the list of the values.
+- The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
+  leaves pulls no further.
+- The place in the source is a value kept by the loop, not the iterator's own: a continuation taken inside the
+  loop and resumed twice goes through the same elements twice, each asked of the iterator once. Each run of the
+  program takes a new iterator.
+
 Other words, all as in the reference:
 - `under(c)` adds a place under the first effect.
 - `fit(c)` names a row.

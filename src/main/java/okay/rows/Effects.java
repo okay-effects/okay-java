@@ -5,6 +5,11 @@ import okay.effect.Op;
 import okay.effect.Eff;
 import static okay.rows.Comp.DOOR;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import okay.core.Rows;
@@ -52,6 +57,77 @@ public final class Effects {
   /** a computation built when it is reached: a call in tail position takes no stack */
   public static <A, R> Comp<A, R> defer(Supplier<? extends Comp<A, ? super R>> p) {
     return new Comp<>(okay.core.Comp.delay(() -> p.get().eff));
+  }
+
+  // -- loops: an Iterable is the source, the machine the loop
+
+  /** {@code for (x : xs) body(x)}: the computation {@code body} makes of each element, one after another, in
+   * constant stack. The iterator is asked for an element when the loop gets to it, so the source may have no end
+   * (a loop left by a handler pulls no further). Each run takes an iterator of its own; and a continuation taken
+   * inside the loop and resumed twice goes through the same elements twice — the place in the source is a value,
+   * a {@link Cursor}, not the iterator's own. */
+  public static <X, R> Comp<Void, R> forEach(
+      Iterable<X> xs, Function<? super X, ? extends Comp<?, ? super R>> body) {
+    return defer(() -> each(Cursor.of(xs.iterator()), body));
+  }
+
+  private static <X, R> Comp<Void, R> each(Cursor<X> at, Function<? super X, ? extends Comp<?, ? super R>> body) {
+    if (at == null) return pure(null);
+    return new Comp<Object, R>(body.apply(at.value).eff).flatMap(done -> each(at.next(), body));
+  }
+
+  /** the loop with a value carried through it: {@code acc = step(acc, x)} for each element, from {@code zero} */
+  public static <X, S, R> Comp<S, R> fold(
+      Iterable<X> xs, S zero, BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    return defer(() -> folded(Cursor.of(xs.iterator()), zero, step));
+  }
+
+  private static <X, S, R> Comp<S, R> folded(
+      Cursor<X> at, S acc, BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    if (at == null) return pure(acc);
+    return Effects.<S, R>fit(step.apply(acc, at.value)).flatMap(next -> folded(at.next(), next, step));
+  }
+
+  /** the values {@code f} makes of the elements, in their order: a list never changed, so each path of a
+   * continuation resumed twice has its own */
+  public static <X, Y, R> Comp<List<Y>, R> collect(
+      Iterable<X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
+    return Effects.<X, Chain<Y>, R>fold(xs, null, (made, x) ->
+        Effects.<Y, R>fit(f.apply(x)).map(y -> new Chain<>(y, made))).map(Chain::list);
+  }
+
+  /** a place in a source: an element, and the next place, asked of the iterator once and kept */
+  private static final class Cursor<X> {
+    final X value;
+    private Iterator<X> source;
+    private Cursor<X> next;
+
+    private Cursor(X value, Iterator<X> source) {
+      this.value = value;
+      this.source = source;
+    }
+
+    static <X> Cursor<X> of(Iterator<X> source) {
+      return source.hasNext() ? new Cursor<>(source.next(), source) : null;
+    }
+
+    Cursor<X> next() {
+      if (source != null) {
+        next = of(source);
+        source = null;
+      }
+      return next;
+    }
+  }
+
+  /** the values collected so far, the last first */
+  private record Chain<Y>(Y last, Chain<Y> before) {
+    static <Y> List<Y> list(Chain<Y> made) {
+      ArrayList<Y> out = new ArrayList<>();
+      for (Chain<Y> c = made; c != null; c = c.before) out.add(c.last);
+      Collections.reverse(out);
+      return Collections.unmodifiableList(out);
+    }
   }
 
   /** {@code acquire}d, used, {@code release}d when the use is left: {@code ensuring} of the use */
