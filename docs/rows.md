@@ -226,6 +226,12 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
     return t.let(name, prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
   });
   ```
+- `t.loop(start, more, next)` is a loop by the answers: while `more` says so of the state, `next` writes the
+  questions that give the next state — a read page after page, each turn asked when the one before is known, the
+  block's other questions beside it. The block keeps every turn's names: for tens or hundreds of turns.
+- `rounds(see, p)` shows what a program really asks of its first effect, as it asks it: every operation asked alone
+  and every set, whole, each going on as it came — a trace, a count of the queries, a test of how a program asks
+  (`EachTest`: the report asks in rounds of 1, 3 and 9).
 - For more than three answers, or any: `t.ask(() -> ..)`, `t.yield(() -> ..)`, `t.then(() -> ..)` read the names
   by `get()`. Such a question is asked after every question written before it. A `Var` read by `get()` anywhere
   else — before it is known, or later from a function made there and run after — is refused; an answer of

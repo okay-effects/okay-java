@@ -202,6 +202,22 @@ public final class Together<E, R extends Eff<E, ?>> {
     }));
   }
 
+  /** A LOOP BY THE ANSWERS: while {@code more} says so of the state, {@code next} writes — through this same block
+   * — the questions that give the next state, and names it; the name of the last state. Each turn is written when
+   * the state before it is known: a read page after page, a walk up a chain. The turns of one loop are asked one
+   * after another, as each needs the one before; with the block's other questions, in its rounds. The block keeps
+   * every turn's names: for tens or hundreds of turns, not for a loop without end ({@code Effects.fold}). */
+  public <S> Var<S> loop(Var<S> start, java.util.function.Predicate<? super S> more, Function<? super S, Var<S>> next) {
+    return member(turn(place(start), more, next));
+  }
+
+  private <S> Member turn(int state, java.util.function.Predicate<? super S> more, Function<? super S, Var<S>> next) {
+    return Member.grow(new int[] {state}, got -> {
+      S s = Handlers.trusted(got[state]);
+      return more.test(s) ? turn(place(next.apply(s)), more, next) : Member.value(new int[] {state}, a -> a[state]);
+    });
+  }
+
   // -- the last word of the block
 
   /** the block's value, made of one answer */

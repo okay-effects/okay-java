@@ -139,6 +139,61 @@ class EachTest {
     assertEquals(List.of("one: OrderOf[id=3]", "2 of 3: Price"), queries);
   }
 
+  // ---- a loop by the answers
+
+  record Page(List<String> items, Integer next) {}
+
+  sealed interface Catalog<T> extends Operation<T, Catalog<?>> {
+    record Fetch(int page) implements Catalog<Page> {}
+    record Price(String item) implements Catalog<Long> {}
+  }
+
+  record Read(List<String> items, Integer next) {}
+
+  /** page after page while there is a next one, then the prices of everything read */
+  static Comp<Long, Eff<Catalog<?>, ?>> catalogTotal() {
+    return together(t -> {
+      Var<Read> first = t.let(t.perform(new Catalog.Fetch(0)), p -> new Read(p.items(), p.next()));
+      Var<Read> all = t.loop(first, read -> read.next() != null, read ->
+          t.let(t.perform(new Catalog.Fetch(read.next())), p -> new Read(
+              Stream.concat(read.items().stream(), p.items().stream()).toList(), p.next())));
+      Var<List<Long>> prices = t.each(t.let(all, Read::items), item -> t.perform(new Catalog.Price(item)));
+      return t.yield(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
+    });
+  }
+
+  @Test
+  void aLoopByTheAnswers() {
+    List<Page> pages = List.of(new Page(List.of("tea", "cup"), 1), new Page(List.of("kettle"), 2),
+        new Page(List.of("spoon"), null));
+    List<String> seen = new ArrayList<>();
+    Comp<Long, Eff<Catalog<?>, ?>> shown = rounds(ops -> seen.add(ops.size() + ": " + ops.get(0)), catalogTotal());
+    Comp<Long, Pure> p = handle((op, k) -> switch (op) {
+      case Catalog.Fetch f -> k.resume(f, pages.get(f.page()));
+      case Catalog.Price price -> k.resume(price, PRICES.get(price.item()));
+    }, (ops, k) -> {
+      for (Catalog<?> op : ops) switch (op) {
+        case Catalog.Fetch f -> k.answer(f, pages.get(f.page()));
+        case Catalog.Price price -> k.answer(price, PRICES.get(price.item()));
+      }
+      return k.resume();
+    }, shown);
+    assertEquals(137L, run(p));
+    // the pages one after another, each needing the one before; then all the prices at once
+    assertEquals(List.of("1: Fetch[page=0]", "1: Fetch[page=1]", "1: Fetch[page=2]", "4: Price[item=tea]"), seen);
+  }
+
+  /** the rounds a program asks in, shown as they go on: a set stays a set */
+  @Test
+  void theRoundsOfAProgram() {
+    List<String> queries = new ArrayList<>();
+    List<Integer> sizes = new ArrayList<>();
+    Comp<List<String>, Eff<Shop<?>, ?>> shown = rounds(ops -> sizes.add(ops.size()), report("monday"));
+    assertEquals(List.of("ANN 15", "BOB 120", "ANN 10"), run(shop(queries, shown)));
+    assertEquals(List.of(1, 3, 9), sizes);
+    assertEquals(3, queries.size());
+  }
+
   /** an empty list, and a list of lists of nothing */
   @Test
   void nothingToAsk() {

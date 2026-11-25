@@ -275,6 +275,28 @@ public final class Effects {
     return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, batch, ret), s0, p.eff));
   }
 
+  /** WHAT A PROGRAM REALLY ASKS OF ITS FIRST EFFECT, AS IT ASKS IT: {@code see} is given every operation asked
+   * alone, as a list of one, and every set, whole — and each goes on as it came, a set still a set. Unlike
+   * {@code observe}, which is shown operations one by one and so has a set asked one by one: this shows the rounds.
+   * The effect stays in the row. For a trace, a count of the queries, a test of how a program asks. */
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> rounds(
+      Consumer<? super List<F>> see, Comp<A, ? super Eff<F, T>> p) {
+    Clause<F, A, Eff<F, ? extends T>> one = (op, k) -> {
+      see.accept(List.of(op));
+      return k.afterAny(DOOR.ask(op, 0));
+    };
+    Batch<F, A, Eff<F, ? extends T>> all = (ops, k) -> {
+      see.accept(ops);
+      okay.core.Comp<Object, Object> outside = Handlers.trusted(DOOR.askAll(ops.toArray(), 0));
+      return k.resumeAfter(new Comp<Object, Eff<F, ? extends T>>(outside.map(xs -> {
+        List<?> answers = (List<?>) xs;
+        for (int i = 0; i < answers.size(); i++) k.answerAny(ops.get(i), answers.get(i));
+        return xs;
+      })));
+    };
+    return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p));
+  }
+
   /** EACH OPERATION OF THE FIRST EFFECT ASKED ONCE: an operation equal to one asked before — records are equal by
    * their fields — is answered by what that one was, and never goes further; a set goes on as the set of those not
    * known, each once. The effect stays in the row: this is no handler of it, the handler outside answers what is
