@@ -306,8 +306,17 @@ Measured on this repository's benchmarks, one run each, nanoseconds an operation
 | a chain under a handler that takes the rest | 28 |
 | plain Java ([direct style](../resumable/README.md)) under a handler in place | 5 to 11 |
 
-A block costs more than a chain for each question — it keeps the names and works out the rounds — and has not been
-measured carefully: about 200 ns a question in a test's own timing. It pays where a round saves a query.
+A block costs more than a chain for each question: it keeps the names and works out the rounds. Under `answering`,
+the same questions as a chain and as a block, two runs:
+
+| | a chain | a block |
+|---|---|---|
+| two questions that need nothing | 15 | 51 |
+| two questions, the second needing the first | — | 70 |
+| a hundred questions | 23 | 34 as a `gather`, 38 as an `each` |
+
+A small block pays for being a block; a large one costs about one and a half times a chain. It pays back where a
+round saves a query: one call to a database is a million of these.
 
 ## 8. The other forms
 

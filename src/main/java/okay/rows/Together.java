@@ -335,49 +335,48 @@ public final class Together<E, R extends Eff<E, ?>> {
     }
   }
 
-  private static final byte WAITS = 0;
-  private static final byte READY = 1;
-  private static final byte KNOWN = 2;
-
   /** THE BLOCK ON ONE PATH, while it goes: its names — more of them as an each or a when is written —, the
-   * questions made, the answers known. A value: a step makes another, so a path resumed twice has its own */
+   * questions made, the answers known. A name WAITS (no question made, no answer), is READY (its question made) or
+   * KNOWN (its answer there). A value: a step makes another, so a path resumed twice has its own. The names are
+   * shared by the copies, and replaced, never changed, when the block grows */
   private static final class Going {
     Member[] names;
     okay.core.Comp<?, ?>[] effs;
     Object[] got;
-    byte[] state;
 
-    Going(int n) {
-      names = new Member[n];
+    Going(List<Member> written) {
+      int n = written.size();
+      names = written.toArray(new Member[n]);
       effs = new okay.core.Comp<?, ?>[n];
       got = new Object[n];
-      state = new byte[n];
       Arrays.fill(got, NOT_YET);
     }
 
-    Going copy() {
-      Going c = new Going(0);
-      c.names = names.clone();
-      c.effs = effs.clone();
-      c.got = got.clone();
-      c.state = state.clone();
-      return c;
+    private Going(Going of) {
+      names = of.names;
+      effs = of.effs.clone();
+      got = of.got.clone();
     }
 
-    void add(List<Member> more) {
+    Going copy() {
+      return new Going(this);
+    }
+
+    /** more names, and the one at {@code at} become {@code become}: in arrays of this copy's own */
+    void grow(List<Member> more, int at, Member become) {
       int n = names.length;
       names = Arrays.copyOf(names, n + more.size());
       effs = Arrays.copyOf(effs, names.length);
       got = Arrays.copyOf(got, names.length);
-      state = Arrays.copyOf(state, names.length);
       for (int i = 0; i < more.size(); i++) {
         names[n + i] = more.get(i);
         got[n + i] = NOT_YET;
       }
+      names[at] = become;
     }
 
     boolean known(int[] needs) {
-      for (int i : needs) if (state[i] != KNOWN) return false;
+      for (int i : needs) if (got[i] == NOT_YET) return false;
       return true;
     }
   }
@@ -386,30 +385,26 @@ public final class Together<E, R extends Eff<E, ?>> {
   okay.core.Comp<?, ?> program(Comp<?, ?> returned) {
     Function<Object[], ? extends Comp<?, ?>> then = returned == going ? next : got -> returned;
     if (then == null) throw new IllegalStateException("the block did not go on: return t.then(..) or t.yield(..)");
-    Going start = new Going(0);
-    start.add(writing);
-    return round(start, then);
+    return round(new Going(writing), then);
   }
 
   /** what can be known without asking is made known — the values, the questions made of answers, the bodies of
-   * each and when, which add names — and whether anything was */
+   * each and when, which add names */
   private void settle(Going g) {
     boolean more = true;
     while (more) {
       more = false;
       for (int i = 0; i < g.names.length; i++) {
-        if (g.state[i] != WAITS) continue;
+        if (g.got[i] != NOT_YET || g.effs[i] != null) continue;
         Member m = g.names[i];
-        if (!g.known(m.needs)) continue;
         if (m.eff != null) {
           g.effs[i] = m.eff;
-          g.state[i] = READY;
+        } else if (!g.known(m.needs)) {
+          continue;
         } else if (m.made != null) {
           g.effs[i] = reading(g.got, m.made).eff;
-          g.state[i] = READY;
         } else if (m.value != null) {
           g.got[i] = reading(g.got, m.value);
-          g.state[i] = KNOWN;
           more = true;
         } else {
           // more of the block, written now through the block's own words: its names after the ones there are
@@ -421,8 +416,7 @@ public final class Together<E, R extends Eff<E, ?>> {
           growing = true;
           try {
             Member become = reading(g.got, m.grow);
-            g.add(writing);
-            g.names[i] = become;
+            g.grow(writing, i, become);
           } finally {
             writing = outer;
             base = outerBase;
@@ -435,19 +429,49 @@ public final class Together<E, R extends Eff<E, ?>> {
   }
 
   /** a round: every question that can be asked now — those that are operations of one handler put in one set, each
-   * set where the first of them stands — then the next round; no question left, the block goes on */
-  private okay.core.Comp<?, ?> round(Going from, Function<Object[], ? extends Comp<?, ?>> then) {
-    Going g = from.copy();
+   * set where the first of them stands — then the next round; no question left, the block goes on. {@code g} is
+   * this path's own, not yet shared: it is settled in place */
+  @SuppressWarnings({"unchecked", "rawtypes"}) // the machine's programs, untyped: the block was typed where written
+  private okay.core.Comp<?, ?> round(Going g, Function<Object[], ? extends Comp<?, ?>> then) {
     settle(g);
-    int count = 0;
-    for (byte s : g.state) if (s == READY) count++;
+    // the questions ready; the usual round is of operations of one handler, or of one question: found in one pass
+    int count = 0, first = -1, skip = -1;
+    boolean oneSet = true;
+    for (int i = 0; i < g.got.length; i++) {
+      if (g.got[i] != NOT_YET || g.effs[i] == null) continue;
+      if (count++ == 0) first = i;
+      if (!oneSet) continue;
+      if (DOOR.operation(g.effs[i]) == null) oneSet = false;
+      else if (skip < 0) skip = DOOR.skip(g.effs[i]);
+      else if (skip != DOOR.skip(g.effs[i])) oneSet = false;
+    }
     if (count == 0) {
-      for (int i = 0; i < g.state.length; i++)
-        if (g.state[i] != KNOWN) throw new IllegalStateException("a name of the block that nothing can give");
+      for (int i = 0; i < g.got.length; i++)
+        if (g.got[i] == NOT_YET) throw new IllegalStateException("a name of the block that nothing can give");
       return reading(g.got, got -> then.apply(got).eff);
     }
+    if (count == 1) {
+      int at = first;
+      okay.core.Comp one = g.effs[at];
+      return one.flatMap(x -> {
+        Going more = g.copy();
+        more.got[at] = x;
+        return (okay.core.Comp) round(more, then);
+      });
+    }
     int[] in = new int[count];
-    for (int i = 0, j = 0; i < g.state.length; i++) if (g.state[i] == READY) in[j++] = i;
+    for (int i = first, j = 0; j < count; i++) if (g.got[i] == NOT_YET && g.effs[i] != null) in[j++] = i;
+    if (oneSet) {
+      Object[] set = new Object[count];
+      for (int j = 0; j < count; j++) set[j] = DOOR.operation(g.effs[in[j]]);
+      okay.core.Comp all = DOOR.askAll(set, skip);
+      return all.flatMap(xs -> {
+        Going more = g.copy();
+        List<Object> list = (List<Object>) xs;
+        for (int j = 0; j < in.length; j++) more.got[in[j]] = list.get(j);
+        return (okay.core.Comp) round(more, then);
+      });
+    }
     Object[] ops = new Object[count];
     for (int i = 0; i < count; i++) ops[i] = DOOR.operation(g.effs[in[i]]);
     ArrayList<int[]> steps = new ArrayList<>();
@@ -471,6 +495,7 @@ public final class Together<E, R extends Eff<E, ?>> {
   @SuppressWarnings({"unchecked", "rawtypes"}) // the machine's programs, untyped: the block was typed where written
   private okay.core.Comp<?, ?> step(Going g, int[] in, Object[] ops, ArrayList<int[]> steps, int s,
       Function<Object[], ? extends Comp<?, ?>> then) {
+    // the last step's copy is the next round's own
     if (s == steps.size()) return round(g, then);
     int[] which = steps.get(s);
     if (which.length == 1) {
@@ -479,7 +504,6 @@ public final class Together<E, R extends Eff<E, ?>> {
       return one.flatMap(x -> {
         Going more = g.copy();
         more.got[at] = x;
-        more.state[at] = KNOWN;
         return (okay.core.Comp) step(more, in, ops, steps, s + 1, then);
       });
     }
@@ -489,10 +513,7 @@ public final class Together<E, R extends Eff<E, ?>> {
     return all.flatMap(xs -> {
       Going more = g.copy();
       List<Object> list = (List<Object>) xs;
-      for (int j = 0; j < which.length; j++) {
-        more.got[in[which[j]]] = list.get(j);
-        more.state[in[which[j]]] = KNOWN;
-      }
+      for (int j = 0; j < which.length; j++) more.got[in[which[j]]] = list.get(j);
       return (okay.core.Comp) step(more, in, ops, steps, s + 1, then);
     });
   }

@@ -11,6 +11,7 @@ import okay.effect.Operation;
 import okay.rows.Handler;
 import okay.rows.InPlace;
 import okay.rows.K;
+import okay.rows.Var;
 import okay.rows.Interceptor;
 import okay.effect.Pure;
 import okay.effect.Sensitive;
@@ -102,6 +103,67 @@ public final class Bench {
     return perform(new Counter.Get()).flatMap(s -> perform(new Counter.Put(s + 1))).flatMap(done -> counted(n - 1));
   }
 
+  // ---- blocks beside the same programs as chains: nanoseconds a QUESTION
+
+  static <A> Comp<A, Pure> ticked(Comp<A, ? super Eff<Tick<?>, Pure>> p) {
+    return answering(op -> switch (op) {
+      case Tick.Next next -> next.answer(1);
+    }, p);
+  }
+
+  /** two questions that need nothing, a value of both: as a chain, as a block */
+  static Comp<Integer, Eff<Tick<?>, ?>> chain2(int n, int sum) {
+    return n == 0 ? pure(sum) : perform(new Tick.Next()).flatMap(a ->
+        perform(new Tick.Next()).flatMap(b -> chain2(n - 1, sum + a + b)));
+  }
+
+  static Comp<Integer, Eff<Tick<?>, ?>> block2(int n, int sum) {
+    if (n == 0) return pure(sum);
+    Comp<Integer, Eff<Tick<?>, ?>> block = together(t -> {
+      Var<Integer> a = t.perform(new Tick.Next());
+      Var<Integer> b = t.perform(new Tick.Next());
+      return t.yield(a, b, Integer::sum);
+    });
+    return block.flatMap(x -> block2(n - 1, sum + x));
+  }
+
+  /** a question that needs the answer of another: two rounds */
+  static Comp<Integer, Eff<Tick<?>, ?>> blockThen(int n, int sum) {
+    if (n == 0) return pure(sum);
+    Comp<Integer, Eff<Tick<?>, ?>> block = together(t -> {
+      Var<Integer> a = t.perform(new Tick.Next());
+      Var<Integer> b = a.then(x -> t.perform(new Tick.Next()));
+      return t.yield(a, b, Integer::sum);
+    });
+    return block.flatMap(x -> blockThen(n - 1, sum + x));
+  }
+
+  /** a hundred questions: a chain of them, a plain loop gathered, an each over a list */
+  static final List<Integer> HUNDRED = java.util.stream.IntStream.range(0, 100).boxed().toList();
+
+  static Comp<Integer, Eff<Tick<?>, ?>> chain100(int n, int sum) {
+    if (n == 0) return pure(sum);
+    Comp<Integer, Eff<Tick<?>, ?>> hundred = fold(HUNDRED, 0, (acc, i) -> perform(new Tick.Next()).map(x -> acc + x));
+    return hundred.flatMap(x -> chain100(n - 1, sum + x));
+  }
+
+  static Comp<Integer, Eff<Tick<?>, ?>> gather100(int n, int sum) {
+    if (n == 0) return pure(sum);
+    Comp<List<Integer>, Eff<Tick<?>, ?>> hundred = gather(g -> {
+      for (int i = 0; i < 100; i++) g.perform(new Tick.Next());
+    });
+    return hundred.flatMap(xs -> gather100(n - 1, sum + xs.size()));
+  }
+
+  static Comp<Integer, Eff<Tick<?>, ?>> each100(int n, int sum) {
+    if (n == 0) return pure(sum);
+    Comp<Integer, Eff<Tick<?>, ?>> hundred = together(t -> {
+      Var<List<Integer>> xs = t.each(t.value(HUNDRED), i -> t.perform(new Tick.Next()));
+      return t.yield(xs, List::size);
+    });
+    return hundred.flatMap(x -> each100(n - 1, sum + x));
+  }
+
   static void measure(String name, int ops, Runnable body) {
     long best = Long.MAX_VALUE;
     for (int round = 0; round < 7; round++) {
@@ -109,7 +171,7 @@ public final class Bench {
       body.run();
       best = Math.min(best, System.nanoTime() - start);
     }
-    System.out.println(String.format("%-8s %7.1f ns/op", name, (double) best / ops));
+    System.out.println(String.format("%-10s %7.1f ns/op", name, (double) best / ops));
   }
 
   public static void main(String[] args) {
@@ -132,6 +194,14 @@ public final class Bench {
           case Counter.Get g -> k.resume(g, state);
           case Counter.Put p -> k.resume(p, null, p.value());
         }, counted(n))));
+    int b = 200_000;
+    measure("chain2", 2 * b, () -> run(ticked(chain2(b, 0))));
+    measure("block2", 2 * b, () -> run(ticked(block2(b, 0))));
+    measure("blockThen", 2 * b, () -> run(ticked(blockThen(b, 0))));
+    int h = 5_000;
+    measure("chain100", 100 * h, () -> run(ticked(chain100(h, 0))));
+    measure("gather100", 100 * h, () -> run(ticked(gather100(h, 0))));
+    measure("each100", 100 * h, () -> run(ticked(each100(h, 0))));
     int m = 100_000;
     measure("after", m, () -> run(handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1).map(r -> r + 1);
