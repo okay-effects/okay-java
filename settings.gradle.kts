@@ -13,3 +13,8 @@ project(":spring-boot").name = "okay-java-spring-boot"
 // depends on nothing of it
 include("resumable")
 project(":resumable").name = "okay-java-resumable"
+
+// optional: sugar by annotations — an annotation processor that generates okay.rows code (sugar/README.md); okay-java
+// itself depends on nothing of it
+include("sugar")
+project(":sugar").name = "okay-java-sugar"
