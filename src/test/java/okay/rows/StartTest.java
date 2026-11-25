@@ -169,4 +169,80 @@ class StartTest {
     assertEquals(List.of(2, 1), seen);                   // four prices asked: two different ones go on, in one set
     assertEquals(List.of("all of: [cup, tea]", "one: Discount[sum=23]"), queries);
   }
+
+  // ---- many effects: the row named
+
+  record Booked(String ref, String key, long at, String name) {}
+
+  sealed interface Store<T> extends Operation<T, Store<?>> {
+    record Book(Booked booking) implements Store<Boolean> {}
+  }
+  sealed interface Mail<T> extends Operation<T, Mail<?>> {
+    record Send(String to, String text) implements Mail<Boolean> {}
+  }
+  sealed interface Ids<T> extends Operation<T, Ids<?>> {
+    record Ref(String prefix) implements Ids<String> {}
+    record Secret() implements Ids<String> {}
+  }
+  sealed interface Clock<T> extends Operation<T, Clock<?>> {
+    record Now() implements Clock<Long> {}
+  }
+
+  interface App<R> extends Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>> {}
+
+  @SuppressWarnings("unchecked") // a row is only a type, and App<R> is this row by its declaration
+  static <A, R> Comp<A, Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>>> open(Comp<A, ? super App<R>> c) {
+    return (Comp<A, Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>>>) (Comp<A, ?>) c;
+  }
+
+  static <T> Comp<T, App<?>> store(Store<T> op) { return fit(perform(op)); }
+  static <T> Comp<T, App<?>> mail(Mail<T> op) { return fit(up(perform(op))); }
+  static <T> Comp<T, App<?>> ids(Ids<T> op) { return fit(up(up(perform(op)))); }
+  static <T> Comp<T, App<?>> clock(Clock<T> op) { return fit(up(up(up(perform(op))))); }
+
+  static Comp<String, App<?>> reserve(String name) {
+    return together(t -> {
+      Var<String> ref = t.ask(ids(new Ids.Ref("B")));
+      Var<String> key = t.ask(ids(new Ids.Secret()));
+      Var<Long> now = t.ask(clock(new Clock.Now()));
+      Var<Booked> booked = ref.with(key, now, (r, k, at) -> new Booked(r, k, at, name));
+      Var<Boolean> made = booked.then(b -> t.ask(store(new Store.Book(b))));
+      Var<Boolean> told = booked.then(b -> t.ask(mail(new Mail.Send(b.name(), "booked " + b.ref()))));
+      return t.yield(ref, made, told, (r, m, s) -> m ? r : "taken");
+    });
+  }
+
+  static <A, R> Comp<A, R> stored(List<Object> log, Comp<A, ? super Eff<Store<?>, R>> body) {
+    return answering(op -> switch (op) {
+      case Store.Book b -> { log.add(b); yield b.answer(true); }
+    }, body);
+  }
+
+  static <A, R> Comp<A, R> mailed(List<Object> log, Comp<A, ? super Eff<Mail<?>, R>> body) {
+    return answering(op -> switch (op) {
+      case Mail.Send m -> { log.add(m); yield m.answer(true); }
+    }, body);
+  }
+
+  static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids<?>, R>> body) {
+    return answering(op -> switch (op) {
+      case Ids.Ref r -> r.answer(r.prefix() + "1");
+      case Ids.Secret s -> s.answer("key");
+    }, body);
+  }
+
+  static <A, R> Comp<A, R> clocked(Comp<A, ? super Eff<Clock<?>, R>> body) {
+    return answering(op -> switch (op) {
+      case Clock.Now n -> n.answer(1000L);
+    }, body);
+  }
+
+  @Test
+  void aNamedRow() {
+    List<Object> log = new ArrayList<>();
+    Comp<String, okay.effect.Pure> p = clocked(identified(mailed(log, stored(log, open(reserve("Ann"))))));
+    assertEquals("B1", run(p));
+    assertEquals(List.of(new Store.Book(new Booked("B1", "key", 1000L, "Ann")), new Mail.Send("Ann", "booked B1")),
+        log);
+  }
 }

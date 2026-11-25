@@ -141,14 +141,56 @@ static Comp<String, Eff<Prices<?>, Eff<Ask<?>, ?>>> checkout(List<String> cart) 
 ```
 
 `total` asks only `Prices`, and is used here as it is: a program of ONE effect fits any row that has that effect
-first. A program of several effects used inside a longer row must say that its row is open at every step —
-`Comp<X, Eff<Store<?>, ? extends Eff<Ids<?>, ?>>>` — and is then moved to its places with `up` and `under`. That is
-the price of a row whose order is in the type, and it grows with the number of effects.
+first. With more effects than two or three, name the row.
+
+### Many effects: name the row
+
+A row can be given a name: an interface that extends it, its tail a parameter.
+
+```java
+interface App<R> extends Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>> {}
+```
+
+Every program of the application is then a `Comp<X, App<?>>`. Each effect is asked by a word that says its place —
+once, and javac checks it: a word with the wrong number of `up` does not compile.
+
+```java
+static <T> Comp<T, App<?>> store(Store<T> op) { return fit(perform(op)); }
+static <T> Comp<T, App<?>> mail(Mail<T> op)   { return fit(up(perform(op))); }
+static <T> Comp<T, App<?>> ids(Ids<T> op)     { return fit(up(up(perform(op)))); }
+static <T> Comp<T, App<?>> clock(Clock<T> op) { return fit(up(up(up(perform(op))))); }
+
+static Comp<String, App<?>> reserve(String name) {
+  return together(t -> {
+    Var<String> ref = t.ask(ids(new Ids.Ref("B")));
+    Var<String> key = t.ask(ids(new Ids.Secret()));
+    Var<Long> now = t.ask(clock(new Clock.Now()));
+    Var<Booked> booked = ref.with(key, now, (r, k, at) -> new Booked(r, k, at, name));
+    Var<Boolean> made = booked.then(b -> t.ask(store(new Store.Book(b))));
+    Var<Boolean> told = booked.then(b -> t.ask(mail(new Mail.Send(b.name(), "booked " + b.ref()))));
+    return t.yield(ref, made, told, (r, m, s) -> m ? r : "taken");
+  });
+}
+```
+
+No `up` in a program, no long type, and a program used inside another as it is: they are all of the one row. The
+effects stay what they are — of any package, each its own place and its own handler, their order in the type. Where
+the handlers are put, the name is opened into the row it stands for, by a function written once beside it:
+
+```java
+static <A, R> Comp<A, Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>>> open(Comp<A, ? super App<R>> c) { .. }
+
+run(clocked(identified(mailed(stored(open(reserve("Ann")))))));          // each a handler of one effect
+```
+
+`BookingAlias` in the tests is a real flow written so, with its `open`: the taking of a booking of okay-shop, seven
+effects of the same handlers as the flow written with bare places (`Booking`), the same scenarios on both — a
+hundred and nine lines against a hundred and sixty-five, its only `up`s the seven words'.
 
 ### An application's effects as one family
 
-An application has many effects of its own — a store, mail, ids, a clock, a geocoder — and the order between
-their handlers means nothing. Make them ONE place of the row: one sealed family, each effect a sealed part of it.
+An application's OWN effects — a store, mail, ids, a clock, all of one package — whose order between
+handlers means nothing can be ONE place of the row instead: one sealed family, each effect a sealed part of it.
 
 ```java
 sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail, Ids, Clock {}
@@ -180,9 +222,8 @@ What is given up: the type no longer says which of the family a function asks, a
 Keep separate places for effects whose order matters or that come from elsewhere — a `State` inside a choice, a
 library's effect.
 
-`Booking` and `BookingOne` in the tests are a real flow written both ways — the taking of a booking of okay-shop,
-seven effects, the same scenarios run on both: with a place for each effect, eight `up` and `under` and rows of a
-hundred characters; as one family, none.
+A sealed family is of one package (of one module, with `module-info`): an effect of another jar cannot be a part
+of it, and a named row is the way for those. `BookingOne` in the tests is the same real flow written so.
 
 
 ## 3. A handler

@@ -97,10 +97,18 @@ In front of a handler, the effect kept in the row: `cached(p)` (each operation o
 `static <A, R> Comp<A, R> h(.., Comp<A, ? super Eff<F, R>> body)`, the second effect of a row is asked with
 `up(perform(op))`. javac's words: `method run .. cannot be applied` — an effect left unhandled; a handler's name
 `.. cannot be applied` — the wrong order; `inference variable Q has incompatible bounds` — an operation the row
-does not have, or an `up` missing. A program of several effects used inside a longer row writes its row open at
-every step, `Eff<A, ? extends Eff<B, ?>>`.
+does not have, or an `up` missing.
 
-**An application's own effects: one family.** Many effects whose order means nothing — a store, mail, ids, a
+**Many effects: name the row.** `interface App<R> extends Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, R>>> {}` — an
+interface that extends the row, its tail a parameter. Every program of the application is a `Comp<X, App<?>>`; each
+effect is asked by a word that says its place once, checked by javac —
+`static <T> Comp<T, App<?>> ids(Ids<T> op) { return fit(up(up(perform(op)))); }` — so a program has no `up` and no
+long type, and programs are used inside one another as they are. The effects stay of any package, each its own
+handler, their order in the type; where the handlers are put, a function written once beside the name opens it into
+the row: `static <A, R> Comp<A, Eff<Store<?>, ..R>> open(Comp<A, ? super App<R>> c)` (docs/start.md;
+`BookingAlias` in the tests is a real flow of seven effects written so).
+
+**An application's own effects: one family.** Effects of one package whose order means nothing — a store, mail, ids, a
 clock — are best ONE place of the row: `sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail,
 ..` and `sealed interface Store<T> extends Shop<T> { record .. }`. Every program is a `Comp<X, Eff<Shop<?>, ?>>`,
 with no `up` and sub-programs used as they are; the handler one `switch` over the family, each part answered by its
