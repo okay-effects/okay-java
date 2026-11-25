@@ -110,6 +110,12 @@ public sealed class K<B, R> permits KS {
     return new Comp<>(late(() -> Comp.DOOR.after(taken(), c.eff)));
   }
 
+  /** {@code c}, then the rest resumed with its value, as {@link #after}, for a clause whose operation is not one
+   * operation (a set): {@code okay.rows}' own */
+  final Comp<B, R> afterAny(okay.core.Comp<?, ?> c) {
+    return new Comp<>(late(() -> Comp.DOOR.after(taken(), c)));
+  }
+
   /** the operation asked again, at the place of the handler's effect in the row outside, the rest resumed with its
    * answer as by {@link #after}: what an interceptor at a place passes on (Effects.observe) */
   Comp<B, R> again() { return new Comp<>(late(() -> Comp.DOOR.after(taken(), Comp.DOOR.ask(asked, 0)))); }

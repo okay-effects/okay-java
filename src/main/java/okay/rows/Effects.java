@@ -251,13 +251,65 @@ public final class Effects {
    * p.value()); }, p)}. A continuation resumed twice goes on twice from the state it was asked in. */
   public static <F, S, A, R> Comp<A, R> handle(
       S s0, StateClause<F, S, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, (state, a) -> a), s0, p.eff));
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, null, (state, a) -> a), s0, p.eff));
   }
 
   /** the same, its value made of the last state and the program's value: {@code ret} */
   public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
       BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, ret), s0, p.eff));
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, null, ret), s0, p.eff));
+  }
+
+  /** a handler with a state and a clause for a SET of operations ({@link StateBatch}): the state of this path,
+   * all the operations of the set, and the continuation — {@code k.answer(op, x)} for each, then
+   * {@code k.resume(next)} */
+  public static <F, S, A, R> Comp<A, R> handle(S s0, StateClause<F, S, A, R> clause,
+      StateBatch<F, S, A, R> batch, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, batch, (state, a) -> a), s0, p.eff));
+  }
+
+  /** the same, its value made of the last state and the program's value: {@code ret} */
+  public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
+      StateBatch<F, S, B, R> batch, BiFunction<? super S, ? super A, ? extends B> ret,
+      Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, batch, ret), s0, p.eff));
+  }
+
+  /** EACH OPERATION OF THE FIRST EFFECT ASKED ONCE: an operation equal to one asked before — records are equal by
+   * their fields — is answered by what that one was, and never goes further; a set goes on as the set of those not
+   * known, each once. The effect stays in the row: this is no handler of it, the handler outside answers what is
+   * asked. What is remembered is the run's: each run starts with nothing, and every path of a continuation resumed
+   * twice shares it — an answer does not depend on the path. For an effect whose answers do not change within a
+   * run: a lookup, a read; not a counter, a clock, a write. */
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> cached(Comp<A, ? super Eff<F, T>> p) {
+    return defer(() -> {
+      java.util.HashMap<Object, Object> known = new java.util.HashMap<>();
+      Clause<F, A, Eff<F, ? extends T>> one = (op, k) -> {
+        if (known.containsKey(op)) return new Comp<>(k.resumed(known.get(op), false, null));
+        return k.afterAny(DOOR.ask(op, 0).map(x -> {
+          known.put(op, x);
+          return x;
+        }));
+      };
+      Batch<F, A, Eff<F, ? extends T>> all = (ops, k) -> {
+        java.util.LinkedHashSet<Object> missing = new java.util.LinkedHashSet<>();
+        for (F op : ops) if (!known.containsKey(op)) missing.add(op);
+        if (missing.isEmpty()) {
+          for (F op : ops) k.answerAny(op, known.get(op));
+          return k.resume();
+        }
+        Object[] asked = missing.toArray();
+        okay.core.Comp<Object, Object> outside = Handlers.trusted(
+            asked.length == 1 ? DOOR.ask(asked[0], 0).map(x -> List.of(x)) : DOOR.askAll(asked, 0));
+        return k.resumeAfter(new Comp<Object, Eff<F, ? extends T>>(outside.map(xs -> {
+          List<?> answers = (List<?>) xs;
+          for (int i = 0; i < asked.length; i++) known.put(asked[i], answers.get(i));
+          for (F op : ops) k.answerAny(op, known.get(op));
+          return xs;
+        })));
+      };
+      return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p));
+    });
   }
 
   /** the same, in place, from the state {@code s0} */

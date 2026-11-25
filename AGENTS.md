@@ -138,7 +138,8 @@ the list of the answers, checked by the compiler; `first(xs, wanted)`, `any`, `a
 further than the answer that decides. A set is asked AT ONCE (`performAll(ops)`, a `gather`, a round of a block):
 a handler with a clause for sets, `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`,
 answers them by one query — or all at the same time, `Batch.concurrently((op, k) -> { .. k.answer(p, x) .. })`, each
-on a virtual thread; any other handler answers them one by one, the program the same
+on a virtual thread; any other handler answers them one by one, the program the same. `cached(p)` asks each operation
+of the first effect once in a run (records are equal by their fields), a set going on as what is not known
 (no answer is there in the body: a loop that goes by the answers is
 `fold`).
 Other words: `under`,

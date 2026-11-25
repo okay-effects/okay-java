@@ -161,6 +161,15 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   `Batch`: one query for all, a cache, each repeated one once, each answer typed by its operation. A handler
   without that clause, and any handler with an interceptor or an observer on the way, is asked them one by one:
   the program is the same under either, and what changes is the handler (`BatchTest`: four prices, one query).
+- `cached(p)` asks each operation of the first effect ONCE in a run: an operation equal to one asked before —
+  records are equal by their fields — is answered by what that one was and goes no further; a set goes on as the
+  set of what is not known, each once. It is no handler of the effect, which stays in the row: the handler outside
+  answers what is really asked, in sets or one by one. For an effect whose answers do not change within a run — a
+  lookup, a read; not a counter, a clock, a write. What is remembered is the run's, shared by the paths of a
+  continuation resumed twice (`CachedTest`: a loop of twelve questions, six asked).
+- A handler with a state takes a set too: `handle(s0, clause, (state, ops, k) -> { .. k.answer(op, x) ..; return
+  k.resume(next); }, body)`, a `StateBatch`. A clause for a set that asks further out for what it does not know
+  goes on with `k.resumeAfter(c)`: the rest resumed with the answers given by the time `c` ends.
 - How a set is answered is the handler's choice. `Batch.concurrently((op, k) -> { switch (op) { case Price p ->
   k.answer(p, lookup(p.item())); } })` answers each operation of a set on a virtual thread, at the same time, and
   the program goes on when all are answered; `Batch.inTurn(..)` is the same clause one after another. The

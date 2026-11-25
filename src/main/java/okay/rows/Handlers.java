@@ -96,9 +96,13 @@ final class Handlers {
    * given to each clause, kept for each path */
   static final class Stateful<F, S, A, B, R> extends Rows.Spec {
     private final StateClause<F, S, B, R> clause;
+    /** its clause for a set of operations, or {@code null}: a set is then asked one by one */
+    private final StateBatch<F, S, B, R> batch;
     private final java.util.function.BiFunction<? super S, ? super A, ? extends B> ret;
 
-    Stateful(StateClause<F, S, B, R> clause, java.util.function.BiFunction<? super S, ? super A, ? extends B> ret) {
+    Stateful(StateClause<F, S, B, R> clause, StateBatch<F, S, B, R> batch,
+        java.util.function.BiFunction<? super S, ? super A, ? extends B> ret) {
+      this.batch = batch;
       super(true, false);
       this.clause = clause;
       this.ret = ret;
@@ -120,6 +124,11 @@ final class Handlers {
     }
 
     @Override
+    protected boolean takesMany() {
+      return batch != null;
+    }
+
+    @Override
     protected boolean keepsState() {
       return true;
     }
@@ -138,6 +147,8 @@ final class Handlers {
     protected Rows.Early early(Object entry, Object op) {
       Object[] cell = (Object[]) entry;
       KS<S, B, R> k = new KS<>(op);
+      if (op instanceof Rows.Many many)
+        return new Asked(k, batch.on(trusted(cell[0]), trusted(many.ops()), new KAllS<>(k, many.ops())).eff, cell);
       return new Asked(k, clause.on(trusted(cell[0]), trusted(op), k).eff, cell);
     }
   }
