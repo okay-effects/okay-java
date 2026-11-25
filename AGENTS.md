@@ -31,136 +31,123 @@ it adds the library) or the Maven plugin `io.github.okay-effects:okay-java-resum
 repositories as `<pluginRepositories>` too); `forbid` needs okay's repository, https://okay-effects.github.io/okay/maven
 (resumable/README.md, "Install").
 
-### The model (row notation; compiled and run against the build)
+### The model: start here
+
+The whole of it, with every example compiled and run, is [docs/start.md](docs/start.md). In short:
 
 ```java
 import static okay.rows.Effects.*;
-import okay.effect.*;          // Op, Eff, Pure, Sensitive, Audited: the vocabulary (okay-java-api)
-import okay.rows.*;
-import okay.rows.std.*;          // State, Reader, Writer, Throws, Choose, Fresh, Clock, Emit, Async, Trail
+import okay.effect.*;          // Operation, Eff, Pure
+import okay.rows.*;            // Comp, Var
 
-// 1. an effect: a sealed interface; each operation a record naming (effect, answer type, itself)
-public sealed interface Prices {
-  record Price(String item) implements Prices, Op<Prices, Integer, Price> {}
-  static Comp<Integer, Eff<Prices, ?>> price(String item) { return perform(new Price(item)); }
-}
-
-// 2. a program: its type is its row, in the order of its handlers; up(c) sends c's operations one place out
-static Comp<String, Eff<Prices, Eff<Clock, ?>>> quote(String item) {
-  return Prices.price(item).flatMap(p -> up(Clock.now()).map(t -> item + "=" + p + "@" + t));
-}
-
-// 3. a handler: takes the program, removes the first effect of its row (InPlace: answered at once, no capture)
-static <A, R> Comp<A, R> priced(Map<String, Integer> table, Comp<A, ? super Eff<Prices, R>> p) {
-  return handle(Prices.class, new InPlace<Prices, Void, A, A, R>() {
-    public Comp<A, R> ret(Void s, A a) { return pure(a); }
-    public Cell.Answered answer(Cell<Void> s, Prices op) {
-      return switch (op) {                                    // exhaustive over the sealed effect
-        case Prices.Price pr -> s.answer(pr, table.getOrDefault(pr.item(), 0));
-      };
-    }
-  }, null, p);
-}
-
-// 4. run, once, at the entry point: run takes only a program with nothing left (Pure)
-String q = run(Clock.at(() -> 1000L, priced(Map.of("tea", 4), quote("tea"))));       // "tea=4@1000"
-```
-
-The light form, for an effect without type parameters of its own: the effect a GADT, the handler one lambda.
-
-```java
-// the effect's interface is indexed by the answers and says so once; its operations are plain records
+// 1. an effect: a sealed interface indexed by its answers; each operation a record
 sealed interface Prices<T> extends Operation<T, Prices<?>> {
   record Price(String item) implements Prices<Long> {}
   record InStock(String item) implements Prices<Boolean> {}
+  record Discount(long sum) implements Prices<Long> {}
 }
 
-// a handler that only answers: one function from the operation to its answer, of the operation's own type
+// 2. a program: its type says what it gives and what it may ask. A block: questions, each answer a name
+static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
+  return together(t -> {
+    Var<Long> price = t.perform(new Prices.Price(item));
+    Var<Boolean> stock = t.perform(new Prices.InStock(item));
+    Var<Long> off = price.then(p -> t.perform(new Prices.Discount(p)));
+    return t.yield(price, stock, off, (p, in, o) -> in ? item + " " + (p - o) : item + " is out");
+  });
+}
+
+// 3. a handler: takes the program, removes the first effect of its row. One that only answers:
 static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
   return answering(op -> switch (op) {
     case Prices.Price p -> p.answer(table.getOrDefault(p.item(), 0L));
     case Prices.InStock s -> s.answer(table.containsKey(s.item()));
+    case Prices.Discount d -> d.answer(d.sum() / 10);
   }, body);
 }
 
-// a handler that needs the rest of the program: the operation and the continuation; no class is named.
-// k.resume(op, x) takes an answer of the operation's own type: a Price is answered by a Long
-static <A, R> Comp<A, R> pricedWithK(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
-  return handle((op, k) -> switch (op) {
-    case Prices.Price p -> k.resume(p, table.getOrDefault(p.item(), 0L));
-    case Prices.InStock s -> k.resume(s, table.containsKey(s.item()));
-  }, body);
-}
+// 4. run, once, at the entry point: only a program with nothing left to ask
+String q = run(priced(Map.of("kettle", 120L), quote("kettle")));       // "kettle 108"
 ```
 
-`answering` is the handler for an effect that is simply answered — a lookup, a clock, a configuration, a stub in a
-test: the same function answers an operation asked alone and each operation of a set; `answeringAtOnce` answers the
-operations of a set at the same time, each on a virtual thread. An answer of another type does not compile, a
-missing operation neither. `handle` is for a handler that needs the rest of the program, or a set whole.
+**A program**, three ways, one model, freely mixed:
 
-A clause (`Clause<F, A, R>`) whose program is `k.resume(op, x)` and nothing else is answered in place, nothing
-captured; one that goes on after the rest (`k.resume(c, yes).map(..)`), resumes twice, or leaves it
-(`k.unwind().map(..)`) is given the rest. The handler's value is the program's: it has no `ret`. A handler with a
-state is the same lambda with the state first (`StateClause`), resuming with the next state; the state is a value
-of each path:
+| Way | Words | Use it when |
+|---|---|---|
+| a block | `together(t -> ..)`: `t.perform(op)`, `a.map(f)`, `a.with(b, f)`, `a.then(x -> ..)`, `t.gather(g -> { for .. })`, `t.each(list, x -> ..)`, `t.when(..)`, `t.loop(..)`, `t.yield(..)` | several questions, some depending on others: most code |
+| a chain | `perform(op)`, `flatMap`, `map`, `pure`, `fold(xs, zero, (acc, x) -> ..)`, `forEach`, `collect`, `sequence`, `first` | a loop that goes by the answers, a recursion |
+| plain Java | `Direct.perform(op)` in a method whose `throws` names its effects | answers in locals, `for` and `if` as they are (resumable/README.md) |
 
-```java
-static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter<?>, R>> body) {
-  return handle(from, (state, op, k) -> switch (op) {
-    case Counter.Get g -> k.resume(g, state);
-    case Counter.Put p -> k.resume(p, null, p.value());
-  }, body);
-}
-```
+A block asks in rounds — every question whose answers are known, then the next — and the questions of a round are
+asked as a set. An answer is a value only inside the function given it (`p -> ..`).
 
-An effect with
-type parameters of its own (`State<S>`) keeps `Op` on each record: javac cannot tell `Get<S>` by an index.
+**A handler**, by what it needs:
 
-A comprehension, as Scala's `for`, flat: `together` — questions one after another, each answer a name; a question
-made of answers says which and is asked when they are known; the block ends with `yield` (a value) or `then` (a
-computation). It asks in rounds, by what each question needs; the operations of a round go at once, as a set:
+| It needs | Write |
+|---|---|
+| only to answer | `answering(op -> switch (op) { case Price p -> p.answer(x); .. }, body)`; `answeringAtOnce` for a set at the same time |
+| the rest of the program | `handle((op, k) -> switch (op) { .. k.resume(op, x) .. }, body)`: go on after it (`.map`), leave it (`k.unwind()`), resume it twice |
+| a state | `handle(s0, (state, op, k) -> .. k.resume(op, x, next) .., body)` |
+| a set whole | `handle(clause, (ops, k) -> { .. k.answer(op, x) ..; return k.resume(); }, body)`: one query for a round |
 
-```java
-static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
-  return together(t -> {
-    Var<Long> a = t.perform(new Prices.Price(first));
-    Var<Long> b = t.perform(new Prices.Price(second));
-    Var<Long> off = t.ask(a, b, (x, y) -> perform(new Prices.Discount(x + y)));
-    return t.yield(a, b, off, (x, y, o) -> x + y - o);
-  });
-}
-```
+In front of a handler, the effect kept in the row: `cached(p)` (each operation once in a run), `rounds(see, p)`
+(what is really asked, sets whole), `observe(Effect.class, see, p)`.
 
-Up to three answers are given as values; for more, `t.ask(() -> ..)`/`t.yield(() -> ..)` read the names by `get()`
-(there only). The block's loops and branches go by the answers and stay in its rounds: `t.each(list, x -> ..)` writes
-the questions of every element of an answer that is a list, all the elements' questions asked together, a level at a
-time however deep the lists nest; `t.when(cond, () -> .., () -> ..)` the questions of one branch; `t.value(v)` names a
-value. `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop, `t.askAll(list)` of a
-list, `t.let(a, f)`
-a value.
+**Rows.** A program's type ends with `?` (`Eff<Prices<?>, ?>`), a handler is
+`static <A, R> Comp<A, R> h(.., Comp<A, ? super Eff<F, R>> body)`, the second effect of a row is asked with
+`up(perform(op))`. javac's words: `method run .. cannot be applied` — an effect left unhandled; a handler's name
+`.. cannot be applied` — the wrong order; `inference variable Q has incompatible bounds` — an operation the row
+does not have, or an `up` missing.
 
-A general handler is `Handler<F, A, B, R>` with `ret(a)` and `on(op, k)`: `k` is the rest of the program as a value,
-`k.resume(op, x)`, `k.after(op, c)`, `k.unwind()` (runs the rest's finalizers). `Choose.all` resumes `k` once per
-value: `run(Choose.all(State.run(0, chosen())))` gives a state per path (docs/rows.md). Loops take an `Iterable`,
-the machine is the loop: `fold(cart, 0L, (sum, item) -> perform(new Prices.Price(item)).map(p -> sum + p))`,
-`forEach(xs, x -> c)`, `collect(xs, x -> c)` — lazy, constant stack, right under a continuation resumed twice. A
-source of computations, `Iterable<Comp<X, R>>`, is built by plain Java (a `for`, a stream) and run by `sequence(xs)`,
-`reduce(xs, zero, f)`, or `stream.map(item -> perform(..)).collect(sequencing())`;
-`gather(g -> { for (..) g.perform(new Price(item)); })` is a plain `for` with `perform` in it, the computation of
-the list of the answers, checked by the compiler; `first(xs, wanted)`, `any`, `all` ask one after another and no
-further than the answer that decides. A set is asked AT ONCE (`performAll(ops)`, a `gather`, a round of a block):
-a handler with a clause for sets, `handle(clause, (ops, k) -> { .. k.answer(p, x) .. return k.resume(); }, body)`,
-answers them by one query — or all at the same time, `Batch.concurrently((op, k) -> { .. k.answer(p, x) .. })`, each
-on a virtual thread; any other handler answers them one by one, the program the same. `cached(p)` asks each operation
-of the first effect once in a run (records are equal by their fields), a set going on as what is not known;
-`rounds(see, p)` shows the sets a program really asks in; in a block `t.loop(start, more, next)` is a loop by the
-answers (a read page after page)
-(no answer is there in the body: a loop that goes by the answers is
-`fold`).
-Other words: `under`,
-`fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step` (docs/rows.md). The capability notation
-(`okay.core.Comp<A, L>`, `okay.std`, a handler's body a generic method at a fresh level so nothing leaks) is
-docs/guide.md; `okay.rows.Bridge` runs either notation inside the other.
+### The other forms
+
+Needed for a reason each; all work together with the above.
+
+- An effect with type parameters of its own (`State<S>`) names the answer on each record:
+  `record Get<S>() implements State<S>, Op<State<S>, S, Get<S>> {}`.
+- The library's effects (`okay.rows.std`: `State`, `Reader`, `Writer`, `Throws`, `Choose`, `Fresh`, `Clock`,
+  `Emit`, `Async`, `Trail`) are in that form, with handlers as classes — `Handler<F, A, B, R>` (`ret`, `on(op, k)`)
+  and `InPlace<F, S, A, B, R>` (`ret`, `answer(cell, op)`), put by `handle(Effect.class, h, p)`. `Choose.all`
+  resumes `k` once per value: `run(Choose.all(State.run(0, chosen())))` gives a state per path. The same model in
+  that form:
+
+  ```java
+  import static okay.rows.Effects.*;
+  import okay.effect.*;          // Op, Eff, Pure, Sensitive, Audited: the vocabulary (okay-java-api)
+  import okay.rows.*;
+  import okay.rows.std.*;          // State, Reader, Writer, Throws, Choose, Fresh, Clock, Emit, Async, Trail
+
+  // 1. an effect: a sealed interface; each operation a record naming (effect, answer type, itself)
+  public sealed interface Prices {
+    record Price(String item) implements Prices, Op<Prices, Integer, Price> {}
+    static Comp<Integer, Eff<Prices, ?>> price(String item) { return perform(new Price(item)); }
+  }
+
+  // 2. a program: its type is its row, in the order of its handlers; up(c) sends c's operations one place out
+  static Comp<String, Eff<Prices, Eff<Clock, ?>>> quote(String item) {
+    return Prices.price(item).flatMap(p -> up(Clock.now()).map(t -> item + "=" + p + "@" + t));
+  }
+
+  // 3. a handler: takes the program, removes the first effect of its row (InPlace: answered at once, no capture)
+  static <A, R> Comp<A, R> priced(Map<String, Integer> table, Comp<A, ? super Eff<Prices, R>> p) {
+    return handle(Prices.class, new InPlace<Prices, Void, A, A, R>() {
+      public Comp<A, R> ret(Void s, A a) { return pure(a); }
+      public Cell.Answered answer(Cell<Void> s, Prices op) {
+        return switch (op) {                                    // exhaustive over the sealed effect
+          case Prices.Price pr -> s.answer(pr, table.getOrDefault(pr.item(), 0));
+        };
+      }
+    }, null, p);
+  }
+
+  // 4. run, once, at the entry point: run takes only a program with nothing left (Pure)
+  String q = run(Clock.at(() -> 1000L, priced(Map.of("tea", 4), quote("tea"))));       // "tea=4@1000"
+  ```
+
+- Other words of the row notation: `under`, `fit`, `defer`, `intercept`, `observe`, `ensuring`, `bracket`, `step`,
+  `k.after(op, c)` (docs/rows.md).
+- The capability notation (`okay.core.Comp<A, L>`, `okay.std`, a handler's body a generic method at a fresh level
+  so nothing leaks) is docs/guide.md; `okay.rows.Bridge` runs either notation inside the other.
 
 ### Design rules
 

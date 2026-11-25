@@ -1,5 +1,9 @@
 # okay-java documentation
 
+- **[Start here](start.md)**: effects the light way, on one page — an effect as a sealed family of records, a
+  program as a block (`together`), a chain (`flatMap`, `fold`) or plain Java, a handler by what it needs
+  (`answering`, `handle` with the rest, with a state, with a set), what is refused and when, what it costs.
+  `StartTest` compiles and runs every example. The other pages are the reference behind it.
 - [Guide](guide.md): programs at a level, the standard effects, effects of your own, what does not compile,
   delimited control, failures, generators, async. `GuideTest` compiles and runs every example.
 - [Architecture](architecture.md): `Cont`, `Comp` and its machine, `okay.std`, the tests, the benchmarks.

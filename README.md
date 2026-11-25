@@ -3,7 +3,11 @@
 Delimited continuations in Java 25, and effects on `shift0` — okay-core's design in Java, and an implementation of
 okay-kernel's protocol, so its programs run under okay-core's handlers and okay-core's under its.
 
-The documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
+**Start here:** [`docs/start.md`](docs/start.md) — effects in Java the light way, on one page: an effect as a
+sealed family of records, a program as a block or a chain, a handler as one function, every example compiled and
+run by `StartTest`.
+
+The rest of the documentation is in [`docs/`](docs/README.md): a [guide](docs/guide.md) whose examples are compiled and run by
 `GuideTest`, the [architecture](docs/architecture.md), [how it differs from okay-core](docs/vs-okay-core.md),
 [okay-java as an implementation of okay-kernel](docs/kernel.md), and [the optional Spring Boot
 module](docs/spring-boot.md). A second way of writing programs, the row of effects as a type, with control and

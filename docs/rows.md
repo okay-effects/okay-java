@@ -1,5 +1,9 @@
 # The row notation: `okay.rows`
 
+New here? [Start here](start.md) is the short way in, with the light form of this notation — effects as GADTs,
+blocks, handlers as one function. This page is the reference behind it: the notation in full, its older form of
+effects and handlers as classes, control and audit, how it meets the capability notation.
+
 okay-java has two ways to write a program with effects. Both run on the same machine.
 
 - **The capability notation** (`okay.core.Comp<A, L>`, `okay.std`, [the guide](guide.md)) passes each effect to the
@@ -91,7 +95,9 @@ static <S, A, R> Comp<Final<S, A>, R> run(S s0, Comp<A, ? super Eff<State<S>, R>
 The `switch` is exhaustive over the sealed family, so a handler that misses an operation does not compile
 (`MissingCase.java`). An answer of the wrong type does not compile either (`WrongAnswer.java`).
 
-### An effect as a GADT, a handler as one function
+### The light form, in full: an effect as a GADT, a handler as one function
+
+[Start here](start.md) shows this form by examples; what follows is every word of it and its exact meaning.
 
 An effect without type parameters of its own can be written as a GADT: its interface is indexed by the answers
 and extends `Operation<T, F>` once, and its operations are plain records. A handler is then one lambda, a
