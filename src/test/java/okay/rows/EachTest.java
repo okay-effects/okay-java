@@ -90,6 +90,42 @@ class EachTest {
     });
   }
 
+  /** the same report, the names going on by themselves: map, then, with */
+  static Comp<List<String>, Eff<Shop<?>, ?>> fluent(String day) {
+    return together(t -> {
+      Var<List<Integer>> ids = t.perform(new Shop.Orders(day));
+      Var<List<String>> lines = t.each(ids, id -> {
+        Var<Order> order = t.perform(new Shop.OrderOf(id));
+        Var<String> name = order.then(o -> t.perform(new Shop.CustomerName(o.customer())));
+        Var<List<Long>> prices = t.each(order.map(Order::items), item -> t.perform(new Shop.Price(item)));
+        return name.with(prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
+      });
+      return t.yield(lines);
+    });
+  }
+
+  @Test
+  void theNamesGoOnByThemselves() {
+    List<String> queries = new ArrayList<>();
+    assertEquals(List.of("ANN 15", "BOB 120", "ANN 10"), run(shop(queries, fluent("monday"))));
+    assertEquals(List.of("one: Orders[day=monday]", "3 of 3: OrderOf", "6 of 9: CustomerName"), queries);
+  }
+
+  /** a chain of questions each needing the one before, a value of three answers */
+  @Test
+  void aChainAndAValueOfThree() {
+    List<String> queries = new ArrayList<>();
+    Comp<String, Eff<Shop<?>, ?>> p = together(t -> {
+      Var<Order> order = t.perform(new Shop.OrderOf(2));
+      Var<String> name = order.then(o -> t.perform(new Shop.CustomerName(o.customer())));
+      Var<Long> off = order.then(o -> t.perform(new Shop.Discount(o.customer())));
+      Var<Long> price = order.map(o -> o.items().get(0)).then(item -> t.perform(new Shop.Price(item)));
+      return t.yield(name.with(price, off, (n, p1, o) -> n + " " + (p1 - o)));
+    });
+    assertEquals("BOB 120", run(shop(queries, p)));
+    assertEquals(List.of("one: OrderOf[id=2]", "3 of 3: CustomerName"), queries);
+  }
+
   @Test
   void nestedLoopsAskALevelAtATime() {
     List<String> queries = new ArrayList<>();

@@ -176,6 +176,24 @@ public final class Together<E, R extends Eff<E, ?>> {
         got -> value.apply(Handlers.trusted(got[ia]), Handlers.trusted(got[ib]))));
   }
 
+  /** a name for a value made of three answers */
+  public <A, B, C, T> Var<T> let(Var<A> a, Var<B> b, Var<C> c,
+      F3<? super A, ? super B, ? super C, ? extends T> value) {
+    int ia = place(a), ib = place(b), ic = place(c);
+    return member(Member.value(new int[] {ia, ib, ic}, got -> value.apply(
+        Handlers.trusted(got[ia]), Handlers.trusted(got[ib]), Handlers.trusted(got[ic]))));
+  }
+
+  /** the questions that need an answer, written through this block when it is known, and the name they give:
+   * {@link Var#then} */
+  <A, T> Var<T> follow(Var<A> a, Function<? super A, Var<T>> next) {
+    int ia = place(a);
+    return member(Member.grow(new int[] {ia}, got -> {
+      int given = place(next.apply(Handlers.trusted(got[ia])));
+      return Member.value(new int[] {given}, answers -> answers[given]);
+    }));
+  }
+
   // -- the block's loops and branches, by the answers
 
   /** FOR EVERY ELEMENT of an answer that is a list, the questions {@code body} writes for it — through this same
@@ -219,6 +237,12 @@ public final class Together<E, R extends Eff<E, ?>> {
   }
 
   // -- the last word of the block
+
+  /** the block's value: an answer as it is */
+  public <V> Comp<V, R> yield(Var<V> a) {
+    int ia = place(a);
+    return goOn(got -> Effects.<V, R>pure(Handlers.trusted(got[ia])));
+  }
 
   /** the block's value, made of one answer */
   public <A, V> Comp<V, R> yield(Var<A> a, Function<? super A, ? extends V> value) {

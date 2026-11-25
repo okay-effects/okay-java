@@ -231,11 +231,16 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   Var<List<Integer>> ids = t.perform(new Shop.Orders(day));
   Var<List<String>> lines = t.each(ids, id -> {
     Var<Order> order = t.perform(new Shop.OrderOf(id));
-    Var<String> name = t.ask(order, o -> perform(new Shop.CustomerName(o.customer())));
-    Var<List<Long>> prices = t.each(t.let(order, Order::items), item -> t.perform(new Shop.Price(item)));
-    return t.let(name, prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
+    Var<String> name = order.then(o -> t.perform(new Shop.CustomerName(o.customer())));
+    Var<List<Long>> prices = t.each(order.map(Order::items), item -> t.perform(new Shop.Price(item)));
+    return name.with(prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
   });
   ```
+- A NAME GOES ON BY ITSELF, as a value that is not there yet does: `a.map(f)` is a value made of the answer,
+  `a.with(b, f)` of two (or three), `a.then(x -> ..)` the questions that need it, written through the block when
+  it is known, and the name they give. The same as `t.let(a, f)` and a question made of answers; each a name of the
+  same block, asked in its rounds. `t.yield(a)` is the block's value, an answer as it is. A loop over a list is
+  the block's, `t.each(list, ..)`: a name cannot say of itself that its answer is a list.
 - `t.loop(start, more, next)` is a loop by the answers: while `more` says so of the state, `next` writes the
   questions that give the next state — a read page after page, each turn asked when the one before is known, the
   block's other questions beside it. The block keeps every turn's names: for tens or hundreds of turns.
