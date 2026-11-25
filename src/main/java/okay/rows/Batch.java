@@ -70,12 +70,4 @@ public interface Batch<F, A, R> {
       return k.resume();
     };
   }
-
-  /** the same clause, the operations answered one after another, on the program's thread */
-  static <F, A, R> Batch<F, A, R> inTurn(One<F, A, R> one) {
-    return (ops, k) -> {
-      for (F op : ops) one.answer(op, k);
-      return k.resume();
-    };
-  }
 }

@@ -127,12 +127,6 @@ public final class Together<E, R extends Eff<E, ?>> {
     return member(Member.made(above(), got -> question.get()));
   }
 
-  /** every question of {@code questions}: their answers, in their order, under one name */
-  public <T> Var<List<T>> askAll(Iterable<? extends Comp<T, ? super R>> questions) {
-    ArrayList<Var<T>> asked = new ArrayList<>();
-    for (Comp<T, ? super R> q : questions) asked.add(ask(q));
-    return list(asked);
-  }
 
   /** A PLAIN LOOP OF QUESTIONS: those asked through {@code g} in {@code loop}, all answered by one type, are
    * questions of this block; their answers, in their order, under one name —
@@ -163,21 +157,21 @@ public final class Together<E, R extends Eff<E, ?>> {
     return member(Member.value(Member.NOTHING, got -> value));
   }
 
-  /** a name for a value made of an answer: no question */
-  public <A, T> Var<T> let(Var<A> a, Function<? super A, ? extends T> value) {
+  /** a name for a value made of an answer, no question: {@link Var#map} */
+  <A, T> Var<T> let(Var<A> a, Function<? super A, ? extends T> value) {
     int ia = place(a);
     return member(Member.value(new int[] {ia}, got -> value.apply(Handlers.trusted(got[ia]))));
   }
 
-  /** a name for a value made of two answers */
-  public <A, B, T> Var<T> let(Var<A> a, Var<B> b, BiFunction<? super A, ? super B, ? extends T> value) {
+  /** a name for a value made of two answers: {@link Var#with} */
+  <A, B, T> Var<T> let(Var<A> a, Var<B> b, BiFunction<? super A, ? super B, ? extends T> value) {
     int ia = place(a), ib = place(b);
     return member(Member.value(new int[] {ia, ib},
         got -> value.apply(Handlers.trusted(got[ia]), Handlers.trusted(got[ib]))));
   }
 
-  /** a name for a value made of three answers */
-  public <A, B, C, T> Var<T> let(Var<A> a, Var<B> b, Var<C> c,
+  /** a name for a value made of three answers: {@link Var#with} */
+  <A, B, C, T> Var<T> let(Var<A> a, Var<B> b, Var<C> c,
       F3<? super A, ? super B, ? super C, ? extends T> value) {
     int ia = place(a), ib = place(b), ic = place(c);
     return member(Member.value(new int[] {ia, ib, ic}, got -> value.apply(
@@ -237,6 +231,11 @@ public final class Together<E, R extends Eff<E, ?>> {
   }
 
   // -- the last word of the block
+
+  /** the block has no value: its questions are asked for what they do */
+  public Comp<Void, R> done() {
+    return goOn(got -> Effects.<Void, R>pure(null));
+  }
 
   /** the block's value: an answer as it is */
   public <V> Comp<V, R> yield(Var<V> a) {

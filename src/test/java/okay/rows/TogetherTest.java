@@ -219,8 +219,10 @@ class TogetherTest {
     List<String> queries = new ArrayList<>();
     List<String> cart = List.of("tea", "kettle", "cup");
     Comp<String, Eff<Prices<?>, ?>> p = together(t -> {
-      Var<List<Long>> prices = t.askAll(cart.stream().map(i -> perform(new Prices.Price(i))).toList());
-      Var<Long> sum = t.let(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
+      Var<List<Long>> prices = t.gather(g -> {
+        for (String i : cart) g.perform(new Prices.Price(i));
+      });
+      Var<Long> sum = prices.map(ps -> ps.stream().mapToLong(Long::longValue).sum());
       Var<Long> off = t.ask(sum, s -> perform(new Prices.Discount(s)));
       return t.then(sum, off, (s, o) -> quote("cup").map(q -> q + ", total " + (s - o)));
     });

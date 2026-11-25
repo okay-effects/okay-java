@@ -76,11 +76,11 @@ class ConcurrentlyTest {
   void theSameProgramInTurnAndAtTheSameTime() {
     Map<String, Thread> threads = new ConcurrentHashMap<>();
     long start = System.nanoTime();
-    Long inTurn = run(handle(alone(), Batch.inTurn(service(threads)), total(CART)));
+    // a handler without a clause for sets: the operations of a set one by one, on the program's thread
+    Long inTurn = run(handle(alone(), total(CART)));
     long turnMs = (System.nanoTime() - start) / 1_000_000;
     assertEquals(137L, inTurn);
-    assertEquals(8, threads.size());
-    assertTrue(threads.values().stream().allMatch(t -> t == Thread.currentThread()));
+    assertEquals(0, threads.size());
     assertTrue(turnMs >= 8 * SLOW, "in turn: " + turnMs + " ms");
 
     threads.clear();

@@ -78,7 +78,7 @@ class GatherTest {
         for (String item : CART) g.perform(new Prices.Price(item));
       });
       Var<Boolean> kettle = t.perform(new Prices.InStock("kettle"));
-      Var<Long> sum = t.let(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
+      Var<Long> sum = prices.map(ps -> ps.stream().mapToLong(Long::longValue).sum());
       Var<Long> off = t.ask(sum, s -> perform(new Prices.Discount(s)));
       return t.yield(sum, off, kettle, (s, o, in) -> (s - o) + (in ? " with a kettle" : ""));
     });

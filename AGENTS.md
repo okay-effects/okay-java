@@ -97,7 +97,14 @@ In front of a handler, the effect kept in the row: `cached(p)` (each operation o
 `static <A, R> Comp<A, R> h(.., Comp<A, ? super Eff<F, R>> body)`, the second effect of a row is asked with
 `up(perform(op))`. javac's words: `method run .. cannot be applied` — an effect left unhandled; a handler's name
 `.. cannot be applied` — the wrong order; `inference variable Q has incompatible bounds` — an operation the row
-does not have, or an `up` missing.
+does not have, or an `up` missing. A program of several effects used inside a longer row writes its row open at
+every step, `Eff<A, ? extends Eff<B, ?>>`.
+
+**An application's own effects: one family.** Many effects whose order means nothing — a store, mail, ids, a
+clock — are best ONE place of the row: `sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail,
+..` and `sealed interface Store<T> extends Shop<T> { record .. }`. Every program is a `Comp<X, Eff<Shop<?>, ?>>`,
+with no `up` and sub-programs used as they are; the handler one `switch` over the family, each part answered by its
+own function (docs/start.md; `Booking` and `BookingOne` in the tests are a real flow written both ways).
 
 ### The other forms
 

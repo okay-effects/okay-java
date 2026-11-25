@@ -83,8 +83,8 @@ class EachTest {
       Var<List<String>> lines = t.each(ids, id -> {
         Var<Order> order = t.perform(new Shop.OrderOf(id));
         Var<String> name = t.ask(order, o -> perform(new Shop.CustomerName(o.customer())));
-        Var<List<Long>> prices = t.each(t.let(order, Order::items), item -> t.perform(new Shop.Price(item)));
-        return t.let(name, prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
+        Var<List<Long>> prices = t.each(order.map(Order::items), item -> t.perform(new Shop.Price(item)));
+        return name.with(prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
       });
       return t.yield(lines, ls -> ls);
     });
@@ -156,9 +156,9 @@ class EachTest {
   static Comp<Long, Eff<Shop<?>, ?>> charge(int id) {
     return together(t -> {
       Var<Order> order = t.perform(new Shop.OrderOf(id));
-      Var<List<Long>> prices = t.each(t.let(order, Order::items), item -> t.perform(new Shop.Price(item)));
-      Var<Long> sum = t.let(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
-      Var<Long> off = t.when(t.let(sum, s -> s > 12),
+      Var<List<Long>> prices = t.each(order.map(Order::items), item -> t.perform(new Shop.Price(item)));
+      Var<Long> sum = prices.map(ps -> ps.stream().mapToLong(Long::longValue).sum());
+      Var<Long> off = t.when(sum.map(s -> s > 12),
           () -> t.ask(order, o -> perform(new Shop.Discount(o.customer()))),
           () -> t.value(0L));
       return t.yield(sum, off, (s, o) -> s - o);
@@ -189,11 +189,11 @@ class EachTest {
   /** page after page while there is a next one, then the prices of everything read */
   static Comp<Long, Eff<Catalog<?>, ?>> catalogTotal() {
     return together(t -> {
-      Var<Read> first = t.let(t.perform(new Catalog.Fetch(0)), p -> new Read(p.items(), p.next()));
+      Var<Read> first = t.perform(new Catalog.Fetch(0)).map(p -> new Read(p.items(), p.next()));
       Var<Read> all = t.loop(first, read -> read.next() != null, read ->
-          t.let(t.perform(new Catalog.Fetch(read.next())), p -> new Read(
+          t.perform(new Catalog.Fetch(read.next())).map(p -> new Read(
               Stream.concat(read.items().stream(), p.items().stream()).toList(), p.next())));
-      Var<List<Long>> prices = t.each(t.let(all, Read::items), item -> t.perform(new Catalog.Price(item)));
+      Var<List<Long>> prices = t.each(all.map(Read::items), item -> t.perform(new Catalog.Price(item)));
       return t.yield(prices, ps -> ps.stream().mapToLong(Long::longValue).sum());
     });
   }
@@ -248,7 +248,7 @@ class EachTest {
   void everyPathItsOwnElements() {
     Comp<List<String>, Eff<Flip<?>, ?>> p = together(t -> {
       Var<Boolean> two = t.perform(new Flip.Coin());
-      Var<List<Integer>> ns = t.let(two, b -> b ? List.of(1, 2) : List.of(1));
+      Var<List<Integer>> ns = two.map(b -> b ? List.of(1, 2) : List.of(1));
       Var<List<Boolean>> coins = t.each(ns, n -> t.perform(new Flip.Coin()));
       return t.yield(coins, cs -> List.of(cs.toString()));
     });

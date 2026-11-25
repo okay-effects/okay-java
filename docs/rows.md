@@ -188,7 +188,7 @@ Comp<Long, Eff<Prices<?>, ?>> total =
   goes on with `k.resumeAfter(c)`: the rest resumed with the answers given by the time `c` ends.
 - How a set is answered is the handler's choice. `Batch.concurrently((op, k) -> { switch (op) { case Price p ->
   k.answer(p, lookup(p.item())); } })` answers each operation of a set on a virtual thread, at the same time, and
-  the program goes on when all are answered; `Batch.inTurn(..)` is the same clause one after another. The
+  the program goes on when all are answered. The
   operations of a set are independent, so the program says no order between them (`ConcurrentlyTest`: a block of
   eight calls of 150 ms — 1.2 s in turn, about 0.16 s at the same time, the program the same).
 - The iterator is asked for an element when the loop gets to it: a source may have no end, and a loop a handler
@@ -223,7 +223,7 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   compile (`TogetherWrongOperation.java`). `t.ask(c)` asks any computation of the row — another effect's with
   `up`, another block, a program: run in its
   turn within its round. `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop of questions,
-  `t.askAll(questions)` of a list of them, `t.list(vars)` of names; `t.let(a, f)` names a value.
+  `t.list(vars)` of several names; `a.map(f)` names a value; `t.done()` ends a block asked for what it does.
 - The block's own LOOPS AND BRANCHES go by the answers and stay in the rounds. `t.each(list, x -> ..)` writes, for
   every element of an answer that is a list, the questions its function writes through the same block, and names
   the list of what it returns; `t.when(cond, () -> .., () -> ..)` writes the questions of one branch, chosen by an
@@ -244,7 +244,7 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   ```
 - A NAME GOES ON BY ITSELF, as a value that is not there yet does: `a.map(f)` is a value made of the answer,
   `a.with(b, f)` of two (or three), `a.then(x -> ..)` the questions that need it, written through the block when
-  it is known, and the name they give. The same as `t.let(a, f)` and a question made of answers; each a name of the
+  it is known, and the name they give. Each is a name of the
   same block, asked in its rounds. `t.yield(a)` is the block's value, an answer as it is. A loop over a list is
   the block's, `t.each(list, ..)`: a name cannot say of itself that its answer is a list.
 - `t.loop(start, more, next)` is a loop by the answers: while `more` says so of the state, `next` writes the

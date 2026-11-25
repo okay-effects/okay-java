@@ -67,7 +67,7 @@ static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
 | `a.map(f)` | a value made of the answer; no question |
 | `a.with(b, f)`, `a.with(b, c, f)` | a value made of two or three answers |
 | `a.then(x -> t.perform(..))` | the questions that need this answer |
-| `t.yield(a, b, c, f)`, `t.yield(a)` | the block's value: its last word |
+| `t.yield(a, b, c, f)`, `t.yield(a)`, `t.done()` | the block's value, its last word; `done` for a block asked for what it does |
 | `t.then(a, x -> comp)` | the block goes on with another program |
 
 The block knows what depends on what, so it asks in ROUNDS: first every question that needs nothing, then those
@@ -140,7 +140,50 @@ static Comp<String, Eff<Prices<?>, Eff<Ask<?>, ?>>> checkout(List<String> cart) 
 }
 ```
 
-`total` asks only `Prices`, and is used here as it is: a program fits any row that has its effects in their order.
+`total` asks only `Prices`, and is used here as it is: a program of ONE effect fits any row that has that effect
+first. A program of several effects used inside a longer row must say that its row is open at every step —
+`Comp<X, Eff<Store<?>, ? extends Eff<Ids<?>, ?>>>` — and is then moved to its places with `up` and `under`. That is
+the price of a row whose order is in the type, and it grows with the number of effects.
+
+### An application's effects as one family
+
+An application has many effects of its own — a store, mail, ids, a clock, a geocoder — and the order between
+their handlers means nothing. Make them ONE place of the row: one sealed family, each effect a sealed part of it.
+
+```java
+sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail, Ids, Clock {}
+
+sealed interface Store<T> extends Shop<T> {
+  record Allow(String key, int max, long window, long now) implements Store<Boolean> {}
+  record Book(Booked booking, long now) implements Store<Or<Booked>> {}
+}
+sealed interface Ids<T> extends Shop<T> {
+  record Ref(String prefix) implements Ids<String> {}
+  record Secret() implements Ids<String> {}
+}
+```
+
+Every program of the application is then a `Comp<X, Eff<Shop<?>, ?>>`, whatever it asks: no `up`, no place to
+count, a sub-program used as it is, every question of a block `t.perform(op)`. The handler is one `switch` over the
+family, each part answered by its own function:
+
+```java
+answering(op -> switch (op) {
+  case Store<?> s -> stored(world, s);       // static Answer<?> stored(World w, Store<?> op): its own switch
+  case Ids<?> i -> identified(world, i);
+  case Clock.Now n -> n.answer(world.now);
+  ..
+}, program);
+```
+
+What is given up: the type no longer says which of the family a function asks, and the family is handled together.
+Keep separate places for effects whose order matters or that come from elsewhere — a `State` inside a choice, a
+library's effect.
+
+`Booking` and `BookingOne` in the tests are a real flow written both ways — the taking of a booking of okay-shop,
+seven effects, the same scenarios run on both: with a place for each effect, eight `up` and `under` and rows of a
+hundred characters; as one family, none.
+
 
 ## 3. A handler
 
