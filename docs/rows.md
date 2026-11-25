@@ -199,6 +199,24 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
   `up`, another block, a program: run in its
   turn within its round. `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop of questions,
   `t.askAll(questions)` of a list of them, `t.list(vars)` of names; `t.let(a, f)` names a value.
+- The block's own LOOPS AND BRANCHES go by the answers and stay in the rounds. `t.each(list, x -> ..)` writes, for
+  every element of an answer that is a list, the questions its function writes through the same block, and names
+  the list of what it returns; `t.when(cond, () -> .., () -> ..)` writes the questions of one branch, chosen by an
+  answer; `t.value(v)` names a value. They are written when their answers are known, and their questions are
+  questions of the block: those of one handler are asked at once for ALL the elements together, and so again for an
+  `each` inside an `each`. A nested read — the day's orders, each order, its customer and each of its items — is
+  written as nested loops and asked a level at a time (`EachTest`: 13 questions one by one, 3 queries under a
+  handler with a clause for sets; the same program):
+
+  ```java
+  Var<List<Integer>> ids = t.perform(new Shop.Orders(day));
+  Var<List<String>> lines = t.each(ids, id -> {
+    Var<Order> order = t.perform(new Shop.OrderOf(id));
+    Var<String> name = t.ask(order, o -> perform(new Shop.CustomerName(o.customer())));
+    Var<List<Long>> prices = t.each(t.let(order, Order::items), item -> t.perform(new Shop.Price(item)));
+    return t.let(name, prices, (n, ps) -> n + " " + ps.stream().mapToLong(Long::longValue).sum());
+  });
+  ```
 - For more than three answers, or any: `t.ask(() -> ..)`, `t.yield(() -> ..)`, `t.then(() -> ..)` read the names
   by `get()`. Such a question is asked after every question written before it. A `Var` read by `get()` anywhere
   else — before it is known, or later from a function made there and run after — is refused; an answer of

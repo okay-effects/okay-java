@@ -119,7 +119,10 @@ static Comp<Long, Eff<Prices<?>, ?>> total(String first, String second) {
 ```
 
 Up to three answers are given as values; for more, `t.ask(() -> ..)`/`t.yield(() -> ..)` read the names by `get()`
-(there only). `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop, `t.askAll(list)` of a
+(there only). The block's loops and branches go by the answers and stay in its rounds: `t.each(list, x -> ..)` writes
+the questions of every element of an answer that is a list, all the elements' questions asked together, a level at a
+time however deep the lists nest; `t.when(cond, () -> .., () -> ..)` the questions of one branch; `t.value(v)` names a
+value. `t.gather(g -> { for (..) g.perform(op); })` names the answers of a loop, `t.askAll(list)` of a
 list, `t.let(a, f)`
 a value.
 
