@@ -75,15 +75,28 @@ sealed interface Prices<T> extends Operation<T, Prices<?>> {
   record InStock(String item) implements Prices<Boolean> {}
 }
 
-// the handler: the operation and the continuation; no class is named, the effect is the first of the body's row.
-// k.resume(op, x) takes an answer of the operation's own type: a Price is answered by a Long
+// a handler that only answers: one function from the operation to its answer, of the operation's own type
 static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
+  return answering(op -> switch (op) {
+    case Prices.Price p -> p.answer(table.getOrDefault(p.item(), 0L));
+    case Prices.InStock s -> s.answer(table.containsKey(s.item()));
+  }, body);
+}
+
+// a handler that needs the rest of the program: the operation and the continuation; no class is named.
+// k.resume(op, x) takes an answer of the operation's own type: a Price is answered by a Long
+static <A, R> Comp<A, R> pricedWithK(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
   return handle((op, k) -> switch (op) {
     case Prices.Price p -> k.resume(p, table.getOrDefault(p.item(), 0L));
     case Prices.InStock s -> k.resume(s, table.containsKey(s.item()));
   }, body);
 }
 ```
+
+`answering` is the handler for an effect that is simply answered — a lookup, a clock, a configuration, a stub in a
+test: the same function answers an operation asked alone and each operation of a set; `answeringAtOnce` answers the
+operations of a set at the same time, each on a virtual thread. An answer of another type does not compile, a
+missing operation neither. `handle` is for a handler that needs the rest of the program, or a set whole.
 
 A clause (`Clause<F, A, R>`) whose program is `k.resume(op, x)` and nothing else is answered in place, nothing
 captured; one that goes on after the rest (`k.resume(c, yes).map(..)`), resumes twice, or leaves it

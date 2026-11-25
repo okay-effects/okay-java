@@ -111,6 +111,15 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
 }
 ```
 
+- A HANDLER THAT ONLY ANSWERS is one function from the operation to its answer:
+  `answering(op -> switch (op) { case Prices.Price p -> p.answer(4L); case Prices.InStock s -> s.answer(true); },
+  body)`. `op.answer(x)` is the operation and its answer, of the operation's own type: a value of another type does
+  not compile, a missing operation neither (`AnsweringWrongAnswer.java`, `AnsweringMissingCase.java`), and the
+  answer of another operation is refused when it is given. In place: nothing of the program is taken. The same
+  function answers an operation asked alone and each operation of a set; `answeringAtOnce(..)` answers the
+  operations of a set at the same time, each on a virtual thread. It is the handler of an effect that is simply
+  answered — a lookup, a clock, a stub in a test; a handler that needs the rest of the program, or a set whole to
+  answer by one query, is `handle`, below.
 - `Operation<T, F>` is `Op<F, T, F>`: the operation names the effect as itself, so `perform` takes every record of
   the family and no other (`OperationOfAnotherEffect.java`).
 - Java does not refine `T` in a `case`. The continuation's type does it: `k.resume(op, x)` takes an `Op<?, X, ?>`
@@ -130,9 +139,10 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
 - An effect with type parameters of its own keeps `Op` on each record: `Get<S> implements State<S, S>` cannot be
   told from a `State<S, ?>` by its index, and javac refuses the `case`.
 
-Measured on `rowsBench` (one run, ns an operation): a handler in place 14.4, a clause that only resumes 20.0, a
+Measured on `rowsBench` (one run, ns an operation): `answering` 13.2, a handler in place 14.6, a clause that only
+resumes 19.2, a
 clause with a state 19.9 (`State.run`, in place: 13.1), a
-general handler 25.2.
+general handler 27.6.
 
 Loops take an `Iterable`; the machine is the loop, in constant stack:
 

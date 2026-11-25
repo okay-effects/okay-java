@@ -186,6 +186,36 @@ final class Handlers {
     }
   }
 
+  /** a handler that only answers ({@code Effects.answering}): one function, the operation to its answer — in place,
+   * nothing taken; a set is asked of it one by one */
+  static final class Answering<F> extends Rows.Spec {
+    private final java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers;
+
+    Answering(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers) {
+      super(true, true);
+      this.answers = answers;
+    }
+
+    @Override
+    protected okay.core.Comp<?, ?> ret(Object entry, Object value) {
+      return okay.core.Comp.pure(value);
+    }
+
+    @Override
+    protected Object answer(Object entry, Object op) {
+      return given(answers, trusted(op));
+    }
+  }
+
+  /** the answer {@code answers} gives for {@code op}: it must be this operation's, {@code op.answer(x)} */
+  static <F> Object given(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers, F op) {
+    okay.effect.Answer<?> a = answers.apply(op);
+    if (a == null || a.operation() != op)
+      throw new IllegalArgumentException("not the answer of the operation asked: " + op + " was answered by "
+          + (a == null ? "nothing" : "the answer of " + a.operation()));
+    return a.value();
+  }
+
   /** a handler in place: its state in the cell of its entry */
   static final class Local<F, S, A, B, R> extends Rows.Spec {
     private final Class<?> effect;

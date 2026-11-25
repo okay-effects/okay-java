@@ -120,6 +120,9 @@ public final class Bench {
     measure("binds", n, () -> run(binds(n, 0)));
     measure("audited", n, () -> run(Audit.handle(TICKED, null, Audit.audit(PASSING, meter(n, 0)))));
     measure("inplace", n, () -> run(handle(Tick.class, TICK_IN_PLACE, null, ticks(n, 0))));
+    measure("answering", n, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>answering(op -> switch (op) {
+      case Tick.Next next -> next.answer(1);
+    }, ticks(n, 0))));
     measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1);
     }, ticks(n, 0))));

@@ -1,5 +1,6 @@
 package okay.rows;
 
+import okay.effect.Answer;
 import okay.effect.Pure;
 import okay.effect.Op;
 import okay.effect.Eff;
@@ -227,6 +228,28 @@ public final class Effects {
   public static <F, A, B, R> Comp<B, R> handle(
       Class<? super F> effect, Handler<F, A, B, R> h, Comp<A, ? super Eff<F, R>> p) {
     return new Comp<>(DOOR.handle(new Handlers.General<>(effect, h, true), null, p.eff));
+  }
+
+  /** A HANDLER THAT ONLY ANSWERS, one function from the operation to its answer:
+   * {@code answering(op -> switch (op) { case Price p -> p.answer(table.get(p.item())); case InStock s ->
+   * s.answer(table.containsKey(s.item())); }, program)}. The effect is the first of the program's row. Each answer
+   * is the operation's own ({@link Op#answer}): a value of another type does not compile, the answer of another
+   * operation is refused. In place: nothing of the program is taken. The same function answers an operation asked
+   * alone and each operation of a set; a handler that needs the rest of the program, or a set whole, is
+   * {@code handle}. */
+  public static <F, A, R> Comp<A, R> answering(
+      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p) {
+    return new Comp<>(DOOR.handle(new Handlers.Answering<F>(answers), null, p.eff));
+  }
+
+  /** the same, the operations of a SET answered at the same time, each on a virtual thread
+   * ({@link Batch#concurrently}): for answers that wait — a call, a query. An operation asked alone is answered
+   * where it is asked. */
+  public static <F, A, R> Comp<A, R> answeringAtOnce(
+      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p) {
+    Clause<F, A, R> one = (op, k) -> new Comp<>(k.resumed(Handlers.given(answers, op), false, null));
+    Batch<F, A, R> all = Batch.concurrently((op, k) -> k.answerAny(op, Handlers.given(answers, op)));
+    return handle(one, all, p);
   }
 
   /** the same, the handler one function of the operation and the continuation ({@link Clause}), a lambda:
