@@ -5,15 +5,15 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** AN EFFECT WRITTEN AS A PLAIN INTERFACE: {@code @Effect interface Prices { long price(String item); }}. The
- * processor generates, beside it, {@code PricesOp<T>} — the effect as okay.rows has it: a sealed interface indexed
- * by the answers, a record for each method ({@code PricesOp.Price(String item)}, a {@code PricesOp<Long>}); a
- * function for each operation ({@code PricesOp.price(item)}, the program that asks it); and
- * {@code PricesOp.handledBy(impl, program)}, the handler any implementation of the interface is — it answers in
- * place. A handler that needs the rest of the program is written as ever, a {@code switch} over the records.
+/** ON AN EFFECT WRITTEN BY HAND — a sealed interface, a record for each operation:
+ * {@code @Effect sealed interface Prices<T> extends Operation<T, Prices<?>> { record Price(String item) implements
+ * Prices<Long> {} }}. The effect stays what it is, its records the names a handler switches over. The processor
+ * generates, beside it, {@code PricesOps}: a function for each operation ({@code PricesOps.price(item)}, the
+ * program that asks it); the handler that only answers as an interface, {@code PricesOps.Handler}, a method for
+ * each operation ({@code long price(String item)}); and {@code PricesOps.handledBy(impl, program)}, the program
+ * under an implementation of it, answered in place.
  *
- * <p>The interface: no type parameters; its abstract methods not generic, not overloaded, with no {@code throws}.
- * Default and static methods are left alone. */
+ * <p>Refused: an effect with a type parameter of its own ({@code State<S>}). */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface Effect {}

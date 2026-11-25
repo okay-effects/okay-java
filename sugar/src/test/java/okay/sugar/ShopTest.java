@@ -12,39 +12,41 @@ import okay.effect.Operation;
 import okay.rows.Comp;
 import org.junit.jupiter.api.Test;
 
-/** The sugar, used as a consumer would: an effect as a plain interface, a row named once on a class. */
+/** The sugar, used as a consumer would: effects written by hand, their functions and handlers generated. */
 class ShopTest {
-  /** an effect written as a plain interface: PricesOp is generated from it */
+  /** an effect, written as okay.rows has it: PricesOps is generated beside it */
   @Effect
-  interface Prices {
-    long price(String item);
-    boolean inStock(String item);
-    void seen(String item);
+  sealed interface Prices<T> extends Operation<T, Prices<?>> {
+    record Price(String item) implements Prices<Long> {}
+    record InStock(String item) implements Prices<Boolean> {}
+    record Seen(String item) implements Prices<Void> {}
   }
 
-  /** an effect written by hand, the light form: its operations are records */
+  /** an effect with an operation of any answer: AskOps is generated, its fail(..) generic */
+  @Effect
   sealed interface Ask<T> extends Operation<T, Ask<?>> {
     record Confirm(String question) implements Ask<Boolean> {}
+    record Fail<T>(String why) implements Ask<T> {}
   }
 
   /** programs of one row, named once: CheckoutOps is generated, every operation at its place */
   @Uses({Prices.class, Ask.class})
   static final class Checkout {
-    static Comp<Long, Eff<PricesOp<?>, Eff<Ask<?>, ?>>> total(List<String> cart) {
+    static Comp<Long, Eff<Prices<?>, Eff<Ask<?>, ?>>> total(List<String> cart) {
       return fold(cart, 0L, (sum, item) ->
           seen(item).flatMap(done -> inStock(item)).flatMap(in ->
-              in ? price(item).map(p -> sum + p) : pure(sum)));
+              in ? price(item).map(p -> sum + p) : fail(item + " is out")));
     }
 
-    static Comp<String, Eff<PricesOp<?>, Eff<Ask<?>, ?>>> checkout(List<String> cart) {
+    static Comp<String, Eff<Prices<?>, Eff<Ask<?>, ?>>> checkout(List<String> cart) {
       return total(cart).flatMap(sum ->
           sum <= 100 ? pure("paid " + sum)
               : confirm("pay " + sum + "?").map(yes -> yes ? "paid " + sum : "declined"));
     }
   }
 
-  /** a handler is an implementation of the interface */
-  static final class Table implements Prices {
+  /** a handler that only answers is an implementation of the generated interface */
+  static final class Table implements PricesOps.Handler {
     final Map<String, Long> table;
     final List<String> seen = new ArrayList<>();
     Table(Map<String, Long> table) { this.table = table; }
@@ -53,35 +55,53 @@ class ShopTest {
     public void seen(String item) { seen.add(item); }
   }
 
-  static <A, R> Comp<A, R> asking(boolean yes, Comp<A, ? super Eff<Ask<?>, R>> body) {
-    return answering(op -> switch (op) {
-      case Ask.Confirm c -> c.answer(yes);
+  /** a handler that needs the rest is written as ever: a switch over the effect's own records */
+  static <R> Comp<String, R> asking(boolean yes, Comp<String, ? super Eff<Ask<?>, R>> body) {
+    return handle((op, k) -> switch (op) {
+      case Ask.Confirm c -> k.resume(c, yes);
+      case Ask.Fail<?> f -> k.unwind().map(left -> "failed: " + f.why());
     }, body);
   }
 
+  static String shop(Table table, boolean yes, List<String> cart) {
+    return run(asking(yes, PricesOps.handledBy(table, Checkout.checkout(cart))));
+  }
+
   @Test
-  void anImplementationIsTheHandler() {
-    Table shop = new Table(Map.of("tea", 4L, "cup", 11L));
-    String paid = run(asking(true, PricesOp.handledBy(shop, Checkout.checkout(List.of("tea", "cup", "gold")))));
-    assertEquals("paid 15", paid);
-    assertEquals(List.of("tea", "cup", "gold"), shop.seen);
+  void anImplementationOfTheGeneratedInterfaceIsTheHandler() {
+    Table table = new Table(Map.of("tea", 4L, "cup", 11L));
+    assertEquals("paid 15", shop(table, true, List.of("tea", "cup")));
+    assertEquals(List.of("tea", "cup"), table.seen);
   }
 
   @Test
   void theSecondEffectOfTheRowIsAskedWithNoUp() {
-    Table shop = new Table(Map.of("kettle", 120L));
-    assertEquals("declined", run(asking(false, PricesOp.handledBy(shop, Checkout.checkout(List.of("kettle"))))));
-    assertEquals("paid 120", run(asking(true, PricesOp.handledBy(shop, Checkout.checkout(List.of("kettle"))))));
+    Table table = new Table(Map.of("kettle", 120L));
+    assertEquals("declined", shop(table, false, List.of("kettle")));
+    assertEquals("paid 120", shop(table, true, List.of("kettle")));
   }
 
   @Test
-  void theGeneratedRecordsAreTheEffectAGeneralHandlerSwitchesOver() {
-    // a handler written by hand over the generated records: it takes the rest, and counts the questions
+  void anOperationOfAnyAnswerIsAGenericFunction() {
+    Table table = new Table(Map.of("tea", 4L));
+    assertEquals("failed: gold is out", shop(table, true, List.of("tea", "gold", "cup")));
+    assertEquals(List.of("tea", "gold"), table.seen);
+  }
+
+  @Test
+  void theFunctionsOfOneEffectAreThereWithoutARow() {
+    Comp<Long, Eff<Prices<?>, ?>> twice =
+        PricesOps.price("tea").flatMap(p -> PricesOps.price("tea").map(q -> p + q));
+    assertEquals(8L, run(PricesOps.handledBy(new Table(Map.of("tea", 4L)), twice)));
+  }
+
+  @Test
+  void aGeneralHandlerSwitchesOverTheSameRecords() {
     var counted = handle(0L, (n, op, k) -> switch (op) {
-      case PricesOp.Price p -> k.resume(p, 1L, n + 1);
-      case PricesOp.InStock s -> k.resume(s, true, n + 1);
-      case PricesOp.Seen s -> k.resume(s, null, n + 1);
+      case Prices.Price p -> k.resume(p, 1L, n + 1);
+      case Prices.InStock s -> k.resume(s, true, n + 1);
+      case Prices.Seen s -> k.resume(s, null, n + 1);
     }, (n, sum) -> n, Checkout.total(List.of("a", "b")));
-    assertEquals(6L, run(asking(true, counted)));
+    assertEquals("6", run(asking(true, counted.map(n -> "" + n))));
   }
 }

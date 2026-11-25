@@ -37,35 +37,29 @@ class RefusedTest {
     assertTrue(errors.contains(words), errors);
   }
 
+  private static final String PRICES =
+      "@Effect sealed interface P<T> extends Operation<T, P<?>> { record Get() implements P<Long> {} }\n";
+
   @Test
-  void aGenericMethodIsNotAnOperation() {
-    refused("@Effect interface T { <X> X any(String name); }", "a generic method cannot be an operation");
+  void anEffectIsASealedInterfaceOfRecords() {
+    refused("@Effect interface T { long price(String item); }", "is not an effect");
+    refused("@Effect class T {}", "is not an effect");
   }
 
   @Test
-  void twoOperationsOfOneName() {
-    refused("@Effect interface T { long price(String item); long price(int id); }", "two operations named price");
-  }
-
-  @Test
-  void anOperationDeclaresNoExceptions() {
-    refused("@Effect interface T { long price(String item) throws java.io.IOException; }", "declares no exceptions");
-  }
-
-  @Test
-  void anEffectIsAnInterfaceWithNoTypeParameters() {
-    refused("@Effect interface T<S> { S get(); }", "type parameters");
-    refused("@Effect class T {}", "goes on an interface");
+  void anEffectWithATypeParameterOfItsOwn() {
+    refused("@Effect sealed interface S<X> { record Get<X>() implements S<X>, Op<S<X>, X, Get<X>> {} }",
+        "with a type parameter of its own");
   }
 
   @Test
   void aRowListsEffectsOnly() {
-    refused("@Uses({String.class}) class T {}", "neither an interface marked @Effect nor");
+    refused("@Uses({String.class}) class T {}", "java.lang.String is not an effect");
   }
 
   @Test
   void anOperationOfTwoEffectsOfTheRowIsAskedByHand() {
-    refused("@Effect interface A { long get(); } @Effect interface B { long get(); }\n"
-        + "@Uses({A.class, B.class}) class T {}", "is an operation of both");
+    refused(PRICES + "sealed interface Q<T> extends Operation<T, Q<?>> { record Get() implements Q<Long> {} }\n"
+        + "@Uses({P.class, Q.class}) class T {}", "is an operation of both");
   }
 }
