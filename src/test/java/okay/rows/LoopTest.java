@@ -127,6 +127,6 @@ class LoopTest {
 
   @Test
   void anEmptySource() {
-    assertEquals(7, run(Effects.<String, Integer, Pure>fold(List.of(), 7, (acc, x) -> pure(acc + 1))));
+    assertEquals(7, run(fold(List.of(), 7, (acc, x) -> pure(acc + 1))));
   }
 }

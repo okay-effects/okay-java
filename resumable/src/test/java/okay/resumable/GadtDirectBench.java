@@ -60,18 +60,18 @@ public final class GadtDirectBench {
     measure("no plugin, inplace", n, () -> run(handle(UntransformedGadt.Prices.class, PLAIN_IN_PLACE, null,
         Direct.effects(UntransformedGadt.Prices.Fx.class).of(() -> UntransformedGadt.count(n)))));
     measure("no plugin, clause", n, () -> run(
-        okay.rows.Effects.<UntransformedGadt.Prices<?>, Long, Pure>handle((op, k) -> switch (op) {
+        handle((op, k) -> switch (op) {
           case UntransformedGadt.Prices.Price price -> k.resume(price, 1L);
           case UntransformedGadt.Prices.InStock s -> k.resume(s, true);
         }, Direct.effects(UntransformedGadt.Prices.Fx.class).of(() -> UntransformedGadt.count(n)))));
     int m = 50_000;
     String stack = Direct.continuations().startsWith("the JVM") ? "a continuation" : "a virtual thread";
     measure("no plugin, the rest (" + stack + ")", m, () -> run(
-        okay.rows.Effects.<UntransformedGadt.Prices<?>, Long, Pure>handle((op, k) -> switch (op) {
+        handle((op, k) -> switch (op) {
           case UntransformedGadt.Prices.Price price -> k.resume(price, 1L).map(sum -> sum);
           case UntransformedGadt.Prices.InStock s -> k.resume(s, true);
         }, UntransformedGadt.counting(m))));
-    measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Long, Pure>handle((op, k) -> switch (op) {
+    measure("clause", n, () -> run(handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1);
     }, Direct.effects(Tick.Fx.class).of(() -> loop(n)))));
   }

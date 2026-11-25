@@ -33,7 +33,7 @@ class StateClauseTest {
   record Final<A>(int state, A value) {}
 
   static <A, R> Comp<Final<A>, R> counted(int from, Comp<A, ? super Eff<Counter<?>, R>> body) {
-    return Effects.<Counter<?>, Integer, A, Final<A>, R>handle(from, (state, op, k) -> switch (op) {
+    return handle(from, (state, op, k) -> switch (op) {
       case Counter.Get g -> k.resume(g, state);
       case Counter.Put p -> k.resume(p, null, p.value());
     }, Final::new, body);

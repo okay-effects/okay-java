@@ -120,20 +120,20 @@ public final class Bench {
     measure("binds", n, () -> run(binds(n, 0)));
     measure("audited", n, () -> run(Audit.handle(TICKED, null, Audit.audit(PASSING, meter(n, 0)))));
     measure("inplace", n, () -> run(handle(Tick.class, TICK_IN_PLACE, null, ticks(n, 0))));
-    measure("answering", n, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>answering(op -> switch (op) {
+    measure("answering", n, () -> run(answering(op -> switch (op) {
       case Tick.Next next -> next.answer(1);
     }, ticks(n, 0))));
-    measure("clause", n, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
+    measure("clause", n, () -> run(handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1);
     }, ticks(n, 0))));
     measure("general", n, () -> run(handle(Tick.class, TICK_GENERAL, ticks(n, 0))));
-    measure("stateful", 2 * n, () -> run(okay.rows.Effects.<Counter<?>, Integer, Integer, Pure>handle(0,
+    measure("stateful", 2 * n, () -> run(handle(0,
         (state, op, k) -> switch (op) {
           case Counter.Get g -> k.resume(g, state);
           case Counter.Put p -> k.resume(p, null, p.value());
         }, counted(n))));
     int m = 100_000;
-    measure("after", m, () -> run(okay.rows.Effects.<Tick<?>, Integer, Pure>handle((op, k) -> switch (op) {
+    measure("after", m, () -> run(handle((op, k) -> switch (op) {
       case Tick.Next next -> k.resume(next, 1).map(r -> r + 1);
     }, ticks(m, 0))));
   }

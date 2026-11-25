@@ -100,7 +100,7 @@ class BatchTest {
   void setsBetweenDecisions() {
     List<String> queries = new ArrayList<>();
     Comp<Long, Eff<Prices<?>, ?>> p =
-        Effects.<Prices<?>, Boolean, Prices.InStock>performAll(CART.stream().map(Prices.InStock::new).toList())
+        performAll(CART.stream().map(Prices.InStock::new).toList())
             .flatMap(in -> total(in.contains(false) ? List.of() : List.of("cup", "kettle")));
     assertEquals(131L, run(batched(queries, p)));
     assertEquals(List.of("all of [cup, kettle, tea]", "all of [cup, kettle]"), queries);

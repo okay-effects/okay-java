@@ -89,7 +89,7 @@ class ClauseTest {
   void theRestOfADroppedProgramIsUnwound() {
     List<String> log = new ArrayList<>();
     Comp<String, Eff<Ask<?>, ?>> body =
-        Effects.<String, Eff<Ask<?>, ?>>fit(perform(new Ask.Fail<String>("no"))).ensuring(() -> {
+        fit(perform(new Ask.Fail<String>("no"))).ensuring(() -> {
           log.add("released");
           return pure(null);
         });

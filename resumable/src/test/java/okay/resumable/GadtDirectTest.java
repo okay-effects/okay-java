@@ -129,7 +129,7 @@ class GadtDirectTest {
   @Test
   void aHandlerWithAStateUnderAPlainLoop() {
     Comp<Long, Eff<Prices<?>, Pure>> p = Direct.effects(Prices.Fx.class).of(() -> count(100_000));
-    Comp<String, Pure> counted = okay.rows.Effects.<Prices<?>, Integer, Long, String, Pure>handle(0,
+    Comp<String, Pure> counted = handle(0,
         (asked, op, k) -> switch (op) {
           case Prices.Price price -> k.resume(price, 4L, asked + 1);
           case Prices.InStock s -> k.resume(s, true);

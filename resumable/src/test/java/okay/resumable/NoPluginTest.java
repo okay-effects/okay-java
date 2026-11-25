@@ -45,7 +45,7 @@ class NoPluginTest {
 
   @Test
   void underAClauseWithAState() {
-    Comp<String, Pure> p = okay.rows.Effects.<Prices<?>, Integer, Long, String, Pure>handle(0,
+    Comp<String, Pure> p = handle(0,
         (asked, op, k) -> switch (op) {
           case Prices.Price price -> k.resume(price, TABLE.get(price.item()), asked + 1);
           case Prices.InStock s -> k.resume(s, TABLE.containsKey(s.item()), asked + 1);
