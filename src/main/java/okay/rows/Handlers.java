@@ -62,10 +62,23 @@ final class Handlers {
     /** its clause for a set of operations, or {@code null}: a set is then asked one by one */
     private final Batch<F, A, R> batch;
 
+    /** found by the class of its operations, wherever they go (okay.rows.Sets); or {@code null}: by its place */
+    private final Class<?> key;
+
     Quick(Clause<F, A, R> clause, Batch<F, A, R> batch) {
+      this(clause, batch, null);
+    }
+
+    Quick(Clause<F, A, R> clause, Batch<F, A, R> batch, Class<?> key) {
       this.batch = batch;
-      super(true, false);
+      super(key == null, false);
       this.clause = clause;
+      this.key = key;
+    }
+
+    @Override
+    protected boolean accepts(Object op) {
+      return key.isInstance(op) && !(op instanceof Sensitive.Op);
     }
 
     @Override
@@ -85,7 +98,7 @@ final class Handlers {
 
     @Override
     protected Rows.Early early(Object entry, Object op) {
-      K<A, R> k = new K<>(op);
+      K<A, R> k = new K<>(op, key == null);
       if (op instanceof Rows.Many many)
         return new Asked(k, batch.on(trusted(many.ops()), new KAll<>(k, many.ops())).eff, null);
       return new Asked(k, clause.on(trusted(op), k).eff, null);
@@ -100,12 +113,25 @@ final class Handlers {
     private final StateBatch<F, S, B, R> batch;
     private final java.util.function.BiFunction<? super S, ? super A, ? extends B> ret;
 
+    private final Class<?> key;
+
     Stateful(StateClause<F, S, B, R> clause, StateBatch<F, S, B, R> batch,
         java.util.function.BiFunction<? super S, ? super A, ? extends B> ret) {
+      this(clause, batch, ret, null);
+    }
+
+    Stateful(StateClause<F, S, B, R> clause, StateBatch<F, S, B, R> batch,
+        java.util.function.BiFunction<? super S, ? super A, ? extends B> ret, Class<?> key) {
       this.batch = batch;
-      super(true, false);
+      super(key == null, false);
       this.clause = clause;
       this.ret = ret;
+      this.key = key;
+    }
+
+    @Override
+    protected boolean accepts(Object op) {
+      return key.isInstance(op) && !(op instanceof Sensitive.Op);
     }
 
     @Override
@@ -146,7 +172,7 @@ final class Handlers {
     @Override
     protected Rows.Early early(Object entry, Object op) {
       Object[] cell = (Object[]) entry;
-      KS<S, B, R> k = new KS<>(op);
+      KS<S, B, R> k = new KS<>(op, key == null);
       if (op instanceof Rows.Many many)
         return new Asked(k, batch.on(trusted(cell[0]), trusted(many.ops()), new KAllS<>(k, many.ops())).eff, cell);
       return new Asked(k, clause.on(trusted(cell[0]), trusted(op), k).eff, cell);
@@ -191,9 +217,21 @@ final class Handlers {
   static final class Answering<F> extends Rows.Spec {
     private final java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers;
 
+    private final Class<?> key;
+
     Answering(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers) {
-      super(true, true);
+      this(answers, null);
+    }
+
+    Answering(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers, Class<?> key) {
+      super(key == null, true);
       this.answers = answers;
+      this.key = key;
+    }
+
+    @Override
+    protected boolean accepts(Object op) {
+      return key.isInstance(op) && !(op instanceof Sensitive.Op);
     }
 
     @Override
