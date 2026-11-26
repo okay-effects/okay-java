@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import okay.effect.Op;
 import okay.effect.Operation;
-import okay.rows.Sets.And;
+import okay.effect.Eff;
 import okay.rows.std.Choose;
 import okay.rows.std.State;
 import org.junit.jupiter.api.Test;
@@ -66,19 +66,19 @@ class SetsTest {
   final Map<String, String> db = new HashMap<>();
   final List<String> sent = new ArrayList<>();
 
-  <A, R> Comp<A, R> stored(Comp<A, ? super And<Store, R>> c) {
+  <A, R> Comp<A, R> stored(Comp<A, ? super Eff<Store, R>> c) {
     return handle((op, k) -> switch (op) {
       case Store.Put p -> { db.put(p.key(), p.value()); yield k.resume(p, true); }
       case Store.Get g -> k.resume(g, Optional.ofNullable(db.get(g.key())));
     }, c);
   }
 
-  <A, R> Comp<A, R> mailed(Comp<A, ? super And<Mail, R>> c) {
+  <A, R> Comp<A, R> mailed(Comp<A, ? super Eff<Mail, R>> c) {
     return handle((op, k) -> switch (op) { case Mail.Send s -> { sent.add(s.to()); yield k.resume(s, null); } }, c);
   }
 
   /** a clause that asks another effect: the list that stays must have it */
-  <A, R> Comp<A, And<Clock, R>> audited(Comp<A, ? super And<Mail, And<Clock, R>>> c) {
+  <A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c) {
     return handle((op, k) -> switch (op) {
       case Mail.Send s -> ask(k, new Clock.Now()).flatMap(now -> {
         sent.add(s.to() + " at " + now);
@@ -87,28 +87,28 @@ class SetsTest {
     }, c);
   }
 
-  static <A, R> Comp<A, R> identified(Comp<A, ? super And<Ids, R>> c) {
+  static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids, R>> c) {
     return answering(op -> switch (op) { case Ids.Ref r -> r.answer(r.prefix() + "-1"); }, c);
   }
 
   /** a state: each reference its own number */
-  static <A, R> Comp<A, R> numbered(Comp<A, ? super And<Ids, R>> c) {
+  static <A, R> Comp<A, R> numbered(Comp<A, ? super Eff<Ids, R>> c) {
     return handle(1, (n, op, k) -> switch (op) {
       case Ids.Ref r -> k.resume(r, r.prefix() + "-" + n, n + 1);
     }, c);
   }
 
-  static <A, R> Comp<A, R> clocked(long at, Comp<A, ? super And<Clock, R>> c) {
+  static <A, R> Comp<A, R> clocked(long at, Comp<A, ? super Eff<Clock, R>> c) {
     return answering(op -> switch (op) { case Clock.Now n -> n.answer(at); }, c);
   }
 
   /** the program's value made another: the rest left where it failed */
-  static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super And<Abort, R>> c) {
+  static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super Eff<Abort, R>> c) {
     return handle(a -> pure(Optional.of(a)), (op, k) -> pure(Optional.empty()), c);
   }
 
   /** the rest resumed twice: every way the program can go */
-  static <A, R> Comp<List<A>, R> all(Comp<A, ? super And<Choice, R>> c) {
+  static <A, R> Comp<List<A>, R> all(Comp<A, ? super Eff<Choice, R>> c) {
     return handle(a -> pure(List.of(a)), (op, k) -> switch (op) {
       case Choice.Flip f -> k.resume(f, true).flatMap(xs -> k.resume(f, false).map(ys -> {
         List<A> both = new ArrayList<>(xs);
@@ -208,7 +208,7 @@ class SetsTest {
 
   @Test
   void anOperationOfTheOtherForm() {
-    Comp<Integer, And<Rates, Sets.None>> p = row(of(Rates.class)).of(perform(new Rates.Rate("EUR")));
+    Comp<Integer, Eff<Rates, okay.effect.Pure>> p = row(of(Rates.class)).of(perform(new Rates.Rate("EUR")));
     assertEquals(4, run(answering(op -> switch (op) { case Rates.Rate r -> r.answer(4); }, p)));
   }
 
@@ -253,8 +253,8 @@ class SetsTest {
   @Test
   void theLibrarysEffectsUnderTheirOwnHandlers() {
     var app = row(of(Ids.class, Sets.<State<Integer>>the(State.class), okay.rows.std.Clock.class));
-    State.Final<Integer, String> end = run(okay.rows.std.Clock.at(() -> 5L, place(State.run(10, place(
-        identified(app.of(pair(counted(), counted()))))))));
+    State.Final<Integer, String> end = run(okay.rows.std.Clock.at(() -> 5L, State.run(10,
+        identified(app.of(pair(counted(), counted()))))));
     assertEquals(new State.Final<>(12, "C-1:10@5 C-1:11@5"), end);
   }
 
@@ -266,15 +266,15 @@ class SetsTest {
   void anOperationAskedByItsClassPassesAHandlerOfAPlace() {
     // the clock, a handler of a place, is INSIDE the handler of Ids: a Ref goes past it
     var app = row(of(Sets.<State<Integer>>the(State.class), okay.rows.std.Clock.class, Ids.class));
-    State.Final<Integer, String> end = run(numbered(okay.rows.std.Clock.at(() -> 7L, place(State.run(0, place(
-        app.of(counted())))))));
+    State.Final<Integer, String> end = run(numbered(okay.rows.std.Clock.at(() -> 7L, State.run(0,
+        app.of(counted())))));
     assertEquals(new State.Final<>(1, "C-1:0@7"), end);
   }
 
   @Test
   void aStateForEachPathOfALibraryChoice() {
     var app = row(of(Sets.<State<Integer>>the(State.class), Choose.class));
-    List<State.Final<Integer, String>> all = run(Choose.all(place(State.run(0, place(app.of(chosen()))))));
+    List<State.Final<Integer, String>> all = run(Choose.all(State.run(0, app.of(chosen()))));
     assertEquals(List.of(new State.Final<>(1, "a0"), new State.Final<>(1, "b0")), all);
   }
 
@@ -284,13 +284,26 @@ class SetsTest {
   }
 
   /** a handler written for rows of places, of an effect declared for sets */
-  static <A, R> Comp<A, R> clockOfPlaces(long at, Comp<A, ? super okay.effect.Eff<Clock, R>> c) {
+  static <A, R> Comp<A, R> clockOfPlaces(long at, Comp<A, ? super Eff<Clock, R>> c) {
     return Effects.answering(op -> switch (op) { case Clock.Now n -> n.answer(at); }, c);
   }
 
   @Test
   void aHandlerWrittenForPlaces() {
     var app = row(of(Store.class, Ids.class, Clock.class));
-    assertEquals("Q-1@3 true [a-2, b-3]", run(clockOfPlaces(3, place(numbered(stored(app.of(quote("Ann"))))))));
+    assertEquals("Q-1@3 true [a-2, b-3]", run(clockOfPlaces(3, numbered(stored(app.of(quote("Ann")))))));
+  }
+
+  @Test
+  void inFrontOfAHandlerTheWordsOfPlaces() {
+    // observe and cached keep the effect in the list: what they pass on goes to the handler outside them
+    var app = row(of(Ids.class, Clock.class));
+    List<String> seen = new ArrayList<>();
+    String twice = run(clocked(4, numbered(Effects.observe(Ids.class, op -> {
+      seen.add(op.toString());
+      return pure(null);
+    }, Effects.cached(app.of(both()))))));
+    assertEquals("B-1@4 B-1@4", twice);          // the same Ref asked twice: once outside the cache
+    assertEquals(1, seen.size());
   }
 }

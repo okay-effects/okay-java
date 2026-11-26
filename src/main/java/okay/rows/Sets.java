@@ -5,6 +5,7 @@ import static okay.rows.Comp.DOOR;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import okay.effect.Answer;
+import okay.effect.Eff;
 import okay.effect.Op;
 import okay.effect.Pure;
 
@@ -14,21 +15,21 @@ import okay.effect.Pure;
  * one bound — {@code R extends F} — is the whole check that the row has the effect; a program of fewer effects is
  * a program of more as it is, with nothing written.
  *
- * <p>An effect, for that, is a sealed interface WITHOUT type arguments of its own supertype — each operation names
- * its answer and its effect: {@code sealed interface Ids { record Ref(String p) implements Ids, Operation<String,
- * Ids> {} }}. (Java refuses a type that inherits one generic interface with two arguments, so effects that each
- * extend {@code Operation<T, Self>} could never be a row together.)
+ * <p>An effect, for that, is a sealed interface with no supertype that names it — each operation says its answer
+ * and its effect: {@code sealed interface Ids { record Ref(String p) implements Ids, Operation<String, Ids> {} }},
+ * as the library's own are ({@code okay.rows.std}). (Java refuses a type that inherits one generic interface with
+ * two arguments, so effects that each extend {@code Operation<T, Self>} could never be a row together.)
  *
- * <p>A handler is a function over a program, given the continuation, as in {@link Effects} — but of a row that
- * is a LIST, for a function can say "this effect and the rest" only of a list:
- * {@code static <A, R> Comp<A, R> stored(Comp<A, ? super And<Store, R>> c) { return handle((op, k) -> .., c); }}.
- * Between the two, once, where the handlers are put: the set written as a list —
- * {@code var app = row(of(Store.class, Ids.class)); run(identified(stored(app.of(program))))}. javac refuses a
- * program that asks more than the list has, a handler missing, handlers out of the list's order.
+ * <p>The handlers are {@link Effects}': functions over a program whose row is a list, {@code Eff<F, R>} —
+ * {@code static <A, R> Comp<A, R> stored(Comp<A, ? super Eff<Store, R>> c) { return handle((op, k) -> .., c); }},
+ * {@code State.run}, {@code Clock.at}, any written before. Between the two, once, where the handlers are put,
+ * the set is written as a list: {@code var app = row(of(Store.class, Ids.class));
+ * run(identified(stored(app.of(program))))}. javac refuses a program that asks more than the list has, a handler
+ * missing, handlers out of the list's order.
  *
- * <p>An operation finds its handler by the CLASS of its effect, not by a place: the nearest handler of that
- * effect answers. So the handlers here are not {@link Effects}': the two kinds of row are different types, and a
- * program of one is not given to the handlers of the other.
+ * <p>An operation asked here goes to no place: the nearest handler whose effect it is of answers — a handler
+ * knows its effect's class from where it is made. The words of {@link Effects} a program of a set needs are here
+ * too ({@code answering}, {@code handle}, {@code run}, {@code pure}), so that one import serves.
  */
 public final class Sets {
   private Sets() {}
@@ -56,13 +57,7 @@ public final class Sets {
     }));
   }
 
-  // ---- the row as a list, for the handlers
-
-  /** a list of effects: {@code F}, then {@code R} */
-  public interface And<F, R> {}
-
-  /** the end of a list: nothing left to ask */
-  public interface None {}
+  // ---- the set as a list, for the handlers
 
   /** effects named in the order of their handlers ({@link #of}); {@code L} is their list */
   public static final class Of1<L> { Of1() {} }
@@ -75,34 +70,41 @@ public final class Sets {
   public static final class Of8<L> { Of8() {} }
 
   // the effects of a list, by their classes: its tail T is what `row` or `Keep.row` says
-  public static <A, T> Of1<And<A, T>> of(Class<A> a) {
+  public static <A, T> Of1<Eff<A, T>> of(Class<A> a) {
     return new Of1<>();
   }
-  public static <A, B, T> Of2<And<A, And<B, T>>> of(Class<A> a, Class<B> b) {
+  public static <A, B, T> Of2<Eff<A, Eff<B, T>>> of(Class<A> a, Class<B> b) {
     return new Of2<>();
   }
-  public static <A, B, C, T> Of3<And<A, And<B, And<C, T>>>> of(Class<A> a, Class<B> b, Class<C> c) {
+  public static <A, B, C, T> Of3<Eff<A, Eff<B, Eff<C, T>>>> of(Class<A> a, Class<B> b, Class<C> c) {
     return new Of3<>();
   }
-  public static <A, B, C, D, T> Of4<And<A, And<B, And<C, And<D, T>>>>> of(Class<A> a, Class<B> b, Class<C> c,
+  public static <A, B, C, D, T> Of4<Eff<A, Eff<B, Eff<C, Eff<D, T>>>>> of(Class<A> a, Class<B> b, Class<C> c,
       Class<D> d) {
     return new Of4<>();
   }
-  public static <A, B, C, D, E, T> Of5<And<A, And<B, And<C, And<D, And<E, T>>>>>> of(Class<A> a, Class<B> b,
+  public static <A, B, C, D, E, T> Of5<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, T>>>>>> of(Class<A> a, Class<B> b,
       Class<C> c, Class<D> d, Class<E> e) {
     return new Of5<>();
   }
-  public static <A, B, C, D, E, G, T> Of6<And<A, And<B, And<C, And<D, And<E, And<G, T>>>>>>> of(Class<A> a,
+  public static <A, B, C, D, E, G, T> Of6<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, T>>>>>>> of(Class<A> a,
       Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g) {
     return new Of6<>();
   }
-  public static <A, B, C, D, E, G, H, T> Of7<And<A, And<B, And<C, And<D, And<E, And<G, And<H, T>>>>>>>> of(Class<A> a,
+  public static <A, B, C, D, E, G, H, T> Of7<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, T>>>>>>>> of(Class<A> a,
       Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h) {
     return new Of7<>();
   }
-  public static <A, B, C, D, E, G, H, I, T> Of8<And<A, And<B, And<C, And<D, And<E, And<G, And<H, And<I,
+  public static <A, B, C, D, E, G, H, I, T> Of8<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I,
       T>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h, Class<I> i) {
     return new Of8<>();
+  }
+
+  /** an effect with type arguments, named for a list: {@code of(Sets.<State<Integer>>the(State.class), ..)} — a
+   * class says nothing of them */
+  @SuppressWarnings("unchecked")
+  public static <F> Class<F> the(Class<? super F> effect) {
+    return (Class<F>) effect;
   }
 
   /** A SET AND ITS LIST. {@code V} is the set — exactly the effects named and the row left outside; {@code L} the
@@ -119,42 +121,42 @@ public final class Sets {
 
   // the effects of a whole program: row(of(Store.class, Mail.class)). The bound of L is what makes V a subtype
   // of every effect of the list; with nothing else known of it, javac takes exactly their intersection
-  public static <V, L extends And<? super V, None>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, Pure>> Row<V, L> row(
       Of1<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, None>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, Pure>>> Row<V, L> row(
       Of2<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V, None>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>> Row<V, L> row(
       Of3<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-      ? extends And<? super V, None>>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, Pure>>>>> Row<V, L> row(
       Of4<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-      ? extends And<? super V, ? extends And<? super V, None>>>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>> Row<V, L> row(
       Of5<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-      ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, None>>>>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>> Row<V, L> row(
       Of6<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-      ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-          None>>>>>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          Pure>>>>>>>> Row<V, L> row(
       Of7<L> effects) {
     return new Row<>();
   }
-  public static <V, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-      ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-          ? extends And<? super V, None>>>>>>>>> Row<V, L> row(
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          ? extends Eff<? super V, Pure>>>>>>>>> Row<V, L> row(
       Of8<L> effects) {
     return new Row<>();
   }
@@ -168,122 +170,45 @@ public final class Sets {
   public static final class Keep<K> {
     Keep() {}
 
-    public <V extends K, L extends And<? super V, K>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, K>> Row<V, L> row(
         Of1<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, K>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, K>>> Row<V, L> row(
         Of2<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V, K>>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, K>>>> Row<V, L> row(
         Of3<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-        ? extends And<? super V, K>>>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, K>>>>> Row<V, L> row(
         Of4<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-        ? extends And<? super V, ? extends And<? super V, K>>>>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, K>>>>>> Row<V, L> row(
         Of5<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-        ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, K>>>>>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, K>>>>>>> Row<V, L> row(
         Of6<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-        ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, ? extends And<? super V,
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
             K>>>>>>>> Row<V, L> row(
         Of7<L> effects) {
       return new Row<>();
     }
-    public <V extends K, L extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-        ? extends And<? super V, ? extends And<? super V, ? extends And<? super V, ? extends And<? super V,
-            ? extends And<? super V, K>>>>>>>>> Row<V, L> row(
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, K>>>>>>>>> Row<V, L> row(
         Of8<L> effects) {
       return new Row<>();
     }
-  }
-
-  // ---- handlers: functions over a program of a list, whose first effect they take
-
-  private static Class<?> key(Object[] effect) {
-    Class<?> c = effect.getClass().getComponentType();
-    if (c == Object.class) throw new IllegalArgumentException("okay.rows.Sets: the handler's effect is not known "
-        + "where it is made — its program's row must name the effect: Comp<A, ? super And<Store, R>>");
-    return c;
-  }
-
-  /** A HANDLER THAT ONLY ANSWERS: {@code answering(op -> switch (op) { case Ref r -> r.answer(..); }, c)}. In
-   * place: nothing of the program is taken. {@code effect} is not given: it tells the handler its effect's class */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, A, R> Comp<A, R> answering(Function<? super F, ? extends Answer<?>> answers,
-      Comp<A, ? super And<F, R>> p, F... effect) {
-    return new Comp<>(DOOR.handle(new Handlers.Answering<F>(answers, key(effect)), null, p.eff));
-  }
-
-  /** A HANDLER GIVEN THE CONTINUATION: {@code handle((op, k) -> switch (op) { case Put p -> k.resume(p, true); },
-   * c)} — go on after the rest, leave it ({@code k.unwind()}), resume it twice. A clause that only resumes is
-   * answered in place */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super And<F, R>> p, F... effect) {
-    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, null, key(effect)), null, p.eff));
-  }
-
-  /** the same, the program's value made the handler's by {@code ret}: {@code handle(a -> pure(Optional.of(a)),
-   * (op, k) -> pure(Optional.empty()), c)} */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, A, B, R> Comp<B, R> handle(Function<? super A, ? extends Comp<B, R>> ret,
-      Clause<F, B, R> clause, Comp<A, ? super And<F, R>> p, F... effect) {
-    Handler<F, A, B, R> h = new Handler<>() {
-      public Comp<B, R> ret(A a) { return ret.apply(a); }
-      public Comp<B, R> on(F op, K<B, R> k) { return clause.on(op, k); }
-    };
-    return new Comp<>(DOOR.handle(new Handlers.General<>(key(effect), h, false), null, p.eff));
-  }
-
-  /** A HANDLER WITH A STATE: {@code handle(1, (n, op, k) -> switch (op) { case Ref r -> k.resume(r, r.p() + n,
-   * n + 1); }, c)}. A continuation resumed twice goes on twice from the state it was asked in */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, S, A, R> Comp<A, R> handle(S s0, StateClause<F, S, A, R> clause,
-      Comp<A, ? super And<F, R>> p, F... effect) {
-    return new Comp<>(DOOR.handle(
-        new Handlers.Stateful<F, S, A, A, R>(clause, null, (state, a) -> a, key(effect)), s0, p.eff));
-  }
-
-  /** the same, its value made of the last state and the program's value */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
-      BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super And<F, R>> p, F... effect) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, null, ret, key(effect)), s0, p.eff));
-  }
-
-  // ---- a handler of a row of PLACES around a program of a set: the library's, or one written before
-
-  /** the first effect of the list, as the first PLACE of a row of places: for a handler of {@link Effects}' kind —
-   * {@code State.run(0, place(app.of(p)))}, {@code Clock.at(time, place(..))}, {@code Choose.all(place(..))}, a
-   * handler written for rows of places. The operations of that effect, asked by their class inside, go from here
-   * to the nearest place, which is that handler's; the rest of the list stays as it is */
-  @SafeVarargs
-  @SuppressWarnings("varargs") // the array is read for its class only
-  public static <F, A, R> Comp<A, okay.effect.Eff<F, R>> place(Comp<A, ? super And<F, R>> p, F... effect) {
-    return new Comp<>(DOOR.land(p.eff, key(effect), okay.effect.Sensitive.Op.class));
-  }
-
-  /** an effect with type arguments, named for a list: {@code of(Sets.<State<Integer>>the(State.class), ..)} — a
-   * class says nothing of them */
-  @SuppressWarnings("unchecked")
-  public static <F> Class<F> the(Class<? super F> effect) {
-    return (Class<F>) effect;
   }
 
   // ---- inside a clause: an effect of the list that stays, asked through the continuation, which knows that list
@@ -298,39 +223,39 @@ public final class Sets {
   public interface P6 {}
   public interface P7 {}
 
-  public static <T, F, R extends And<F, ?>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<F, ?>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P0... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<F, ?>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<F, ?>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P1... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<F, ?>>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P2... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<?, ? extends And<F, ?>>>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P3... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<?, ? extends And<?, ? extends And<F,
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<F,
       ?>>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P4... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<?, ? extends And<?, ? extends And<?,
-      ? extends And<F, ?>>>>>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<F, ?>>>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P5... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<?, ? extends And<?, ? extends And<?,
-      ? extends And<?, ? extends And<F, ?>>>>>>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<F, ?>>>>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P6... place) {
     return asked(op);
   }
-  public static <T, F, R extends And<?, ? extends And<?, ? extends And<?, ? extends And<?, ? extends And<?,
-      ? extends And<?, ? extends And<?, ? extends And<F, ?>>>>>>>>> Comp<T, R> ask(
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>>>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P7... place) {
     return asked(op);
   }
@@ -339,8 +264,49 @@ public final class Sets {
     return new Comp<>(DOOR.ask(op, okay.core.Rows.FAR));
   }
 
-  /** a program with nothing left to ask, run: once, at the entry point */
-  public static <A> A run(Comp<A, ? super None> p) {
-    return Effects.run(new Comp<A, Pure>(p.eff));
+  // ---- Effects' words a program of a set needs, so that `import static okay.rows.Sets.*` serves alone
+
+  /** {@link Effects#answering} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, R> Comp<A, R> answering(Function<? super F, ? extends Answer<?>> answers,
+      Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.answering(answers, p, effect);
+  }
+
+  /** {@link Effects#handle(Clause, Comp, Object[])} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.handle(clause, p, effect);
+  }
+
+  /** {@link Effects#handle(Function, Clause, Comp, Object[])} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, B, R> Comp<B, R> handle(Function<? super A, ? extends Comp<B, R>> ret,
+      Clause<F, B, R> clause, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.handle(ret, clause, p, effect);
+  }
+
+  /** {@link Effects#handle(Object, StateClause, Comp, Object[])} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, S, A, R> Comp<A, R> handle(S s0, StateClause<F, S, A, R> clause,
+      Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.handle(s0, clause, p, effect);
+  }
+
+  /** {@link Effects#handle(Object, StateClause, BiFunction, Comp, Object[])} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
+      BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.handle(s0, clause, ret, p, effect);
+  }
+
+  /** {@link Effects#run} */
+  public static <A> A run(Comp<A, ? super Pure> p) {
+    return Effects.run(p);
   }
 }

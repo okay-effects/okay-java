@@ -118,14 +118,14 @@ own function (docs/start.md; `Booking` and `BookingOne` in the tests are a real 
 bounded by its effects, in any order — `static <R extends Ids & Clock> Comp<String, R> stamp()` — asked by
 `Sets.perform(op)`; a program of fewer effects is used in one of more as it is, with no `up`, no `fit` and no name
 for the row. The effect is declared with no type argument, each operation naming its answer and its effect:
-`sealed interface Ids { record Ref(String p) implements Ids, Operation<String, Ids> {} }`. Handlers are functions
-as above, of a row that is a list — `static <A, R> Comp<A, R> identified(Comp<A, ? super And<Ids, R>> c)`, with
-`Sets.answering` / `Sets.handle` — and the set is written as a list once, where they are put:
+`sealed interface Ids { record Ref(String p) implements Ids, Operation<String, Ids> {} }` (the form of
+`okay.rows.std`). The handlers are the ones above — `static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids,
+R>> c)`, `State.run`, `Clock.at`, any written before — and the set is written as a list once, where they are put:
 `var app = row(of(Store.class, Ids.class)); run(identified(stored(app.of(program))))`; inside a program,
-`Sets.<R>keep().row(of(Abort.class)).of(part)`. An operation finds its handler by its effect's class (the nearest
-answers). Blocks are `Sets.together`; a handler of a row of places — `State.run`, `Clock.at`, one written before —
-goes around with `place`: `State.run(0, place(app.of(p)))`. Not there yet for sets: plain Java. `BookingSets` in the
-tests is a real flow of seven effects written so.
+`Sets.<R>keep().row(of(Abort.class)).of(part)`. Such an operation goes to no place: the nearest handler whose
+effect it is of answers, and a handler knows its effect's class from where it is made (not where the effect is a
+type variable there). Blocks are `Sets.together`; `import static okay.rows.Sets.*` has `answering`, `handle`, `run`
+and `pure` too. Not there yet for sets: plain Java. `BookingSets` in the tests is a real flow of seven effects.
 
 ### The other forms
 

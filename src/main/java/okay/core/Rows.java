@@ -99,12 +99,6 @@ public final class Rows {
       return new Nodes.Handle<>(Nodes.plain(c), Machine.SAME, new Marker(keep, 1));
     }
 
-    /** {@code c}, the operations of the class {@code effect} it asks by their class landing here ({@link Landing});
-     * {@code never}: operations that do not, whatever their class */
-    public Comp<?, ?> land(Comp<?, ?> c, Class<?> effect, Class<?> never) {
-      return new Nodes.Handle<>(Nodes.plain(c), Machine.SAME, new Landing(new Key(effect, never)));
-    }
-
     /** {@code body}, and the finalizer made by {@code fin} when it is left: {@link Comp#ensuring}'s guard */
     public Comp<?, ?> ensuring(Comp<?, ?> body, Supplier<? extends Comp<?, ?>> fin) {
       Function<Object, Comp<?, ?>> ret = a -> fin.get().then(Comp.pure(a));
@@ -244,6 +238,13 @@ public final class Rows {
       }
       return has;
     }
+
+    /** how many of {@code ops} are of the effect */
+    int count(Object[] ops) {
+      int n = 0;
+      for (Object op : ops) if (has(op)) n++;
+      return n;
+    }
   }
 
   /**
@@ -261,15 +262,16 @@ public final class Rows {
       this.key = null;
     }
 
-    /** a handler found by the class of its operations ({@code key}), wherever they go: no place of a row. With no
-     * key, of a place. {@code never}: operations it does not take, whatever their class */
-    protected Spec(Class<?> key, Class<?> never, boolean inPlace) {
-      this.row = key == null;
+    /** a handler of a place that knows the class of its effect, {@code key} (or {@code null}): it takes the
+     * operations its place sends it, and those asked by class ({@link #FAR}) that are of that class. {@code never}:
+     * operations it does not take by class, whatever theirs */
+    protected Spec(boolean row, Class<?> key, Class<?> never, boolean inPlace) {
+      this.row = row;
       this.inPlace = inPlace;
       this.key = key == null ? null : new Key(key, never);
     }
 
-    /** its key, or {@code null}: then {@link #accepts} says */
+    /** the class of its effect, for operations asked by class; or {@code null}: none comes to it so */
     final Key key;
 
     /** an interceptor's question: is the operation its own */
@@ -372,13 +374,11 @@ public final class Rows {
    * places to skip skips {@code by} more */
   record Marker(int keep, int by) {}
 
-  /** how many places an operation asked BY ITS EFFECT'S CLASS skips: every one — it is for no place, and the handlers
-   * of places on its way let it pass ({@code okay.rows.Sets}) */
+  /** how many places an operation asked BY ITS EFFECT'S CLASS skips ({@code okay.rows.Sets}): every one. It is
+   * for no place: a handler on its way takes it if it is of the handler's effect ({@link Spec}'s key), and lets
+   * it pass if not */
   public static final int FAR = 1 << 20;
 
-  /** where the operations of one effect, asked by its class, LAND: from here they go to the nearest place, as an
-   * operation of a row of places does — for a handler of that kind around a program of a row that is a set */
-  record Landing(Key key) {}
 
   /** where a handler was while its rest is unwound: gone, an operation of its own ending the finalizer that asks
    * (GONE); its effect kept in the row, its own going to the next place (KEPT); nothing, an
@@ -662,15 +662,14 @@ public final class Rows {
         Object f = s.prompt().frame;
         if (f instanceof Place p) {
           if (!p.spec.row) crossed = true;
-          boolean found = p.spec.row ? skip == 0 : p.spec.key != null ? p.spec.key.has(op) : p.spec.accepts(op);
+          boolean found = p.spec.row
+              ? skip == 0 || skip >= FAR / 2 && p.spec.key != null && p.spec.key.has(op)
+              : p.spec.accepts(op);
           if (p.spec.row && !found) skip--;
           if (found) {
             if (p.spec.inPlace || p.spec.asksEarly()) return p;
             return p.spec.once() ? ONCE : p.spec.eager() ? EAGER : ELSEWHERE;
           }
-        } else if (f instanceof Landing l) {
-          crossed = true;
-          if (skip >= FAR / 2 && l.key.has(op)) skip = 0;
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {
@@ -711,7 +710,18 @@ public final class Rows {
       Object f = s.prompt().frame;
       if (f instanceof Place p) {
         if (many != null && !p.spec.row) return one(many.ops, 0, null, from);
-        boolean found = p.spec.row ? skip == 0 : p.spec.key != null ? p.spec.key.has(op) : p.spec.accepts(op);
+        boolean found;
+        if (!p.spec.row) found = p.spec.accepts(op);
+        else if (skip == 0) found = true;
+        else if (skip < FAR / 2 || p.spec.key == null) found = false;
+        else if (many == null) found = p.spec.key.has(op);
+        else {
+          // a set asked by class: this handler's if all of it is its effect's; if none is, it goes on; a set of
+          // several effects is asked one by one from here, each operation finding its own handler
+          int mine = p.spec.key.count(many.ops);
+          if (mine != 0 && mine != many.ops.length) return one(many.ops, 0, null, from);
+          found = mine != 0;
+        }
         if (p.spec.row && !found) skip--;
         if (found) {
           if (many != null && !p.spec.takesMany()) return one(many.ops, 0, null, from);
@@ -737,10 +747,6 @@ public final class Rows {
           return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);
         }
-      } else if (f instanceof Landing l) {
-        // a set is asked one by one from here: each of its operations lands, or goes on, by its own class
-        if (many != null) return one(many.ops, 0, null, from);
-        if (skip >= FAR / 2 && l.key.has(op)) skip = 0;
       } else if (f instanceof Marker mk) {
         if (skip >= mk.keep) skip += mk.by;
       } else if (f instanceof Gone g) {

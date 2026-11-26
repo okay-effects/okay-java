@@ -404,13 +404,12 @@ round saves a query: one call to a database is a million of these.
 
 ## 8. Rows as sets
 
-Everything above gives each effect a place in the row. `okay.rows.Sets` is the same model with no places: a
-program's row is a type bounded by the effects it asks, in any order. `SetsTest` compiles and runs the examples of
-this section; `BookingSets` in the tests is a real flow of seven effects written so.
+Everything above gives each effect a place in the row. `okay.rows.Sets` types a program with no places: its row is
+a type bounded by the effects it asks, in any order. The handlers are the same. `SetsTest` compiles and runs the
+examples of this section; `BookingSets` in the tests is a real flow of seven effects written so.
 
 ```java
 import static okay.rows.Sets.*;
-import okay.rows.Sets.And;
 
 // an effect: each operation names its answer and its effect
 sealed interface Ids { record Ref(String prefix) implements Ids, Operation<String, Ids> {} }
@@ -447,25 +446,20 @@ static <R extends Ids & Clock & Store> Comp<String, R> quote(String who) {
 
 The effect is declared differently from section 1, and has to be. Java refuses a type that inherits one generic
 interface with two different arguments, so two effects that each extend `Operation<T, Self>` can never bound the
-same row. Here the interface has no supertype, and each record says `Operation<Answer, Effect>`.
+same row. Here the interface has no supertype, and each record says `Operation<Answer, Effect>` — the form of the
+library's own effects (`okay.rows.std`), which are asked the same way: `perform(new State.Get<Integer>())`.
 
-A handler is a function over a program, given the continuation, as in section 3 — of a row that is a LIST,
-`And<F, R>`: "this effect, and the rest" can be said of a list only.
+The handlers are those of section 3, functions over a program whose row is a list — "this effect, and the rest"
+can be said of a list only:
 
 ```java
-static <A, R> Comp<A, R> identified(Comp<A, ? super And<Ids, R>> c) {
+static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids, R>> c) {
   return answering(op -> switch (op) { case Ids.Ref r -> r.answer(r.prefix() + "-1"); }, c);
 }
-<A, R> Comp<A, R> stored(Comp<A, ? super And<Store, R>> c) {
-  return handle((op, k) -> switch (op) {
-    case Store.Put p -> { db.put(p.key(), p.value()); yield k.resume(p, true); }
-    case Store.Get g -> k.resume(g, Optional.ofNullable(db.get(g.key())));
-  }, c);
-}
-static <A, R> Comp<A, R> numbered(Comp<A, ? super And<Ids, R>> c) {                 // a state
+static <A, R> Comp<A, R> numbered(Comp<A, ? super Eff<Ids, R>> c) {                 // a state
   return handle(1, (n, op, k) -> switch (op) { case Ids.Ref r -> k.resume(r, r.prefix() + "-" + n, n + 1); }, c);
 }
-static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super And<Abort, R>> c) {       // another value; the rest left
+static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super Eff<Abort, R>> c) {       // another value; the rest left
   return handle(a -> pure(Optional.of(a)), (op, k) -> pure(Optional.empty()), c);
 }
 ```
@@ -478,16 +472,7 @@ String ref = run(clocked(42, identified(mailed(stored(app.of(reserve("Ann"))))))
 ```
 
 `app.of(p)` takes a program that asks nothing but the effects named, and gives it as a program of their list, in
-the order of the handlers. Inside a program, a handler around a part of it leaves the rest in the program's own row:
-
-```java
-static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
-  return attempt(Sets.<R>keep().row(of(Abort.class)).of(orFail(fail)));
-}
-```
-
-A handler of a row of places — the library's (`State.run`, `Clock.at`, `Choose.all`), or one written before —
-goes around a program of a set with `place`, which makes the list's first effect the first place of a row:
+the order of the handlers. Any handler of that list goes around it: one written before, the library's —
 
 ```java
 static <R extends State<Integer> & Clock & Ids> Comp<String, R> counted() {        // okay.rows.std's State, Clock
@@ -496,17 +481,23 @@ static <R extends State<Integer> & Clock & Ids> Comp<String, R> counted() {     
 }
 
 var app = row(of(Ids.class, Sets.<State<Integer>>the(State.class), Clock.class));
-State.Final<Integer, String> end =
-    run(Clock.at(() -> 5L, place(State.run(10, place(identified(app.of(counted())))))));
+State.Final<Integer, String> end = run(Clock.at(() -> 5L, State.run(10, identified(app.of(counted())))));
 ```
 
-An operation asked by its class passes every handler of a place on its way; inside `place` the operations of that
-one effect go to the nearest place instead. An effect with type arguments is named for the list with
-`Sets.<State<Integer>>the(State.class)`: a class says nothing of them.
+(an effect with type arguments is named for the list by `Sets.<State<Integer>>the(State.class)`: a class says
+nothing of them) — and `observe`, `cached`, `rounds` in front of one.
+
+Inside a program, a handler around a part of it leaves the rest in the program's own row:
+
+```java
+static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
+  return attempt(Sets.<R>keep().row(of(Abort.class)).of(orFail(fail)));
+}
+```
 
 A clause that asks another effect asks it through its continuation, which knows the list that stays:
 `ask(k, new Clock.Now()).flatMap(now -> .. k.resume(s, null))`, in a handler whose type says that list has it —
-`<A, R> Comp<A, And<Clock, R>> audited(Comp<A, ? super And<Mail, And<Clock, R>>> c)`.
+`<A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c)`.
 
 What javac refuses, each a program in `src/test/negative/rows`: an operation of an effect the row is not bounded
 by; a program that asks more than the list names; a handler missing at `run`; handlers out of the list's order; a
@@ -515,18 +506,21 @@ row has not; `ask(k, ..)` of an effect the list that stays may not have.
 
 What to know:
 
-- An operation finds its handler by the CLASS of its effect: the nearest handler of that effect answers. Two
-  handlers of one effect are two scopes, not two places; an effect with type arguments of its own is one effect
-  whatever they are.
+- An operation asked by `Sets.perform` goes to no place: on its way out, the nearest handler whose effect it is of
+  answers. A handler knows the class of its effect from where it is made — `answering(.., c)` in a method whose
+  parameter says `Eff<Ids, R>`, `handle(State.class, ..)`. One made where its effect is a type variable knows
+  none, and answers only what its place sends it: around a program of a set, such an operation finds no handler
+  when it is asked.
+- Two handlers of one effect are two scopes, not two places, for such operations; an effect with type arguments
+  is one effect whatever they are.
 - The value `row(..)` gives has a type that cannot be written — an intersection javac inferred — so it lives in a
   `var` or in the expression, not in a field. The handlers' nest can be a function of its own: its parameter is a
   program of the list, and that type can be written.
 - `of` and `row` exist for one to eight effects.
-- The two kinds of row are different types: `Effects`' handlers take a program of a set only through `place`, and
-  `Sets`' none of places. A set of operations asked at once is asked one by one; plain Java (`okay.resumable`) is
-  of rows of places only, for now.
-- Measured roughly (two runs, a million questions under four handlers, ns a question): `answering` 16, a clause
-  with `k` 19, a state 24 — the same programs on rows of places: 14, 16, 21.
+- A set of operations asked at once by a block of a set is asked one by one; plain Java (`okay.resumable`) is of
+  rows of places only, for now.
+- Measured roughly (two runs, a million questions under four handlers, ns a question, a set against places):
+  `answering` 16 and 15, a clause with `k` 16 and 18, a state 20 and 22.
 
 ## 9. The other forms
 

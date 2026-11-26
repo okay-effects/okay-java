@@ -5,7 +5,7 @@ import static okay.rows.Sets.*;
 import java.util.Map;
 import java.util.Optional;
 import okay.rows.Comp;
-import okay.rows.Sets.And;
+import okay.effect.Eff;
 import okay.rows.booking.Booking.Conf;
 import okay.rows.booking.Booking.Or;
 import okay.rows.booking.Booking.Response;
@@ -16,7 +16,7 @@ import okay.rows.booking.BookingSets.*;
 class BookingSetsTest extends BookingTest {
 
   static final class On {
-    static <A, R> Comp<A, R> stored(World w, Comp<A, ? super And<Store, R>> body) {
+    static <A, R> Comp<A, R> stored(World w, Comp<A, ? super Eff<Store, R>> body) {
       return answering(op -> {
         w.log.add("store");
         return switch (op) {
@@ -30,37 +30,37 @@ class BookingSetsTest extends BookingTest {
       }, body);
     }
 
-    static <A, R> Comp<A, R> mailed(World w, Comp<A, ? super And<Mail, R>> body) {
+    static <A, R> Comp<A, R> mailed(World w, Comp<A, ? super Eff<Mail, R>> body) {
       return answering(op -> switch (op) {
         case Mail.ToClient m -> { w.letters.add(m.to() + ": " + m.text()); yield m.answer(true); }
         case Mail.ToOwner m -> { w.letters.add("owner: " + m.text()); yield m.answer(true); }
       }, body);
     }
 
-    static <A, R> Comp<A, R> verified(World w, Comp<A, ? super And<Captcha, R>> body) {
+    static <A, R> Comp<A, R> verified(World w, Comp<A, ? super Eff<Captcha, R>> body) {
       return answering(op -> switch (op) {
         case Captcha.Verify v -> { w.log.add("captcha"); yield v.answer(w.human); }
       }, body);
     }
 
-    static <A, R> Comp<A, R> identified(World w, Comp<A, ? super And<Ids, R>> body) {
+    static <A, R> Comp<A, R> identified(World w, Comp<A, ? super Eff<Ids, R>> body) {
       return answering(op -> switch (op) {
         case Ids.Ref r -> r.answer(r.prefix() + (++w.ids));
         case Ids.Secret s -> s.answer("key" + (++w.ids));
       }, body);
     }
 
-    static <A, R> Comp<A, R> clocked(World w, Comp<A, ? super And<Clock, R>> body) {
+    static <A, R> Comp<A, R> clocked(World w, Comp<A, ? super Eff<Clock, R>> body) {
       return answering(op -> switch (op) { case Clock.Now n -> n.answer(w.now); }, body);
     }
 
-    static <A, R> Comp<A, R> notified(World w, Comp<A, ? super And<Notify, R>> body) {
+    static <A, R> Comp<A, R> notified(World w, Comp<A, ? super Eff<Notify, R>> body) {
       return answering(op -> switch (op) {
         case Notify.Tell t -> { w.notices.add(t.notice()); yield t.answer(null); }
       }, body);
     }
 
-    static <A, R> Comp<A, R> geocoded(World w, Comp<A, ? super And<Geocoder, R>> body) {
+    static <A, R> Comp<A, R> geocoded(World w, Comp<A, ? super Eff<Geocoder, R>> body) {
       return answering(op -> switch (op) {
         case Geocoder.Find f -> {
           w.log.add("geocoder");

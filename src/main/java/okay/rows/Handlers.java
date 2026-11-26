@@ -17,6 +17,18 @@ final class Handlers {
     return (T) v;
   }
 
+  /** the class of a handler's effect, where it says one: for the operations asked by class (okay.rows.Sets). None
+   * where it is not known — {@code Object}: the handler's effect was a type variable where the handler was made */
+  static Class<?> known(Class<?> effect) {
+    return effect == Object.class ? null : effect;
+  }
+
+  /** the class a handler's {@code F... effect} tells: nothing is given for it — javac makes the array, of the
+   * class of {@code F} where the handler is made */
+  static Class<?> key(Object[] effect) {
+    return known(effect.getClass().getComponentType());
+  }
+
   /** a general handler, of a place ({@code row}) or an interceptor by the class {@code effect} */
   static final class General<F, A, B, R> extends Rows.Spec {
     private final Class<?> effect;
@@ -24,7 +36,7 @@ final class Handlers {
     private final boolean row;
 
     General(Class<?> effect, Handler<F, A, B, R> h, boolean row) {
-      super(row, false);
+      super(row, known(effect), Sensitive.Op.class, false);
       this.effect = effect;
       this.h = h;
       this.row = row;
@@ -62,8 +74,6 @@ final class Handlers {
     /** its clause for a set of operations, or {@code null}: a set is then asked one by one */
     private final Batch<F, A, R> batch;
 
-    /** found by the class of its operations, wherever they go (okay.rows.Sets); or {@code null}: by its place */
-    private final boolean place;
 
     Quick(Clause<F, A, R> clause, Batch<F, A, R> batch) {
       this(clause, batch, null);
@@ -71,9 +81,8 @@ final class Handlers {
 
     Quick(Clause<F, A, R> clause, Batch<F, A, R> batch, Class<?> key) {
       this.batch = batch;
-      super(key, Sensitive.Op.class, false);
+      super(true, key, Sensitive.Op.class, false);
       this.clause = clause;
-      this.place = key == null;
     }
 
     @Override
@@ -93,7 +102,7 @@ final class Handlers {
 
     @Override
     protected Rows.Early early(Object entry, Object op) {
-      K<A, R> k = new K<>(op, place);
+      K<A, R> k = new K<>(op);
       if (op instanceof Rows.Many many)
         return new Asked(k, batch.on(trusted(many.ops()), new KAll<>(k, many.ops())).eff, null);
       return new Asked(k, clause.on(trusted(op), k).eff, null);
@@ -108,7 +117,6 @@ final class Handlers {
     private final StateBatch<F, S, B, R> batch;
     private final java.util.function.BiFunction<? super S, ? super A, ? extends B> ret;
 
-    private final boolean place;
 
     Stateful(StateClause<F, S, B, R> clause, StateBatch<F, S, B, R> batch,
         java.util.function.BiFunction<? super S, ? super A, ? extends B> ret) {
@@ -118,10 +126,9 @@ final class Handlers {
     Stateful(StateClause<F, S, B, R> clause, StateBatch<F, S, B, R> batch,
         java.util.function.BiFunction<? super S, ? super A, ? extends B> ret, Class<?> key) {
       this.batch = batch;
-      super(key, Sensitive.Op.class, false);
+      super(true, key, Sensitive.Op.class, false);
       this.clause = clause;
       this.ret = ret;
-      this.place = key == null;
     }
 
     @Override
@@ -162,7 +169,7 @@ final class Handlers {
     @Override
     protected Rows.Early early(Object entry, Object op) {
       Object[] cell = (Object[]) entry;
-      KS<S, B, R> k = new KS<>(op, place);
+      KS<S, B, R> k = new KS<>(op);
       if (op instanceof Rows.Many many)
         return new Asked(k, batch.on(trusted(cell[0]), trusted(many.ops()), new KAllS<>(k, many.ops())).eff, cell);
       return new Asked(k, clause.on(trusted(cell[0]), trusted(op), k).eff, cell);
@@ -207,16 +214,14 @@ final class Handlers {
   static final class Answering<F> extends Rows.Spec {
     private final java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers;
 
-    private final boolean place;
 
     Answering(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers) {
       this(answers, null);
     }
 
     Answering(java.util.function.Function<? super F, ? extends okay.effect.Answer<?>> answers, Class<?> key) {
-      super(key, Sensitive.Op.class, true);
+      super(true, key, Sensitive.Op.class, true);
       this.answers = answers;
-      this.place = key == null;
     }
 
     @Override
@@ -245,7 +250,7 @@ final class Handlers {
     private final InPlace<F, S, A, B, R> h;
 
     Local(Class<?> effect, InPlace<F, S, A, B, R> h, boolean row) {
-      super(row, true);
+      super(row, known(effect), Sensitive.Op.class, true);
       this.effect = effect;
       this.h = h;
     }

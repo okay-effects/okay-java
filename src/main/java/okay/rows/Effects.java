@@ -237,73 +237,109 @@ public final class Effects {
    * operation is refused. In place: nothing of the program is taken. The same function answers an operation asked
    * alone and each operation of a set; a handler that needs the rest of the program, or a set whole, is
    * {@code handle}. */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, A, R> Comp<A, R> answering(
-      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Answering<F>(answers), null, p.eff));
+      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Answering<F>(answers, Handlers.key(effect)), null, p.eff));
   }
 
   /** the same, the operations of a SET answered at the same time, each on a virtual thread
    * ({@link Batch#concurrently}): for answers that wait — a call, a query. An operation asked alone is answered
    * where it is asked. */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, A, R> Comp<A, R> answeringAtOnce(
-      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p) {
+      Function<? super F, ? extends Answer<?>> answers, Comp<A, ? super Eff<F, R>> p, F... effect) {
     Clause<F, A, R> one = (op, k) -> new Comp<>(k.resumed(Handlers.given(answers, op), false, null));
     Batch<F, A, R> all = Batch.concurrently((op, k) -> k.answerAny(op, Handlers.given(answers, op)));
-    return handle(one, all, p);
+    return handle(one, all, p, effect);
   }
 
   /** the same, the handler one function of the operation and the continuation ({@link Clause}), a lambda:
    * {@code handle((op, k) -> switch (op) { case Price p -> k.resume(p, 4L); }, p)}. The effect is the first of the
    * program's row: the compiler finds it there, and nothing names its class. A clause that only resumes is answered
    * in place. */
-  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, null), null, p.eff));
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
+  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, null, Handlers.key(effect)), null, p.eff));
+  }
+
+  /** the same, the program's value made the handler's by {@code ret}: {@code handle(a -> pure(Optional.of(a)),
+   * (op, k) -> pure(Optional.empty()), p)} — a clause may give a value of its own, leaving the rest */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
+  public static <F, A, B, R> Comp<B, R> handle(Function<? super A, ? extends Comp<B, R>> ret,
+      Clause<F, B, R> clause, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    Handler<F, A, B, R> h = new Handler<>() {
+      public Comp<B, R> ret(A a) { return ret.apply(a); }
+      public Comp<B, R> on(F op, K<B, R> k) { return clause.on(op, k); }
+    };
+    Class<?> key = Handlers.key(effect);
+    return new Comp<>(DOOR.handle(new Handlers.General<>(key == null ? Object.class : key, h, true), null, p.eff));
   }
 
   /** the same, with a clause for a SET of operations asked at once ({@link Batch}; {@link #performAll}, a
    * {@link Gather}): it is given them all before any is answered — one query, a cache, each repeated one once. An
    * operation asked alone still goes to {@code clause}. */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, A, R> Comp<A, R> handle(
-      Clause<F, A, R> clause, Batch<F, A, R> batch, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, batch), null, p.eff));
+      Clause<F, A, R> clause, Batch<F, A, R> batch, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Quick<>(clause, batch, Handlers.key(effect)), null, p.eff));
   }
 
   /** the same, the handler with a state: a {@link StateClause} is given the state of this path, the operation and
    * the continuation, and resumes with the answer and the next state —
    * {@code handle(0, (s, op, k) -> switch (op) { case Get g -> k.resume(g, s); case Put p -> k.resume(p, null,
    * p.value()); }, p)}. A continuation resumed twice goes on twice from the state it was asked in. */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, S, A, R> Comp<A, R> handle(
-      S s0, StateClause<F, S, A, R> clause, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, null, (state, a) -> a), s0, p.eff));
+      S s0, StateClause<F, S, A, R> clause, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, null, (state, a) -> a,
+        Handlers.key(effect)), s0, p.eff));
   }
 
   /** the same, its value made of the last state and the program's value: {@code ret} */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
-      BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, null, ret), s0, p.eff));
+      BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, null, ret, Handlers.key(effect)), s0,
+        p.eff));
   }
 
   /** a handler with a state and a clause for a SET of operations ({@link StateBatch}): the state of this path,
    * all the operations of the set, and the continuation — {@code k.answer(op, x)} for each, then
    * {@code k.resume(next)} */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, S, A, R> Comp<A, R> handle(S s0, StateClause<F, S, A, R> clause,
-      StateBatch<F, S, A, R> batch, Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, batch, (state, a) -> a), s0, p.eff));
+      StateBatch<F, S, A, R> batch, Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, A, R>(clause, batch, (state, a) -> a,
+        Handlers.key(effect)), s0, p.eff));
   }
 
   /** the same, its value made of the last state and the program's value: {@code ret} */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
       StateBatch<F, S, B, R> batch, BiFunction<? super S, ? super A, ? extends B> ret,
-      Comp<A, ? super Eff<F, R>> p) {
-    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, batch, ret), s0, p.eff));
+      Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, batch, ret, Handlers.key(effect)), s0,
+        p.eff));
   }
 
   /** WHAT A PROGRAM REALLY ASKS OF ITS FIRST EFFECT, AS IT ASKS IT: {@code see} is given every operation asked
    * alone, as a list of one, and every set, whole — and each goes on as it came, a set still a set. Unlike
    * {@code observe}, which is shown operations one by one and so has a set asked one by one: this shows the rounds.
    * The effect stays in the row. For a trace, a count of the queries, a test of how a program asks. */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
   public static <F, A, T> Comp<A, Eff<F, ? extends T>> rounds(
-      Consumer<? super List<F>> see, Comp<A, ? super Eff<F, T>> p) {
+      Consumer<? super List<F>> see, Comp<A, ? super Eff<F, T>> p, F... effect) {
     Clause<F, A, Eff<F, ? extends T>> one = (op, k) -> {
       see.accept(List.of(op));
       return k.afterAny(DOOR.ask(op, 0));
@@ -317,7 +353,7 @@ public final class Effects {
         return xs;
       })));
     };
-    return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p));
+    return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p), effect);
   }
 
   /** EACH OPERATION OF THE FIRST EFFECT ASKED ONCE: an operation equal to one asked before — records are equal by
@@ -326,7 +362,9 @@ public final class Effects {
    * asked. What is remembered is the run's: each run starts with nothing, and every path of a continuation resumed
    * twice shares it — an answer does not depend on the path. For an effect whose answers do not change within a
    * run: a lookup, a read; not a counter, a clock, a write. */
-  public static <F, A, T> Comp<A, Eff<F, ? extends T>> cached(Comp<A, ? super Eff<F, T>> p) {
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> cached(Comp<A, ? super Eff<F, T>> p, F... effect) {
     return defer(() -> {
       java.util.HashMap<Object, Object> known = new java.util.HashMap<>();
       Clause<F, A, Eff<F, ? extends T>> one = (op, k) -> {
@@ -353,7 +391,7 @@ public final class Effects {
           return xs;
         })));
       };
-      return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p));
+      return Effects.<F, A, Eff<F, ? extends T>>handle(one, all, under(p), effect);
     });
   }
 

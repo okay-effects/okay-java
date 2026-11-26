@@ -35,9 +35,9 @@ public sealed class K<B, R> permits KS {
   }
 
   /** the continuation of a clause called before its rest is taken */
-  K(Object asked, boolean place) {
+  K(Object asked) {
     this.asked = asked;
-    this.place = place;
+    this.place = true;
     this.late = true;
   }
 
