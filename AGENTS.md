@@ -36,20 +36,20 @@ repositories as `<pluginRepositories>` too); `forbid` needs okay's repository, h
 The whole of it, with every example compiled and run, is [docs/start.md](docs/start.md). In short:
 
 ```java
-import static okay.rows.Effects.*;
+import static okay.rows.Sets.*;
 import okay.effect.*;          // Operation, Eff, Pure
 import okay.rows.*;            // Comp, Var
 
-// 1. an effect: a sealed interface indexed by its answers; each operation a record
-sealed interface Prices<T> extends Operation<T, Prices<?>> {
-  record Price(String item) implements Prices<Long> {}
-  record InStock(String item) implements Prices<Boolean> {}
-  record Discount(long sum) implements Prices<Long> {}
+// 1. an effect: a sealed interface; each operation a record that names its answer and its effect
+sealed interface Prices {
+  record Price(String item) implements Prices, Operation<Long, Prices> {}
+  record InStock(String item) implements Prices, Operation<Boolean, Prices> {}
+  record Discount(long sum) implements Prices, Operation<Long, Prices> {}
 }
 
-// 2. a program: its type says what it gives and what it may ask. A block: questions, each answer a name
-static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
-  return together(t -> {
+// 2. a program: its type says what it gives and the effects it may ask — a type bounded by them, in any order
+static <R extends Prices> Comp<String, R> quote(String item) {
+  return together(t -> {                                        // a block: questions, each answer a name
     Var<Long> price = t.perform(new Prices.Price(item));
     Var<Boolean> stock = t.perform(new Prices.InStock(item));
     Var<Long> off = price.then(p -> t.perform(new Prices.Discount(p)));
@@ -57,8 +57,8 @@ static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
   });
 }
 
-// 3. a handler: takes the program, removes the first effect of its row. One that only answers:
-static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices<?>, R>> body) {
+// 3. a handler: a function over a program whose row is a list that begins with its effect
+static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Prices, R>> body) {
   return answering(op -> switch (op) {
     case Prices.Price p -> p.answer(table.getOrDefault(p.item(), 0L));
     case Prices.InStock s -> s.answer(table.containsKey(s.item()));
@@ -66,70 +66,63 @@ static <A, R> Comp<A, R> priced(Map<String, Long> table, Comp<A, ? super Eff<Pri
   }, body);
 }
 
-// 4. run, once, at the entry point: only a program with nothing left to ask
-String q = run(priced(Map.of("kettle", 120L), quote("kettle")));       // "kettle 108"
+// 4. where the handlers are put: the set written as a list, once; run at the entry point
+var shop = row(of(Prices.class));
+String q = run(priced(Map.of("kettle", 120L), shop.of(quote("kettle"))));       // "kettle 108"
 ```
 
-**A program**, three ways, one model, freely mixed:
+**A program**, three ways, one model, freely mixed. Its row is `<R extends A & B>`; a program of fewer effects is
+used in one of more as it is — no `up`, no `fit`, no name for the row (a class can name one for its methods:
+`final class Till<R extends Prices & Ask> { Comp<String, R> receipt() {..} }`).
 
 | Way | Words | Use it when |
 |---|---|---|
-| a block | `together(t -> ..)`: `t.perform(op)`, `a.map(f)`, `a.with(b, f)`, `a.then(x -> ..)`, `t.gather(g -> { for .. })`, `t.each(list, x -> ..)`, `t.when(..)`, `t.loop(..)`, `t.yield(..)` | several questions, some depending on others: most code |
+| a block | `together(t -> ..)`: `t.perform(op)`, `a.map(f)`, `a.with(b, f)`, `a.then(x -> ..)`, `t.gather(g -> { for .. })`, `t.each(list, x -> ..)`, `t.when(..)`, `t.loop(..)`, `t.yield(..)` | several questions, some depending on others |
 | a chain | `perform(op)`, `flatMap`, `map`, `pure`, `fold(xs, zero, (acc, x) -> ..)`, `forEach`, `collect`, `sequence`, `first` | a loop that goes by the answers, a recursion |
-| plain Java | `Direct.perform(op)` in a method whose `throws` names its effects | answers in locals, `for` and `if` as they are (resumable/README.md) |
+| plain Java | `Direct.body(d -> { long p = d.perform(new Prices.Price(item)); .. })` (okay-java-resumable; no plugin needed, nothing declared for an effect, no `throws`; a helper method takes `Asks<R> d`; the rest resumed once) | answers in locals, `for` and `if` as they are (resumable/README.md) |
 
-A block asks in rounds — every question whose answers are known, then the next — and the questions of a round are
-asked as a set. An answer is a value only inside the function given it (`p -> ..`).
+A block asks in rounds — every question whose answers are known, then the next — and the questions of a round that
+are of one effect are asked as a set. An answer is a value only inside the function given it (`p -> ..`).
 
-**A handler**, by what it needs:
+**A handler**, by what it needs — the same for every kind of program:
 
 | It needs | Write |
 |---|---|
 | only to answer | `answering(op -> switch (op) { case Price p -> p.answer(x); .. }, body)`; `answeringAtOnce` for a set at the same time |
 | the rest of the program | `handle((op, k) -> switch (op) { .. k.resume(op, x) .. }, body)`: go on after it (`.map`), leave it (`k.unwind()`), resume it twice |
+| a value of its own | `handle(a -> pure(Optional.of(a)), (op, k) -> .., body)` |
 | a state | `handle(s0, (state, op, k) -> .. k.resume(op, x, next) .., body)` |
 | a set whole | `handle(clause, (ops, k) -> { .. k.answer(op, x) ..; return k.resume(); }, body)`: one query for a round |
 
-In front of a handler, the effect kept in the row: `cached(p)` (each operation once in a run), `rounds(see, p)`
-(what is really asked, sets whole), `observe(Effect.class, see, p)`.
+A clause that asks another effect: `ask(k, new Clock.Now())`, in a handler whose type says the list that stays has
+it (`<A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c)`). The library's effects
+(`okay.rows.std`) are of the same form: `perform(new State.Get<Integer>())`, `State.run(0, ..)`, `Clock.at(..)`,
+`Choose.all(..)`; in a list, `Sets.<State<Integer>>the(State.class)`. In front of a handler, the effect kept in
+the list: `cached(p)`, `rounds(see, p)`, `observe(Effect.class, see, p)`.
 
-**Rows.** A program's type ends with `?` (`Eff<Prices<?>, ?>`), a handler is
-`static <A, R> Comp<A, R> h(.., Comp<A, ? super Eff<F, R>> body)`, the second effect of a row is asked with
-`up(perform(op))`. javac's words: `method run .. cannot be applied` — an effect left unhandled; a handler's name
-`.. cannot be applied` — the wrong order; `inference variable Q has incompatible bounds` — an operation the row
-does not have, or an `up` missing.
+**Where the handlers are put.** `var app = row(of(Store.class, Ids.class))` — the effects in the order of the
+handlers — and `run(identified(stored(app.of(program))))`. The boundary kept in a field or a bean is a class that
+names the set: `final class Shop<V extends Store & Ids> { <A> A run(Comp<A, ? super V> p) { var row =
+Sets.<V>exactly(Shop.class).row(of(Store.class, Ids.class)); return Sets.run(identified(stored(row.of(p)))); } }`,
+`static final Shop<?> SHOP = new Shop<>()`. A handler inside a program, around a part of it:
+`attempt(Sets.<R>keep().row(of(Abort.class)).of(part))`. `BookingSets` (chains and blocks) and `BookingBodyTest`
+(plain Java) in the tests are a real flow of seven effects.
 
-**Many effects: name the row.** `interface App<R> extends Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, R>>> {}` — an
-interface that extends the row, its tail a parameter. Every program of the application is a `Comp<X, App<?>>`; each
-effect is asked by a word that says its place once, checked by javac —
-`static <T> Comp<T, App<?>> ids(Ids<T> op) { return fit(up(up(perform(op)))); }` — so a program has no `up` and no
-long type, and programs are used inside one another as they are. The effects stay of any package, each its own
-handler, their order in the type; where the handlers are put, a function written once beside the name opens it into
-the row: `static <A, R> Comp<A, Eff<Store<?>, ..R>> open(Comp<A, ? super App<R>> c)` (docs/start.md;
-`BookingAlias` in the tests is a real flow of seven effects written so).
+javac's words: `inference variable R has incompatible bounds` — an operation the row does not have, or a program
+that asks more than the list names; `method run .. cannot be applied` — an effect left unhandled; a handler's name
+`.. cannot be applied` — the wrong order, or the set not written as a list.
 
-**An application's own effects: one family.** Effects of one package whose order means nothing — a store, mail, ids, a
-clock — are best ONE place of the row: `sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail,
-..` and `sealed interface Store<T> extends Shop<T> { record .. }`. Every program is a `Comp<X, Eff<Shop<?>, ?>>`,
-with no `up` and sub-programs used as they are; the handler one `switch` over the family, each part answered by its
-own function (docs/start.md; `Booking` and `BookingOne` in the tests are a real flow written both ways).
+How an operation finds its handler: by no place — the nearest handler whose effect it is of answers. A handler
+knows its effect's class from where it is made (`Comp<A, ? super Eff<Prices, R>>`, `handle(State.class, ..)`); two
+handlers of one effect are two scopes.
 
-**Many effects, no places: rows as sets** (`okay.rows.Sets`, docs/start.md section 8). A program's row is a type
-bounded by its effects, in any order — `static <R extends Ids & Clock> Comp<String, R> stamp()` — asked by
-`Sets.perform(op)`; a program of fewer effects is used in one of more as it is, with no `up`, no `fit` and no name
-for the row. The effect is declared with no type argument, each operation naming its answer and its effect:
-`sealed interface Ids { record Ref(String p) implements Ids, Operation<String, Ids> {} }` (the form of
-`okay.rows.std`). The handlers are the ones above — `static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids,
-R>> c)`, `State.run`, `Clock.at`, any written before — and the set is written as a list once, where they are put:
-`var app = row(of(Store.class, Ids.class)); run(identified(stored(app.of(program))))`; inside a program,
-`Sets.<R>keep().row(of(Abort.class)).of(part)`. Such an operation goes to no place: the nearest handler whose
-effect it is of answers, and a handler knows its effect's class from where it is made (not where the effect is a
-type variable there). Blocks are `Sets.together`; `import static okay.rows.Sets.*` has `answering`, `handle`, `run`
-and `pure` too. Plain Java of such a row: `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })`
-(okay-java-resumable; nothing declared for an effect, no `throws`, with the plugin or without; the rest once).
-The boundary kept in a field or a bean: a class that names the set, `final class Desk<V extends Ids & Clock> {
-<A> A run(Comp<A, ? super V> p) { var row = Sets.<V>exactly(Desk.class).row(of(Ids.class, Clock.class)); .. } }`,
-`static final Desk<?> DESK = new Desk<>()`. `BookingSets` in the tests is a real flow of seven effects.
+**Rows of places** ([docs/places.md](docs/places.md)) are the earlier form, under the same handlers: each effect
+has a place the program writes too — `Comp<String, Eff<Prices<?>, Eff<Ask<?>, ?>>>`, an effect indexed by its
+answers (`sealed interface Prices<T> extends Operation<T, Prices<?>>`, `record Price(..) implements Prices<Long>`),
+`import static okay.rows.Effects.*`, the second effect asked with `up(perform(op))`, a row given a name
+(`interface App<R> extends Eff<Store<?>, .. R>`, `BookingAlias`), an application's effects as one family
+(`BookingOne`). Use it where two handlers of one effect must be told apart by place, or an effect with type
+arguments by its arguments.
 
 ### The other forms
 
@@ -183,7 +176,7 @@ Needed for a reason each; all work together with the above.
 
 ### Design rules
 
-- Business logic is programs over declared effects; the row type (`Comp<A, Eff<E1, Eff<E2, ?>>>`) says what a
+- Business logic is programs over declared effects; the row type (`<R extends E1 & E2> Comp<A, R>`) says what a
   program may do. javac refuses an unhandled effect, the wrong handler order, a missing case, a wrong answer type.
 - Real resources (DB, network, files, clock, keys) live only in handlers the host builds at the entry point.
   Programs get data, effects and ids, never live clients. `Clock.system(p)` in `main`, `Clock.at(() -> t, p)` in a test.

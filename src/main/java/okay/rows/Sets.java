@@ -2,8 +2,13 @@ package okay.rows;
 
 import static okay.rows.Comp.DOOR;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import okay.effect.Answer;
 import okay.effect.Eff;
 import okay.effect.Op;
@@ -405,6 +410,91 @@ public final class Sets {
   public static <F, S, A, B, R> Comp<B, R> handle(S s0, StateClause<F, S, B, R> clause,
       BiFunction<? super S, ? super A, ? extends B> ret, Comp<A, ? super Eff<F, R>> p, F... effect) {
     return Effects.handle(s0, clause, ret, p, effect);
+  }
+
+  /** {@link Effects#answeringAtOnce} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, R> Comp<A, R> answeringAtOnce(Function<? super F, ? extends Answer<?>> answers,
+      Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.answeringAtOnce(answers, p, effect);
+  }
+
+  /** {@link Effects#cached} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> cached(Comp<A, ? super Eff<F, T>> p, F... effect) {
+    return Effects.cached(p, effect);
+  }
+
+  /** {@link Effects#rounds} */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> rounds(Consumer<? super List<F>> see,
+      Comp<A, ? super Eff<F, T>> p, F... effect) {
+    return Effects.rounds(see, p, effect);
+  }
+
+  /** {@link Effects#observe} */
+  public static <F, A, T> Comp<A, Eff<F, ? extends T>> observe(Class<? super F> effect,
+      Function<? super F, ? extends Comp<?, ? super Eff<F, ? extends T>>> see, Comp<A, ? super Eff<F, T>> p) {
+    return Effects.observe(effect, see, p);
+  }
+
+  /** A BLOCK THAT IS ONE PLAIN LOOP of a row that is a set: the list of its answers —
+   * {@code gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })} */
+  public static <X, R> Comp<List<X>, R> gather(Consumer<? super Gather<X, R, R>> loop) {
+    return Sets.<List<X>, R>together(t -> t.yield(t.<X>gather(loop), answers -> answers));
+  }
+
+  /** {@link Effects#fold} */
+  public static <X, S, R> Comp<S, R> fold(
+      Iterable<? extends X> xs, S zero, BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    return Effects.fold(xs, zero, step);
+  }
+
+  /** {@link Effects#forEach} */
+  public static <X, R> Comp<Void, R> forEach(
+      Iterable<? extends X> xs, Function<? super X, ? extends Comp<?, ? super R>> body) {
+    return Effects.forEach(xs, body);
+  }
+
+  /** {@link Effects#collect} */
+  public static <X, Y, R> Comp<List<Y>, R> collect(
+      Iterable<? extends X> xs, Function<? super X, ? extends Comp<Y, ? super R>> f) {
+    return Effects.collect(xs, f);
+  }
+
+  /** {@link Effects#sequence} */
+  public static <X, R> Comp<List<X>, R> sequence(Iterable<? extends Comp<X, ? super R>> xs) {
+    return Effects.sequence(xs);
+  }
+
+  /** {@link Effects#reduce} */
+  public static <X, S, R> Comp<S, R> reduce(
+      Iterable<? extends Comp<X, ? super R>> xs, S zero, BiFunction<? super S, ? super X, ? extends S> combine) {
+    return Effects.reduce(xs, zero, combine);
+  }
+
+  /** {@link Effects#first} */
+  public static <X, R> Comp<Optional<X>, R> first(
+      Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return Effects.first(xs, wanted);
+  }
+
+  /** {@link Effects#any} */
+  public static <X, R> Comp<Boolean, R> any(Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return Effects.any(xs, wanted);
+  }
+
+  /** {@link Effects#all} */
+  public static <X, R> Comp<Boolean, R> all(Iterable<? extends Comp<X, ? super R>> xs, Predicate<? super X> wanted) {
+    return Effects.all(xs, wanted);
+  }
+
+  /** {@link Effects#defer} */
+  public static <A, R> Comp<A, R> defer(Supplier<? extends Comp<A, ? super R>> p) {
+    return Effects.defer(p);
   }
 
   /** {@link Effects#run} */

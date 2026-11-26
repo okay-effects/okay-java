@@ -229,7 +229,7 @@ rest at every operation, without the plugin: about 480 on the JVM's continuation
 
 ## A body of a row that is a set
 
-With `okay.rows.Sets` (docs/start.md, section 8) a program's row is a type bounded by its effects, and plain Java
+With `okay.rows.Sets` (docs/start.md) a program's row is a type bounded by its effects, and plain Java
 needs nothing declared for an effect — no class for it, no `throws`:
 
 ```java

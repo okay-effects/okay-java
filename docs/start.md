@@ -4,33 +4,34 @@ Effects in Java, the light way: an effect is a small sealed family of records, a
 handler answers them, and the program's type says what it may ask. Nothing is passed around, no plugin is needed,
 and everything runs on one machine — a loop, so a program takes no Java stack however long it is.
 
-`StartTest` compiles and runs every example on this page.
+`StartTest` compiles and runs every example on this page; the plain-Java body is `SetBodyTest`'s, in
+`okay-java-resumable`.
 
 ```java
-import static okay.rows.Effects.*;
+import static okay.rows.Sets.*;
 import okay.effect.*;      // Operation, Eff, Pure
 import okay.rows.*;        // Comp, Var
 ```
 
 1. [An effect](#1-an-effect)
 2. [A program](#2-a-program): a block, a chain, or plain Java
-3. [A handler](#3-a-handler): four kinds, by what it needs
-4. [Running, and the row](#4-running-and-the-row)
+3. [A handler](#3-a-handler): by what it needs
+4. [Where the handlers are put](#4-where-the-handlers-are-put)
 5. [Between a program and its handler](#5-between-a-program-and-its-handler)
 6. [What is refused, and when](#6-what-is-refused-and-when)
 7. [What it costs](#7-what-it-costs)
-8. [The other forms](#8-the-other-forms)
+8. [What to know](#8-what-to-know)
+9. [The other forms](#9-the-other-forms)
 
 ## 1. An effect
 
-A sealed interface indexed by its operations' answers, and a record for each operation. The interface says once
-that it is an effect; a record says the type of its answer.
+A sealed interface, and a record for each operation. A record says the type of its answer and its effect.
 
 ```java
-sealed interface Prices<T> extends Operation<T, Prices<?>> {
-  record Price(String item) implements Prices<Long> {}
-  record InStock(String item) implements Prices<Boolean> {}
-  record Discount(long sum) implements Prices<Long> {}
+sealed interface Prices {
+  record Price(String item) implements Prices, Operation<Long, Prices> {}
+  record InStock(String item) implements Prices, Operation<Boolean, Prices> {}
+  record Discount(long sum) implements Prices, Operation<Long, Prices> {}
 }
 ```
 
@@ -38,19 +39,25 @@ An operation is data: it can be compared, printed, kept, sent. Nothing happens w
 
 ## 2. A program
 
-A program is a value, `Comp<A, R>`: `A` is what it gives, `R` the effects it may ask — its ROW. There are three
-ways to write one. They are the same thing underneath and mix freely.
+A program is a value, `Comp<A, R>`: `A` is what it gives, `R` the effects it may ask — its ROW. A method says its
+row as a type bounded by those effects, in any order:
+
+```java
+static <R extends Prices & Ask> Comp<String, R> checkout(List<String> cart) { .. }
+```
+
+There are three ways to write a program. They are the same thing underneath and mix freely.
 
 | Way | Reads as | Use it when |
 |---|---|---|
-| a block, `together` | questions one after another, each answer a name | several questions, some depending on others: most code |
+| a block, `together` | questions one after another, each answer a name | several questions, some depending on others |
 | a chain, `flatMap` / `fold` | each step a function of the answer before | a loop that goes by the answers, a recursion |
-| plain Java, `Direct` | a method with `for` and `if`, answers in locals | you want exactly that: see [direct style](../resumable/README.md) |
+| plain Java, `Direct.body` | a method with `for` and `if`, answers in locals | you want exactly that |
 
 ### A block
 
 ```java
-static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
+static <R extends Prices> Comp<String, R> quote(String item) {
   return together(t -> {
     Var<Long> price = t.perform(new Prices.Price(item));
     Var<Boolean> stock = t.perform(new Prices.InStock(item));
@@ -72,13 +79,13 @@ static Comp<String, Eff<Prices<?>, ?>> quote(String item) {
 
 The block knows what depends on what, so it asks in ROUNDS: first every question that needs nothing, then those
 that needed only these, and so on. Here `price` and `stock` are one round, `off` the next. The questions of a round
-are independent, and a handler may answer them together ([below](#3-a-handler)).
+are independent, and a handler may answer those of its effect together ([below](#3-a-handler)).
 
 A plain loop of questions is `t.gather`; a loop over an answer that is a list is `t.each`; a branch by an answer is
 `t.when`; a loop by a state is `t.loop`:
 
 ```java
-static Comp<Long, Eff<Prices<?>, ?>> total(List<String> cart) {
+static <R extends Prices> Comp<Long, R> total(List<String> cart) {
   return together(t -> {
     Var<List<Long>> prices = t.gather(g -> {
       for (String item : cart) g.perform(new Prices.Price(item));
@@ -93,10 +100,10 @@ static Comp<Long, Eff<Prices<?>, ?>> total(List<String> cart) {
 | | |
 |---|---|
 | `t.gather(g -> { for (..) g.perform(op); })` | the answers of a plain loop, as one list |
-| `t.each(list, x -> ..)` | for every element of an answer that is a list, the questions its function writes; all the elements' questions asked together, however deep lists nest |
+| `t.each(list, x -> ..)` | for every element of an answer that is a list, the questions its function writes |
 | `t.when(cond, () -> .., () -> ..)` | the questions of one branch, chosen by an answer |
 | `t.loop(start, more, next)` | turn after turn while the state says so: a read page after page |
-| `t.ask(comp)` | any program as a question: another effect's with `up`, another block |
+| `t.ask(comp)` | any program of the row as a question: a chain, another block |
 | `t.value(v)` | a name for a value |
 
 An answer is a value only inside the function that is given it — `p -> ..`, `(s, o) -> ..`. That is the one thing
@@ -105,7 +112,7 @@ a block does not give: an answer in a plain local, a line below the question.
 ### A chain
 
 ```java
-static Comp<Long, Eff<Prices<?>, ?>> inStockTotal(List<String> cart) {
+static <R extends Prices> Comp<Long, R> inStockTotal(List<String> cart) {
   return fold(cart, 0L, (sum, item) ->
       perform(new Prices.InStock(item)).flatMap(in ->
           in ? perform(new Prices.Price(item)).map(p -> sum + p) : pure(sum)));
@@ -126,121 +133,65 @@ answer, `c.map(f)` with a value; `pure(v)` asks nothing. Loops take an `Iterable
 A function that ends by calling itself — a recursion written with `flatMap` — runs in constant stack: a call in
 the last step takes none.
 
-### Two effects
+### Plain Java
 
-The row lists a program's effects in the order of their handlers, the nearest first. An operation of the first
-effect is `perform(op)`; of the second, `up(perform(op))`.
-
-```java
-static Comp<String, Eff<Prices<?>, Eff<Ask<?>, ?>>> checkout(List<String> cart) {
-  return total(cart).flatMap(sum ->
-      sum <= 100 ? pure("paid " + sum)
-          : up(perform(new Ask.Confirm("pay " + sum + "?"))).flatMap(yes ->
-              yes ? pure("paid " + sum) : up(perform(new Ask.Fail<String>("declined")))));
-}
-```
-
-`total` asks only `Prices`, and is used here as it is: a program of ONE effect fits any row that has that effect
-first. With more effects than two or three, name the row.
-
-### Many effects: name the row
-
-A row can be given a name: an interface that extends it, its tail a parameter.
+With `okay-java-resumable` on the class path (no plugin needed), a body is a method's own code:
 
 ```java
-interface App<R> extends Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>> {}
-```
-
-Every program of the application is then a `Comp<X, App<?>>`. Each effect is asked by a word that says its place —
-once, and javac checks it: a word with the wrong number of `up` does not compile.
-
-```java
-static <T> Comp<T, App<?>> store(Store<T> op) { return fit(perform(op)); }
-static <T> Comp<T, App<?>> mail(Mail<T> op)   { return fit(up(perform(op))); }
-static <T> Comp<T, App<?>> ids(Ids<T> op)     { return fit(up(up(perform(op)))); }
-static <T> Comp<T, App<?>> clock(Clock<T> op) { return fit(up(up(up(perform(op))))); }
-
-static Comp<String, App<?>> reserve(String name) {
-  return together(t -> {
-    Var<String> ref = t.ask(ids(new Ids.Ref("B")));
-    Var<String> key = t.ask(ids(new Ids.Secret()));
-    Var<Long> now = t.ask(clock(new Clock.Now()));
-    Var<Booked> booked = ref.with(key, now, (r, k, at) -> new Booked(r, k, at, name));
-    Var<Boolean> made = booked.then(b -> t.ask(store(new Store.Book(b))));
-    Var<Boolean> told = booked.then(b -> t.ask(mail(new Mail.Send(b.name(), "booked " + b.ref()))));
-    return t.yield(ref, made, told, (r, m, s) -> m ? r : "taken");
+static <R extends Prices & Ask> Comp<String, R> checkout(List<String> cart) {
+  return Direct.body(d -> {
+    long sum = 0;
+    for (String item : cart) if (d.perform(new Prices.InStock(item))) sum += d.perform(new Prices.Price(item));
+    if (sum > 100 && !d.perform(new Ask.Confirm("pay " + sum + "?"))) return "declined";
+    return "paid " + sum;
   });
 }
 ```
 
-No `up` in a program, no long type, and a program used inside another as it is: they are all of the one row. The
-effects stay what they are — of any package, each its own place and its own handler, their order in the type. Where
-the handlers are put, the name is opened into the row it stands for, by a function written once beside it:
+Answers in locals, `for` and `if` as they are; a method the body calls takes `d` as a parameter. See
+[a body of a row that is a set](../resumable/README.md#a-body-of-a-row-that-is-a-set); the rest of such a body is
+resumed once.
+
+### Several effects
+
+The row is the set of what a program asks, and a program of fewer effects is used in one of more as it is —
+nothing is written for it:
 
 ```java
-static <A, R> Comp<A, Eff<Store<?>, Eff<Mail<?>, Eff<Ids<?>, Eff<Clock<?>, R>>>>> open(Comp<A, ? super App<R>> c) { .. }
-
-run(clocked(identified(mailed(stored(open(reserve("Ann")))))));          // each a handler of one effect
-```
-
-`BookingAlias` in the tests is a real flow written so, with its `open`: the taking of a booking of okay-shop, seven
-effects of the same handlers as the flow written with bare places (`Booking`), the same scenarios on both — a
-hundred and nine lines against a hundred and sixty-five, its only `up`s the seven words'.
-
-### An application's effects as one family
-
-An application's OWN effects — a store, mail, ids, a clock, all of one package — whose order between
-handlers means nothing can be ONE place of the row instead: one sealed family, each effect a sealed part of it.
-
-```java
-sealed interface Shop<T> extends Operation<T, Shop<?>> permits Store, Mail, Ids, Clock {}
-
-sealed interface Store<T> extends Shop<T> {
-  record Allow(String key, int max, long window, long now) implements Store<Boolean> {}
-  record Book(Booked booking, long now) implements Store<Or<Booked>> {}
-}
-sealed interface Ids<T> extends Shop<T> {
-  record Ref(String prefix) implements Ids<String> {}
-  record Secret() implements Ids<String> {}
+static <R extends Prices & Ask> Comp<String, R> checkout(List<String> cart) {
+  return total(cart).flatMap(sum ->                                   // total asks Prices only
+      sum <= 100 ? pure("paid " + sum)
+          : perform(new Ask.Confirm("pay " + sum + "?")).flatMap(yes ->
+              yes ? pure("paid " + sum) : perform(new Ask.Fail<String>("declined"))));
 }
 ```
 
-Every program of the application is then a `Comp<X, Eff<Shop<?>, ?>>`, whatever it asks: no `up`, no place to
-count, a sub-program used as it is, every question of a block `t.perform(op)`. The handler is one `switch` over the
-family, each part answered by its own function:
+`perform` is `<T, F, R extends F> Comp<T, R> perform(Op<F, T, ?> op)`: that the row has the effect is its one
+bound, `R extends F`. A class can name a row once for its methods:
 
 ```java
-answering(op -> switch (op) {
-  case Store<?> s -> stored(world, s);       // static Answer<?> stored(World w, Store<?> op): its own switch
-  case Ids<?> i -> identified(world, i);
-  case Clock.Now n -> n.answer(world.now);
-  ..
-}, program);
+final class Till<R extends Prices & Ask & Counter> {
+  Comp<String, R> receipt(List<String> cart) { .. }
+}
 ```
-
-What is given up: the type no longer says which of the family a function asks, and the family is handled together.
-Keep separate places for effects whose order matters or that come from elsewhere — a `State` inside a choice, a
-library's effect.
-
-A sealed family is of one package (of one module, with `module-info`): an effect of another jar cannot be a part
-of it, and a named row is the way for those. `BookingOne` in the tests is the same real flow written so.
-
 
 ## 3. A handler
 
-A handler takes a program and removes the first effect of its row. Which kind to write depends on what it needs:
+A handler is a function over a program: it takes one whose row is a LIST beginning with its effect — `Eff<Prices,
+R>`, "Prices, and the rest" — and gives one of the rest. Which kind to write depends on what it needs:
 
 | It needs | Write | |
 |---|---|---|
 | only to answer | `answering(op -> .. op.answer(x) ..)` | the usual one: a lookup, a clock, a stub in a test |
 | the rest of the program | `handle((op, k) -> ..)` | to go on after it, leave it, resume it twice |
+| a value of its own | `handle(a -> .., (op, k) -> ..)` | the program's value made another: an `Optional`, a list |
 | a state | `handle(s0, (state, op, k) -> ..)` | a counter, a log, a cache |
 | a set of operations whole | `handle(clause, (ops, k) -> ..)` | one query for a round |
 
 ### One that only answers
 
 ```java
-static <A, R> Comp<A, R> priced(Comp<A, ? super Eff<Prices<?>, R>> body) {
+static <A, R> Comp<A, R> priced(Comp<A, ? super Eff<Prices, R>> body) {
   return answering(op -> switch (op) {
     case Prices.Price p -> p.answer(TABLE.getOrDefault(p.item(), 0L));
     case Prices.InStock s -> s.answer(TABLE.containsKey(s.item()));
@@ -256,7 +207,7 @@ operations of a set at the same time, each on a virtual thread — for answers t
 ### One that needs the rest
 
 ```java
-static <R> Comp<String, R> asking(boolean yes, Comp<String, ? super Eff<Ask<?>, R>> body) {
+static <R> Comp<String, R> asking(boolean yes, Comp<String, ? super Eff<Ask, R>> body) {
   return handle((op, k) -> switch (op) {
     case Ask.Confirm c -> k.resume(c, yes).map(result -> result + " (asked: " + c.question() + ")");
     case Ask.Fail<?> f -> k.unwind().map(left -> "failed: " + f.why());
@@ -274,10 +225,21 @@ static <R> Comp<String, R> asking(boolean yes, Comp<String, ? super Eff<Ask<?>, 
 
 A clause whose program is `k.resume(op, x)` and nothing else is answered in place, as `answering` is.
 
+With a first function the handler's value is another than the program's:
+
+```java
+static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super Eff<Ask, R>> body) {
+  return handle(a -> pure(Optional.of(a)), (op, k) -> switch (op) {
+    case Ask.Confirm c -> k.resume(c, true);
+    case Ask.Fail<?> f -> k.unwind().map(left -> Optional.empty());
+  }, body);
+}
+```
+
 ### One with a state
 
 ```java
-static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter<?>, R>> body) {
+static <A, R> Comp<A, R> counting(int from, Comp<A, ? super Eff<Counter, R>> body) {
   return handle(from, (n, op, k) -> switch (op) {
     case Counter.Next next -> k.resume(next, n, n + 1);
   }, body);
@@ -290,11 +252,11 @@ changed in place: a rest resumed twice goes on twice from the state it was asked
 
 ### One that answers a set at once
 
-The questions of a round of a block, a `gather`, a `performAll(ops)` are asked as a SET: all of them before any is
-answered. A handler with a second clause is given the set whole:
+The questions of a round of a block, or a `gather`, that are of one effect are asked as a SET: all of them before
+any is answered. A handler with a second clause is given the set whole:
 
 ```java
-static <A, R> Comp<A, R> pricedByOneQuery(List<String> queries, Comp<A, ? super Eff<Prices<?>, R>> body) {
+static <A, R> Comp<A, R> pricedByOneQuery(List<String> queries, Comp<A, ? super Eff<Prices, R>> body) {
   return handle((op, k) -> {
     queries.add("one: " + op);
     return switch (op) {
@@ -304,9 +266,9 @@ static <A, R> Comp<A, R> pricedByOneQuery(List<String> queries, Comp<A, ? super 
     };
   }, (ops, k) -> {
     TreeSet<String> items = new TreeSet<>();
-    for (Prices<?> op : ops) if (op instanceof Prices.Price p) items.add(p.item());
+    for (Prices op : ops) if (op instanceof Prices.Price p) items.add(p.item());
     queries.add("all of: " + items);                                    // one query for the whole set
-    for (Prices<?> op : ops) switch (op) {
+    for (Prices op : ops) switch (op) {
       case Prices.Price p -> k.answer(p, TABLE.getOrDefault(p.item(), 0L));
       case Prices.InStock s -> k.answer(s, TABLE.containsKey(s.item()));
       case Prices.Discount d -> k.answer(d, d.sum() / 10);
@@ -320,38 +282,94 @@ The program does not change. `total(List.of("tea", "cup", "kettle"))` asks three
 questions under `priced`, two queries under `pricedByOneQuery`. A handler without the second clause is asked the
 operations of a set one by one, so every program runs under every handler of its effect.
 
-## 4. Running, and the row
+### A clause that asks another effect
+
+It asks through its continuation, which knows the list that stays — in a handler whose type says that list has the
+effect:
 
 ```java
-String a = run(priced(quote("kettle")));                                    // "kettle 108"
-String b = run(asking(true, priced(checkout(List.of("tea", "cup")))));      // "paid 14"
+<A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c) {
+  return handle((op, k) -> switch (op) {
+    case Mail.Send s -> ask(k, new Clock.Now()).flatMap(now -> {
+      sent.add(s.to() + " at " + now);
+      return k.resume(s, null);
+    });
+  }, c);
+}
 ```
 
-`run` takes only a program with nothing left to ask. It is called once, at the entry point — `main`, a test, a
-request's handler — never inside a program.
+### The library's effects
 
-The order of the handlers is the order of the row, the nearest first, and it is meaning: a state inside a choice is
-one state for each way, outside it one state through them all. Three things about rows are worth knowing:
+`okay.rows.std` — `State`, `Reader`, `Writer`, `Throws`, `Choose`, `Fresh`, `Clock`, `Emit`, `Async`, `Trail` — are
+effects of the same form, asked the same way, each with its own handler:
 
-- A program's type ends with `?`, not `Pure`: `Eff<Prices<?>, ?>` reads "Prices, then whatever the caller has".
-  Only what `run` takes is closed.
-- A handler's parameter is `Comp<A, ? super Eff<Prices<?>, R>>` and its result `Comp<A, R>`: copy that line.
-- `up(c)` moves a program one place out; `fit(c)` gives it a declared row when javac cannot find one.
+```java
+static <R extends State<Integer> & Prices> Comp<Long, R> spend(String item) {
+  return perform(new Prices.Price(item)).flatMap(price ->
+      perform(new State.Get<Integer>()).flatMap(left ->
+          perform(new State.Put<>(left - price.intValue())).map(done -> price)));
+}
 
-When a row does not fit, javac says so in its own words. The three you will meet:
+var wallet = row(of(Prices.class, Sets.<State<Integer>>the(State.class)));
+State.Final<Integer, Long> end = run(State.run(100, priced(wallet.of(spend("cup")))));   // 89 left, 11 spent
+```
 
-| javac says | It means |
-|---|---|
-| `method run .. cannot be applied` | an effect is left unhandled |
-| `method asking .. cannot be applied` (a handler's name) | the handlers are in the wrong order, or this effect is not the first of the row |
-| `inference variable Q has incompatible bounds` | an operation of an effect the row does not have, or at the wrong place: an `up` is missing or one too many |
+An effect with type arguments is named for the list by `Sets.<State<Integer>>the(State.class)`: a class says
+nothing of them.
+
+## 4. Where the handlers are put
+
+A handler takes a program of a list; a program has a set. Where the handlers are put, the set is written as a
+list, once — `row(of(..))`, the effects in the order of the handlers, the nearest first:
+
+```java
+var till = row(of(Prices.class, Ask.class));
+String a = run(asking(true, priced(till.of(checkout(List.of("tea", "cup"))))));      // "paid 14"
+```
+
+`till.of(p)` takes a program that asks nothing but the effects named — fewer is well — and gives it as a program
+of their list. `run` takes only a program with nothing left to ask; it is called once, at the entry point — `main`,
+a test, a request's handler — never inside a program.
+
+The order of the handlers is the order of the list, and it is meaning: a state inside a choice is one state for
+each way, outside it one state through them all. The program does not say it: `row(of(Ask.class, Prices.class))`
+puts the same program under `priced(asking(..))`.
+
+**The boundary of an application, kept.** The value `row(..)` gives has a type that cannot be written — an
+intersection javac inferred — so it lives in a `var` or in the expression. What can be a field, a bean, a
+parameter is a class whose type parameter is bounded by the effects:
+
+```java
+final class Shop<V extends Prices & Ask> {
+  String checkout(boolean yes, Comp<String, ? super V> p) {
+    var row = Sets.<V>exactly(Shop.class).row(of(Prices.class, Ask.class));
+    return run(asking(yes, priced(row.of(p))));
+  }
+}
+
+static final Shop<?> SHOP = new Shop<>();
+String b = SHOP.checkout(true, checkout(List.of("tea", "cup")));
+```
+
+javac refuses `SHOP.checkout(.., p)` for a program that asks more than `V` is bounded by, and a list that names an
+effect `V` is not bounded by. The third way to be wrong it cannot see — `V` bounded by an effect the list does not
+name, one no handler would answer — so `exactly(Shop.class).row(..)` checks that when it is called, by the class's
+own declaration, and refuses there.
+
+**A handler inside a program** — around a part of it — leaves the rest in the program's own row:
+
+```java
+static <R extends Prices> Comp<Optional<String>, R> tried(List<String> cart) {
+  return attempt(Sets.<R>keep().row(of(Ask.class)).of(checkout(cart)));      // Ask answered here; Prices stays
+}
+```
 
 ## 5. Between a program and its handler
 
-These stand in front of a handler, keep the effect in the row, and change nothing of the program:
+These stand in front of a handler, keep the effect in the list, and change nothing of the program:
 
 ```java
-run(pricedByOneQuery(queries, rounds(ops -> seen.add(ops.size()), cached(total(cart)))));
+run(pricedByOneQuery(queries, rounds(ops -> seen.add(ops.size()), cached(shop.of(total(cart))))));
 ```
 
 | | |
@@ -364,199 +382,69 @@ With a cart of four items, two of them different, `cached` lets two prices throu
 
 ## 6. What is refused, and when
 
-By javac:
+By javac, each a program in `src/test/negative/rows`:
 
+- an operation of an effect the row is not bounded by — in a chain, a block, a body;
 - an answer of another type — `p.answer("four")`, `k.resume(p, "four")`;
 - a handler that does not answer every operation of its effect: the `switch` is whole;
-- an operation of an effect the row does not have, or of another effect than the block's first;
-- an effect left unhandled, handlers in the wrong order.
+- a program that asks more than the list names; a handler missing at `run`; handlers out of the list's order;
+- a handler given a program whose set was not written as a list;
+- a handler inside a program that leaves an effect the row has not;
+- `ask(k, ..)` of an effect the list that stays may not have.
+
+javac's words for them: `inference variable R has incompatible bounds` — an operation the row does not have, or a
+program that asks more than the list; `method run .. cannot be applied` — an effect left unhandled; a handler's name
+`.. cannot be applied` — the wrong order, or no list.
 
 When the program runs, at once and by name:
 
 - the answer of another operation than the one asked;
 - an operation of a set left without an answer;
 - a `Var` read by `get()` outside its block's `then` or `yield`, or of another block;
-- a rest whose clause only answered, resumed again.
+- a rest whose clause only answered, resumed again;
+- a named set bounded by an effect its list does not name (`exactly`).
 
 ## 7. What it costs
 
-Measured on this repository's benchmarks, one run each, nanoseconds an operation:
+Measured on this repository's benchmarks (`./gradlew setsBench`, `rowsBench`), nanoseconds an operation, the same
+program under four handlers:
 
 | | ns |
 |---|---|
-| a chain under `answering` | 13 |
-| a chain under a clause that only resumes | 19 |
-| a chain under a clause with a state | 20 |
-| a chain under a handler that takes the rest | 28 |
-| plain Java ([direct style](../resumable/README.md)) under a handler in place | 5 to 11 |
+| a chain under `answering`, the outermost of four | 17 |
+| a chain under a clause that only resumes | 15 |
+| a chain under a clause with a state | 22 |
+| a block of two questions of two effects | 88 a question |
+| plain Java (`Direct.body`) under `answering` / under a clause that only resumes | 6 / 12 |
 
-A block costs more than a chain for each question: it keeps the names and works out the rounds. Under `answering`,
-the same questions as a chain and as a block, two runs:
-
-| | a chain | a block |
-|---|---|---|
-| two questions that need nothing | 15 | 51 |
-| two questions, the second needing the first | — | 70 |
-| a hundred questions | 23 | 34 as a `gather`, 38 as an `each` |
-
-A small block pays for being a block; a large one costs about one and a half times a chain. It pays back where a
+A block costs more than a chain for each question: it keeps the names and works out the rounds; a large one — a
+hundred questions of one effect — costs about one and a half times a chain (34 against 23). It pays back where a
 round saves a query: one call to a database is a million of these.
 
-## 8. Rows as sets
+## 8. What to know
 
-Everything above gives each effect a place in the row. `okay.rows.Sets` types a program with no places: its row is
-a type bounded by the effects it asks, in any order. The handlers are the same. `SetsTest` compiles and runs the
-examples of this section; `BookingSets` in the tests is a real flow of seven effects written so.
-
-```java
-import static okay.rows.Sets.*;
-
-// an effect: each operation names its answer and its effect
-sealed interface Ids { record Ref(String prefix) implements Ids, Operation<String, Ids> {} }
-sealed interface Clock { record Now() implements Clock, Operation<Long, Clock> {} }
-
-// a program: its row is the set of what it asks
-static <R extends Ids & Clock> Comp<String, R> stamp(String prefix) {
-  return perform(new Ids.Ref(prefix)).flatMap(ref -> perform(new Clock.Now()).map(now -> ref + "@" + now));
-}
-
-// a program of more effects uses it as it is
-static <R extends Clock & Mail & Store & Ids> Comp<String, R> reserve(String who) {
-  return stamp("B").flatMap(ref ->
-      perform(new Store.Put(ref, who)).flatMap(ok -> perform(new Mail.Send(who)).map(sent -> ref)));
-}
-```
-
-`perform` is `<T, F, R extends F> Comp<T, R> perform(Op<F, T, ?> op)`: that the row has the effect is the one bound
-`R extends F`. There is no `up`, no `fit` and no name for the row; a class can name it once for its methods:
-`final class Booking<R extends Store & Mail & Ids & Clock> { Comp<String, R> told(..) {..} }`.
-
-A block is `Sets.together`, with the words of section 2; `t.perform` takes an operation of any effect the row has:
-
-```java
-static <R extends Ids & Clock & Store> Comp<String, R> quote(String who) {
-  return together(t -> {
-    Var<String> ref = t.perform(new Ids.Ref("Q"));
-    Var<Long> now = t.perform(new Clock.Now());
-    Var<Boolean> kept = ref.then(r -> t.perform(new Store.Put(r, who)));
-    return t.yield(ref.with(now, (r, n) -> r + "@" + n), kept, (s, k) -> s + " " + k);
-  });
-}
-```
-
-The effect is declared differently from section 1, and has to be. Java refuses a type that inherits one generic
-interface with two different arguments, so two effects that each extend `Operation<T, Self>` can never bound the
-same row. Here the interface has no supertype, and each record says `Operation<Answer, Effect>` — the form of the
-library's own effects (`okay.rows.std`), which are asked the same way: `perform(new State.Get<Integer>())`.
-
-The handlers are those of section 3, functions over a program whose row is a list — "this effect, and the rest"
-can be said of a list only:
-
-```java
-static <A, R> Comp<A, R> identified(Comp<A, ? super Eff<Ids, R>> c) {
-  return answering(op -> switch (op) { case Ids.Ref r -> r.answer(r.prefix() + "-1"); }, c);
-}
-static <A, R> Comp<A, R> numbered(Comp<A, ? super Eff<Ids, R>> c) {                 // a state
-  return handle(1, (n, op, k) -> switch (op) { case Ids.Ref r -> k.resume(r, r.prefix() + "-" + n, n + 1); }, c);
-}
-static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super Eff<Abort, R>> c) {       // another value; the rest left
-  return handle(a -> pure(Optional.of(a)), (op, k) -> pure(Optional.empty()), c);
-}
-```
-
-Where the handlers are put, the set is written as a list, once:
-
-```java
-var app = row(of(Store.class, Mail.class, Ids.class, Clock.class));
-String ref = run(clocked(42, identified(mailed(stored(app.of(reserve("Ann")))))));
-```
-
-`app.of(p)` takes a program that asks nothing but the effects named, and gives it as a program of their list, in
-the order of the handlers. Any handler of that list goes around it: one written before, the library's —
-
-```java
-static <R extends State<Integer> & Clock & Ids> Comp<String, R> counted() {        // okay.rows.std's State, Clock
-  return perform(new State.Get<Integer>()).flatMap(n -> perform(new State.Put<>(n + 1)).flatMap(put ->
-      perform(new Clock.Now()).flatMap(at -> perform(new Ids.Ref("C")).map(ref -> ref + ":" + n + "@" + at))));
-}
-
-var app = row(of(Ids.class, Sets.<State<Integer>>the(State.class), Clock.class));
-State.Final<Integer, String> end = run(Clock.at(() -> 5L, State.run(10, identified(app.of(counted())))));
-```
-
-(an effect with type arguments is named for the list by `Sets.<State<Integer>>the(State.class)`: a class says
-nothing of them) — and `observe`, `cached`, `rounds` in front of one.
-
-Inside a program, a handler around a part of it leaves the rest in the program's own row:
-
-```java
-static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
-  return attempt(Sets.<R>keep().row(of(Abort.class)).of(orFail(fail)));
-}
-```
-
-The boundary of an application, written once and kept — a class whose type parameter is bounded by its effects:
-
-```java
-final class Desk<V extends Ids & Clock> {
-  <A> A run(long at, Comp<A, ? super V> p) {
-    var row = Sets.<V>exactly(Desk.class).row(of(Ids.class, Clock.class));
-    return Sets.run(clocked(at, numbered(row.of(p))));
-  }
-}
-
-static final Desk<?> DESK = new Desk<>();        // a field; as well a bean, a parameter
-String s = DESK.run(6, stamp("B"));
-```
-
-javac refuses `DESK.run(p)` for a program that asks more than `V` is bounded by, and a list that names an effect
-`V` is not bounded by. The third way to be wrong it cannot see — `V` bounded by an effect the list does not name,
-one no handler would answer — so `exactly(Desk.class).row(..)` checks that when it is called, by the class's own
-declaration, and refuses there.
-
-A clause that asks another effect asks it through its continuation, which knows the list that stays:
-`ask(k, new Clock.Now()).flatMap(now -> .. k.resume(s, null))`, in a handler whose type says that list has it —
-`<A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c)`.
-
-What javac refuses, each a program in `src/test/negative/rows`: an operation of an effect the row is not bounded
-by; a program that asks more than the list names; a handler missing at `run`; handlers out of the list's order; a
-handler given a program whose set was not written as a list; a handler inside a program that leaves an effect the
-row has not; `ask(k, ..)` of an effect the list that stays may not have.
-
-What to know:
-
-- An operation asked by `Sets.perform` goes to no place: on its way out, the nearest handler whose effect it is of
-  answers. A handler knows the class of its effect from where it is made — `answering(.., c)` in a method whose
-  parameter says `Eff<Ids, R>`, `handle(State.class, ..)`. One made where its effect is a type variable knows
-  none, and answers only what its place sends it: around a program of a set, such an operation finds no handler
-  when it is asked.
-- Two handlers of one effect are two scopes, not two places, for such operations; an effect with type arguments
-  is one effect whatever they are.
-- The value `row(..)` gives has a type that cannot be written — an intersection javac inferred — so it lives in a
-  `var` or in the expression. What can be a field, a bean or a parameter is a class of the application that NAMES
-  the set by its type parameter (below).
+- An operation goes to no place: on its way out, the nearest handler whose effect it is of answers. Two handlers
+  of one effect are two scopes; an effect with type arguments is one effect whatever they are.
+- A handler knows the class of its effect from where it is made — `answering(.., c)` in a method whose parameter
+  says `Eff<Prices, R>`, `handle(State.class, ..)`. Write a handler where its effect is a named type: in a helper
+  generic in the effect (`<F> .. Eff<F, R>`) it learns none, and an operation finds no handler when it is asked.
 - `of` and `row` exist for one to eight effects.
-- A block of a set asks the operations of ONE effect in a round as one set — a handler with a clause for sets
-  (section 3) answers them in one query.
-- Plain Java of a row that is a set is `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })` of
-  `okay.resumable`: nothing declared for an effect, no `throws`; with the plugin or without (resumable/README.md,
-  "A body of a row that is a set").
-- Measured (`./gradlew setsBench`, two runs, the same programs under the same four handlers, ns a question, a set
-  against places): `answering` 17 and 15, a clause with `k` 15 and 15, a state 22 and 22, a block of two 88 and 84.
+- An effect is declared with no supertype of its own that names it, each record saying
+  `Operation<Answer, Effect>`. Java refuses a type that inherits one generic interface with two different
+  arguments, so effects that each extended a generic `Operation<.., Self>` could never bound the same row.
 
 ## 9. The other forms
 
-The page above is the whole of what most code needs. The rest is there for a reason each:
+Needed for a reason each; all work together with the above.
 
-- **An effect with type parameters of its own**, as `State<S>`: its records name their answers themselves,
-  `record Get<S>() implements State<S>, Op<State<S>, S, Get<S>> {}`. Javac cannot tell `Get<S>` by an index.
-  Everything on this page works with it.
-- **The library's effects** — `State`, `Reader`, `Writer`, `Throws`, `Choose`, `Fresh`, `Clock`, `Emit`, `Async`,
-  `Trail` in `okay.rows.std` — are written in that form, with `Handler` and `InPlace`: handlers as classes, with a
-  `ret` for the result. [The row notation](rows.md) is their reference.
-- **Control and audit**: `intercept`, `observe`, sensitive effects that only an audit may handle —
-  [the row notation](rows.md#control-and-audit).
-- **Finalizers**: `c.ensuring(fin)`, `bracket(acquire, use, release)` — [the row notation](rows.md).
-- **Plain Java**: methods with their effects in `throws`, with or without the build plugin —
-  [direct style](../resumable/README.md).
-- **The capability notation**, `okay.core`: effects passed as values at a level — [the guide](guide.md).
+- **Rows of places** ([places.md](places.md)): each effect has a place in the row, `Eff<Prices<?>, Eff<Ask<?>,
+  ?>>`, written by the program too; the second effect is asked with `up(perform(op))`; an effect is a sealed
+  interface indexed by its answers, `sealed interface Prices<T> extends Operation<T, Prices<?>>`. It tells two
+  handlers of one effect apart by their places, and an effect with type arguments by its arguments. The handlers
+  are the same ones, and both kinds of program go under them.
+- The handlers as classes — `Handler<F, A, B, R>` (`ret`, `on(op, k)`) and `InPlace<F, S, A, B, R>` (`ret`,
+  `answer(cell, op)`), put by `handle(Effect.class, h, p)` — and the other words of the row notation: `under`,
+  `fit`, `defer`, `intercept`, `ensuring`, `bracket`, `step`, `k.after(op, c)`: [rows.md](rows.md).
+- Sensitive operations under audit, the capability notation `okay.core.Comp<A, L>`, direct style with the plugin
+  (a rest resumed more than once in plain Java): [rows.md](rows.md), [guide.md](guide.md),
+  [../resumable/README.md](../resumable/README.md).

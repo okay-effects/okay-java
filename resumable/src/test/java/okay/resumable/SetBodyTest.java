@@ -134,4 +134,40 @@ class SetBodyTest {
     }, flip);
     assertThrows(IllegalStateException.class, () -> run(both));
   }
+
+  // ---- the body of docs/start.md, "Plain Java"
+
+  sealed interface Prices {
+    record Price(String item) implements Prices, Operation<Long, Prices> {}
+    record InStock(String item) implements Prices, Operation<Boolean, Prices> {}
+  }
+  sealed interface Ask { record Confirm(String question) implements Ask, Operation<Boolean, Ask> {} }
+
+  static <R extends Prices & Ask> Comp<String, R> checkout(List<String> cart) {
+    return Direct.body(d -> {
+      long sum = 0;
+      for (String item : cart) if (d.perform(new Prices.InStock(item))) sum += d.perform(new Prices.Price(item));
+      if (sum > 100 && !d.perform(new Ask.Confirm("pay " + sum + "?"))) return "declined";
+      return "paid " + sum;
+    });
+  }
+
+  static <A, R> Comp<A, R> priced(Comp<A, ? super Eff<Prices, R>> c) {
+    java.util.Map<String, Long> table = java.util.Map.of("tea", 4L, "cup", 11L, "kettle", 120L);
+    return answering(op -> switch (op) {
+      case Prices.Price p -> p.answer(table.getOrDefault(p.item(), 0L));
+      case Prices.InStock s -> s.answer(table.containsKey(s.item()));
+    }, c);
+  }
+  static <A, R> Comp<A, R> asking(boolean yes, Comp<A, ? super Eff<Ask, R>> c) {
+    return answering(op -> switch (op) { case Ask.Confirm q -> q.answer(yes); }, c);
+  }
+
+  @Test
+  void theStartPagesBody() {
+    var till = row(of(Prices.class, Ask.class));
+    assertEquals("paid 15", run(asking(false, priced(till.of(checkout(List.of("tea", "spoon", "cup")))))));
+    assertEquals("declined", run(asking(false, priced(till.of(checkout(List.of("tea", "kettle")))))));
+    assertEquals("paid 124", run(asking(true, priced(till.of(checkout(List.of("tea", "kettle")))))));
+  }
 }
