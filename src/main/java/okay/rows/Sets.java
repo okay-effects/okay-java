@@ -281,6 +281,15 @@ public final class Sets {
     return Effects.handle(clause, p, effect);
   }
 
+  /** {@link Effects#handle(Clause, Batch, Comp, Object[])}: a clause for the operations of the effect a block asks
+   * at once, as one set */
+  @SafeVarargs
+  @SuppressWarnings("varargs")
+  public static <F, A, R> Comp<A, R> handle(Clause<F, A, R> clause, Batch<F, A, R> batch,
+      Comp<A, ? super Eff<F, R>> p, F... effect) {
+    return Effects.handle(clause, batch, p, effect);
+  }
+
   /** {@link Effects#handle(Function, Clause, Comp, Object[])} */
   @SafeVarargs
   @SuppressWarnings("varargs")

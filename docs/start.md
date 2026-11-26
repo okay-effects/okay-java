@@ -517,8 +517,8 @@ What to know:
   `var` or in the expression, not in a field. The handlers' nest can be a function of its own: its parameter is a
   program of the list, and that type can be written.
 - `of` and `row` exist for one to eight effects.
-- A set of operations asked at once by a block of a set is asked one by one; plain Java (`okay.resumable`) is of
-  rows of places only, for now.
+- A block of a set asks the operations of ONE effect in a round as one set — a handler with a clause for sets
+  (section 3) answers them in one query. Plain Java (`okay.resumable`) is of rows of places only, for now.
 - Measured roughly (two runs, a million questions under four handlers, ns a question, a set against places):
   `answering` 16 and 15, a clause with `k` 16 and 18, a state 20 and 22.
 

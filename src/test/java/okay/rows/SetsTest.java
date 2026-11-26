@@ -306,4 +306,43 @@ class SetsTest {
     assertEquals("B-1@4 B-1@4", twice);          // the same Ref asked twice: once outside the cache
     assertEquals(1, seen.size());
   }
+
+  /** a store that answers the operations a block asks at once as ONE set — one query */
+  <A, R> Comp<A, R> storedInSets(List<Integer> queries, Comp<A, ? super Eff<Store, R>> c) {
+    return handle((op, k) -> switch (op) {
+      case Store.Put p -> { queries.add(1); db.put(p.key(), p.value()); yield k.resume(p, true); }
+      case Store.Get g -> { queries.add(1); yield k.resume(g, Optional.ofNullable(db.get(g.key()))); }
+    }, (ops, k) -> {
+      queries.add(ops.size());
+      for (Store op : ops) {
+        switch (op) {
+          case Store.Put p -> { db.put(p.key(), p.value()); k.answer(p, true); }
+          case Store.Get g -> k.answer(g, Optional.ofNullable(db.get(g.key())));
+        }
+      }
+      return k.resume();
+    }, c);
+  }
+
+  static <R extends Store & Clock & Ids> Comp<String, R> three() {
+    return together(t -> {
+      Var<Optional<String>> a = t.perform(new Store.Get("a"));
+      Var<Long> now = t.perform(new Clock.Now());
+      Var<Optional<String>> b = t.perform(new Store.Get("b"));
+      Var<String> ref = t.perform(new Ids.Ref("R"));
+      Var<Optional<String>> c = t.perform(new Store.Get("c"));
+      return t.yield(a.with(b, (x, y) -> x.orElse("-") + y.orElse("-")), c, now.with(ref, (n, r) -> r + "@" + n),
+          (ab, z, at) -> ab + z.orElse("-") + " " + at);
+    });
+  }
+
+  @Test
+  void theOperationsOfOneEffectInARoundAreOneSet() {
+    db.put("a", "A");
+    db.put("c", "C");
+    List<Integer> queries = new ArrayList<>();
+    var app = row(of(Store.class, Ids.class, Clock.class));
+    assertEquals("A-C R-1@2", run(clocked(2, identified(storedInSets(queries, app.of(three()))))));
+    assertEquals(List.of(3), queries);      // the three Gets, among a Now and a Ref: one set
+  }
 }

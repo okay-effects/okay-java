@@ -436,6 +436,13 @@ public final class Together<E, R> {
     }
   }
 
+  /** what the operations asked as one set have the same: their place in the row; or, asked by class
+   * ({@link Sets}), their effect */
+  private static Object group(okay.core.Comp<?, ?> operation) {
+    int skip = DOOR.skip(operation);
+    return skip < okay.core.Rows.FAR / 2 ? (Object) skip : Family.of(DOOR.operation(operation));
+  }
+
   /** a round: every question that can be asked now — those that are operations of one handler put in one set, each
    * set where the first of them stands — then the next round; no question left, the block goes on. {@code g} is
    * this path's own, not yet shared: it is settled in place */
@@ -443,15 +450,16 @@ public final class Together<E, R> {
   private okay.core.Comp<?, ?> round(Going g, Function<Object[], ? extends Comp<?, ?>> then) {
     settle(g);
     // the questions ready; the usual round is of operations of one handler, or of one question: found in one pass
-    int count = 0, first = -1, skip = -1;
+    int count = 0, first = -1;
+    Object group = null;
     boolean oneSet = true;
     for (int i = 0; i < g.got.length; i++) {
       if (g.got[i] != NOT_YET || g.effs[i] == null) continue;
       if (count++ == 0) first = i;
       if (!oneSet) continue;
       if (DOOR.operation(g.effs[i]) == null) oneSet = false;
-      else if (skip < 0) skip = DOOR.skip(g.effs[i]);
-      else if (skip != DOOR.skip(g.effs[i])) oneSet = false;
+      else if (group == null) group = group(g.effs[i]);
+      else if (!group.equals(group(g.effs[i]))) oneSet = false;
     }
     if (count == 0) {
       for (int i = 0; i < g.got.length; i++)
@@ -472,7 +480,7 @@ public final class Together<E, R> {
     if (oneSet) {
       Object[] set = new Object[count];
       for (int j = 0; j < count; j++) set[j] = DOOR.operation(g.effs[in[j]]);
-      okay.core.Comp all = DOOR.askAll(set, skip);
+      okay.core.Comp all = DOOR.askAll(set, DOOR.skip(g.effs[in[0]]));
       return all.flatMap(xs -> {
         Going more = g.copy();
         List<Object> list = (List<Object>) xs;
@@ -490,7 +498,7 @@ public final class Together<E, R> {
       int[] which = new int[count - i];
       for (int j = i; j < count; j++) {
         if (j == i || (!placed[j] && ops[i] != null && ops[j] != null
-            && DOOR.skip(g.effs[in[j]]) == DOOR.skip(g.effs[in[i]]))) {
+            && group(g.effs[in[j]]).equals(group(g.effs[in[i]])))) {
           which[same++] = j;
           placed[j] = true;
         }
