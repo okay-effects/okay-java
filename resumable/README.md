@@ -258,7 +258,8 @@ handler answers in place is answered on the body's own stack; where a handler ta
 stack of its own and goes on once; left (`k.unwind()`), its `finally` blocks run; a handler that resumes its rest
 twice is refused when it does. `d` is valid in its own body, while it runs.
 
-`BookingBodyTest` is a real flow written so — the taking of a booking of okay-shop, seven effects: one method of
+`sample.Till` in both samples (`samples/gradle`, `samples/maven`) is a small program written so, with its boundary
+a class; `BookingBodyTest` is a real flow — the taking of a booking of okay-shop, seven effects: one method of
 early returns, two helper methods of fewer effects.
 
 Measured roughly (one run, a million questions in a `for`, no flags, ns a question): 6 under a handler that only

@@ -147,6 +147,40 @@ to the end. One that goes on in another thread, an `Async` callback's, leaves th
 **`@Transactional` on a method that returns a `Comp`** commits when the method returns, before the program runs. The
 program's transaction is `EffTransactions`'.
 
+## The boundary as a bean
+
+A program whose row is a set (`okay.rows.Sets`, [Start here](start.md)) needs nothing of this module. Its handlers
+are put in one class whose type parameter names the set; that class is a bean, built from the application's other
+beans — a repository, a client, a clock — and injected where a program is to run:
+
+```java
+final class Shop<V extends Prices & Ask> {
+  private final PriceList prices;                       // a bean of the application
+  Shop(PriceList prices) { this.prices = prices; }
+
+  <A> A run(boolean confirms, Comp<A, ? super V> program) {
+    var row = Sets.<V>exactly(Shop.class).row(of(Prices.class, Ask.class));
+    return Sets.run(asking(confirms, priced(row.of(program))));       // the handlers, each a function
+  }
+}
+
+@Configuration
+class App {
+  @Bean Shop<?> shop(PriceList prices) { return new Shop<>(prices); }
+  @Bean Checkout checkout(Shop<?> shop) { return new Checkout(shop); }
+}
+
+final class Checkout {
+  private final Shop<?> shop;
+  String pay(List<String> cart, boolean confirms) { return shop.run(confirms, checkout(cart)); }
+}
+```
+
+`checkout(cart)` is business code — `static <R extends Prices & Ask> Comp<String, R> checkout(List<String> cart)` —
+and knows nothing of Spring. javac refuses `shop.run(.., p)` for a program that asks an effect `Shop` does not
+handle. A test builds a `Shop` over a price list in memory, or another class of the same shape with other
+handlers. `SetBoundaryBeanTest` is this section, run.
+
 ## Tests
 
 `./gradlew :okay-java-spring-boot:test`, or `./gradlew test` with okay-java's own.
