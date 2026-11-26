@@ -522,8 +522,8 @@ What to know:
 - Plain Java of a row that is a set is `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })` of
   `okay.resumable`: nothing declared for an effect, no `throws`; with the plugin or without (resumable/README.md,
   "A body of a row that is a set").
-- Measured roughly (two runs, a million questions under four handlers, ns a question, a set against places):
-  `answering` 16 and 15, a clause with `k` 16 and 18, a state 20 and 22.
+- Measured (`./gradlew setsBench`, two runs, the same programs under the same four handlers, ns a question, a set
+  against places): `answering` 17 and 15, a clause with `k` 15 and 15, a state 22 and 22, a block of two 88 and 84.
 
 ## 9. The other forms
 

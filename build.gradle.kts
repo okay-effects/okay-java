@@ -125,3 +125,12 @@ tasks.register<JavaExec>("rowsBench") {
         javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
     }
 }
+
+// rows as sets against rows of places, the same programs under the same handlers: ./gradlew setsBench
+tasks.register<JavaExec>("setsBench") {
+    classpath = jmh.runtimeClasspath
+    mainClass = "okay.rows.bench.SetsBench"
+    (project.findProperty("benchJdk") as String?)?.let { jdk ->
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
+    }
+}
