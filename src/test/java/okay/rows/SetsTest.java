@@ -345,4 +345,37 @@ class SetsTest {
     assertEquals("A-C R-1@2", run(clocked(2, identified(storedInSets(queries, app.of(three()))))));
     assertEquals(List.of(3), queries);      // the three Gets, among a Now and a Ref: one set
   }
+
+  // ---- the set named by a class of the application: a boundary that can be a field
+
+  /** its type parameter says the set; its method puts the handlers */
+  static final class Desk<V extends Ids & Clock> {
+    <A> A run(long at, Comp<A, ? super V> p) {
+      var row = Sets.<V>exactly(Desk.class).row(of(Ids.class, Clock.class));
+      return Sets.run(clocked(at, numbered(row.of(p))));
+    }
+  }
+
+  static final Desk<?> DESK = new Desk<>();
+
+  @Test
+  void theSetNamedByAClassIsAField() {
+    assertEquals("B-1@6", DESK.run(6, stamp("B")));
+    assertEquals("B-1@6 B-2@6", DESK.run(6, both()));
+  }
+
+  /** bounded by an effect its list does not name */
+  static final class Careless<V extends Ids & Clock & Mail> {
+    <A> A run(Comp<A, ? super V> p) {
+      var row = Sets.<V>exactly(Careless.class).row(of(Ids.class, Clock.class));
+      return Sets.run(clocked(1, numbered(row.of(p))));
+    }
+  }
+
+  @Test
+  void aNamedSetWiderThanItsListIsRefusedWhenItIsUsed() {
+    IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        () -> new Careless<>().run(stamp("B")));
+    assertEquals(true, e.getMessage().contains("Mail"));
+  }
 }

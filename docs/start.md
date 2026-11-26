@@ -495,6 +495,25 @@ static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
 }
 ```
 
+The boundary of an application, written once and kept — a class whose type parameter is bounded by its effects:
+
+```java
+final class Desk<V extends Ids & Clock> {
+  <A> A run(long at, Comp<A, ? super V> p) {
+    var row = Sets.<V>exactly(Desk.class).row(of(Ids.class, Clock.class));
+    return Sets.run(clocked(at, numbered(row.of(p))));
+  }
+}
+
+static final Desk<?> DESK = new Desk<>();        // a field; as well a bean, a parameter
+String s = DESK.run(6, stamp("B"));
+```
+
+javac refuses `DESK.run(p)` for a program that asks more than `V` is bounded by, and a list that names an effect
+`V` is not bounded by. The third way to be wrong it cannot see — `V` bounded by an effect the list does not name,
+one no handler would answer — so `exactly(Desk.class).row(..)` checks that when it is called, by the class's own
+declaration, and refuses there.
+
 A clause that asks another effect asks it through its continuation, which knows the list that stays:
 `ask(k, new Clock.Now()).flatMap(now -> .. k.resume(s, null))`, in a handler whose type says that list has it —
 `<A, R> Comp<A, Eff<Clock, R>> audited(Comp<A, ? super Eff<Mail, Eff<Clock, R>>> c)`.
@@ -514,8 +533,8 @@ What to know:
 - Two handlers of one effect are two scopes, not two places, for such operations; an effect with type arguments
   is one effect whatever they are.
 - The value `row(..)` gives has a type that cannot be written — an intersection javac inferred — so it lives in a
-  `var` or in the expression, not in a field. The handlers' nest can be a function of its own: its parameter is a
-  program of the list, and that type can be written.
+  `var` or in the expression. What can be a field, a bean or a parameter is a class of the application that NAMES
+  the set by its type parameter (below).
 - `of` and `row` exist for one to eight effects.
 - A block of a set asks the operations of ONE effect in a round as one set — a handler with a clause for sets
   (section 3) answers them in one query.

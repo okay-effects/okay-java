@@ -60,44 +60,44 @@ public final class Sets {
   // ---- the set as a list, for the handlers
 
   /** effects named in the order of their handlers ({@link #of}); {@code L} is their list */
-  public static final class Of1<L> { Of1() {} }
-  public static final class Of2<L> { Of2() {} }
-  public static final class Of3<L> { Of3() {} }
-  public static final class Of4<L> { Of4() {} }
-  public static final class Of5<L> { Of5() {} }
-  public static final class Of6<L> { Of6() {} }
-  public static final class Of7<L> { Of7() {} }
-  public static final class Of8<L> { Of8() {} }
+  public static final class Of1<L> extends Named { Of1(Class<?>... effects) { super(effects); } }
+  public static final class Of2<L> extends Named { Of2(Class<?>... effects) { super(effects); } }
+  public static final class Of3<L> extends Named { Of3(Class<?>... effects) { super(effects); } }
+  public static final class Of4<L> extends Named { Of4(Class<?>... effects) { super(effects); } }
+  public static final class Of5<L> extends Named { Of5(Class<?>... effects) { super(effects); } }
+  public static final class Of6<L> extends Named { Of6(Class<?>... effects) { super(effects); } }
+  public static final class Of7<L> extends Named { Of7(Class<?>... effects) { super(effects); } }
+  public static final class Of8<L> extends Named { Of8(Class<?>... effects) { super(effects); } }
 
   // the effects of a list, by their classes: its tail T is what `row` or `Keep.row` says
   public static <A, T> Of1<Eff<A, T>> of(Class<A> a) {
-    return new Of1<>();
+    return new Of1<>(a);
   }
   public static <A, B, T> Of2<Eff<A, Eff<B, T>>> of(Class<A> a, Class<B> b) {
-    return new Of2<>();
+    return new Of2<>(a, b);
   }
   public static <A, B, C, T> Of3<Eff<A, Eff<B, Eff<C, T>>>> of(Class<A> a, Class<B> b, Class<C> c) {
-    return new Of3<>();
+    return new Of3<>(a, b, c);
   }
   public static <A, B, C, D, T> Of4<Eff<A, Eff<B, Eff<C, Eff<D, T>>>>> of(Class<A> a, Class<B> b, Class<C> c,
       Class<D> d) {
-    return new Of4<>();
+    return new Of4<>(a, b, c, d);
   }
   public static <A, B, C, D, E, T> Of5<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, T>>>>>> of(Class<A> a, Class<B> b,
       Class<C> c, Class<D> d, Class<E> e) {
-    return new Of5<>();
+    return new Of5<>(a, b, c, d, e);
   }
   public static <A, B, C, D, E, G, T> Of6<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, T>>>>>>> of(Class<A> a,
       Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g) {
-    return new Of6<>();
+    return new Of6<>(a, b, c, d, e, g);
   }
   public static <A, B, C, D, E, G, H, T> Of7<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, T>>>>>>>> of(Class<A> a,
       Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h) {
-    return new Of7<>();
+    return new Of7<>(a, b, c, d, e, g, h);
   }
   public static <A, B, C, D, E, G, H, I, T> Of8<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I,
       T>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h, Class<I> i) {
-    return new Of8<>();
+    return new Of8<>(a, b, c, d, e, g, h, i);
   }
 
   /** an effect with type arguments, named for a list: {@code of(Sets.<State<Integer>>the(State.class), ..)} — a
@@ -207,6 +207,99 @@ public final class Sets {
         ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
             ? extends Eff<? super V, K>>>>>>>>> Row<V, L> row(
         Of8<L> effects) {
+      return new Row<>();
+    }
+  }
+
+  // ---- the set NAMED: a class of the application whose type parameter is bounded by its effects
+
+  /** what {@link #of} gives: the classes named */
+  public abstract static class Named {
+    final Class<?>[] effects;
+
+    Named(Class<?>[] effects) {
+      this.effects = effects;
+    }
+  }
+
+  /** THE SET NAMED BY A CLASS: {@code final class Shop<V extends Store & Mail & Ids> { <A> A run(Comp<A, ? super V>
+   * p) { var row = Sets.<V>exactly(Shop.class).row(of(Store.class, Mail.class, Ids.class)); return
+   * Sets.run(identified(mailed(stored(row.of(p))))); } }}. The type parameter says the set, so the class can be
+   * written where a {@link Row} cannot: {@code static final Shop<?> SHOP = new Shop<>();} is a field, a bean, a
+   * parameter, and {@code SHOP.run(program)} is refused by javac for a program that asks more. javac also refuses a
+   * list that names an effect the parameter is not bounded by. That the parameter is bounded by no effect the
+   * list has NOT — one without a handler — javac cannot see: {@code row} checks it when it is called, by the
+   * bounds of {@code named}'s first type parameter, and refuses there */
+  public static <V> Exactly<V> exactly(Class<?> named) {
+    return new Exactly<>(named);
+  }
+
+  public static final class Exactly<V> {
+    private final Class<?> named;
+
+    Exactly(Class<?> named) {
+      this.named = named;
+    }
+
+    private void check(Named listed) {
+      if (named.getTypeParameters().length == 0) throw new IllegalArgumentException("okay.rows.Sets: "
+          + named.getName() + " has no type parameter to name a set");
+      for (java.lang.reflect.Type bound : named.getTypeParameters()[0].getBounds()) {
+        Class<?> effect = bound instanceof java.lang.reflect.ParameterizedType p ? (Class<?>) p.getRawType()
+            : bound instanceof Class<?> c ? c : null;
+        if (effect == null || effect == Object.class) continue;
+        boolean has = false;
+        for (Class<?> c : listed.effects) has |= c == effect;
+        if (!has) throw new IllegalStateException("okay.rows.Sets: " + named.getName() + " is bounded by "
+            + effect.getName() + ", which the list of its handlers does not name: a program could ask it, and "
+            + "nothing would answer");
+      }
+    }
+
+    public <L extends Eff<? super V, Pure>> Row<V, L> row(
+        Of1<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, Pure>>> Row<V, L> row(
+        Of2<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>> Row<V, L> row(
+        Of3<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        Pure>>>>> Row<V, L> row(
+        Of4<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, Pure>>>>>> Row<V, L> row(
+        Of5<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>> Row<V, L> row(
+        Of6<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>>> Row<V, L> row(
+        Of7<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            Pure>>>>>>>>> Row<V, L> row(
+        Of8<L> effects) {
+      check(effects);
       return new Row<>();
     }
   }

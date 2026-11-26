@@ -127,7 +127,9 @@ effect it is of answers, and a handler knows its effect's class from where it is
 type variable there). Blocks are `Sets.together`; `import static okay.rows.Sets.*` has `answering`, `handle`, `run`
 and `pure` too. Plain Java of such a row: `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })`
 (okay-java-resumable; nothing declared for an effect, no `throws`, with the plugin or without; the rest once).
-`BookingSets` in the tests is a real flow of seven effects.
+The boundary kept in a field or a bean: a class that names the set, `final class Desk<V extends Ids & Clock> {
+<A> A run(Comp<A, ? super V> p) { var row = Sets.<V>exactly(Desk.class).row(of(Ids.class, Clock.class)); .. } }`,
+`static final Desk<?> DESK = new Desk<>()`. `BookingSets` in the tests is a real flow of seven effects.
 
 ### The other forms
 
