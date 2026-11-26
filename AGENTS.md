@@ -253,6 +253,11 @@ body waits on a virtual thread of its own and goes on once. The plugin adds a re
 
 - Handler order is the row order, innermost first: `Choose.all(State.run(0, p))` and `State.run(0, Choose.all(p))`
   are different types and different results. Use `up`/`under` to place an operation; don't cast rows.
+- Rows as sets: write a handler where its effect is a named type (`Comp<A, ? super Eff<Ids, R>>`). In a helper
+  generic in the effect (`<F> .. Eff<F, R>`) `answering`/`handle` cannot learn the effect's class: such a handler
+  answers by its place only, and an operation asked by `Sets.perform` passes it — "an operation with no handler in
+  force" when it is asked. With a bound (`<F extends Shop>`) the class learnt is the bound's, and the handler takes
+  every operation of the bound asked so.
 - `intercept(Class, ..)` only for an effect without type arguments; intercept `State<S>`-like ones at their place,
   `handle(.., under(p))`.
 - In an interceptor go on with `k.after(op, c)`, not `c.flatMap(x -> k.resume(op, x))`: the latter leaves the rest
