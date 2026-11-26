@@ -486,6 +486,24 @@ static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
 }
 ```
 
+A handler of a row of places — the library's (`State.run`, `Clock.at`, `Choose.all`), or one written before —
+goes around a program of a set with `place`, which makes the list's first effect the first place of a row:
+
+```java
+static <R extends State<Integer> & Clock & Ids> Comp<String, R> counted() {        // okay.rows.std's State, Clock
+  return perform(new State.Get<Integer>()).flatMap(n -> perform(new State.Put<>(n + 1)).flatMap(put ->
+      perform(new Clock.Now()).flatMap(at -> perform(new Ids.Ref("C")).map(ref -> ref + ":" + n + "@" + at))));
+}
+
+var app = row(of(Ids.class, Sets.<State<Integer>>the(State.class), Clock.class));
+State.Final<Integer, String> end =
+    run(Clock.at(() -> 5L, place(State.run(10, place(identified(app.of(counted())))))));
+```
+
+An operation asked by its class passes every handler of a place on its way; inside `place` the operations of that
+one effect go to the nearest place instead. An effect with type arguments is named for the list with
+`Sets.<State<Integer>>the(State.class)`: a class says nothing of them.
+
 A clause that asks another effect asks it through its continuation, which knows the list that stays:
 `ask(k, new Clock.Now()).flatMap(now -> .. k.resume(s, null))`, in a handler whose type says that list has it —
 `<A, R> Comp<A, And<Clock, R>> audited(Comp<A, ? super And<Mail, And<Clock, R>>> c)`.
@@ -504,9 +522,9 @@ What to know:
   `var` or in the expression, not in a field. The handlers' nest can be a function of its own: its parameter is a
   program of the list, and that type can be written.
 - `of` and `row` exist for one to eight effects.
-- The two kinds of row are different types: `Effects`' handlers take no program of a set, and `Sets`' none of
-  places. A set of operations asked at once is asked one by one; the library's effects (`okay.rows.std`) and
-  plain Java (`okay.resumable`) are of rows of places only, for now.
+- The two kinds of row are different types: `Effects`' handlers take a program of a set only through `place`, and
+  `Sets`' none of places. A set of operations asked at once is asked one by one; plain Java (`okay.resumable`) is
+  of rows of places only, for now.
 - Measured roughly (two runs, a million questions under four handlers, ns a question): `answering` 16, a clause
   with `k` 19, a state 24 — the same programs on rows of places: 14, 16, 21.
 

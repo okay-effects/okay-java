@@ -11,6 +11,8 @@ import java.util.Optional;
 import okay.effect.Op;
 import okay.effect.Operation;
 import okay.rows.Sets.And;
+import okay.rows.std.Choose;
+import okay.rows.std.State;
 import org.junit.jupiter.api.Test;
 
 /** Rows as sets ({@link Sets}): programs whose row is a type bounded by their effects, handlers that are functions
@@ -237,5 +239,58 @@ class SetsTest {
     var app = row(of(Store.class, Ids.class, Clock.class));
     assertEquals("Q-1@8 true [a-2, b-3]", run(clocked(8, numbered(stored(app.of(quote("Ann")))))));
     assertEquals(Map.of("Q-1", "Ann"), db);
+  }
+
+  // ---- handlers of rows of places around a program of a set: the library's effects, a handler written before
+
+  static <R extends State<Integer> & okay.rows.std.Clock & Ids> Comp<String, R> counted() {
+    return perform(new State.Get<Integer>()).flatMap(n ->
+        perform(new State.Put<>(n + 1)).flatMap(put ->
+            perform(new okay.rows.std.Clock.Now()).flatMap(at ->
+                perform(new Ids.Ref("C")).map(ref -> ref + ":" + n + "@" + at))));
+  }
+
+  @Test
+  void theLibrarysEffectsUnderTheirOwnHandlers() {
+    var app = row(of(Ids.class, Sets.<State<Integer>>the(State.class), okay.rows.std.Clock.class));
+    State.Final<Integer, String> end = run(okay.rows.std.Clock.at(() -> 5L, place(State.run(10, place(
+        identified(app.of(pair(counted(), counted()))))))));
+    assertEquals(new State.Final<>(12, "C-1:10@5 C-1:11@5"), end);
+  }
+
+  static <A, R> Comp<String, R> pair(Comp<A, R> a, Comp<A, R> b) {
+    return a.flatMap(x -> b.map(y -> x + " " + y));
+  }
+
+  @Test
+  void anOperationAskedByItsClassPassesAHandlerOfAPlace() {
+    // the clock, a handler of a place, is INSIDE the handler of Ids: a Ref goes past it
+    var app = row(of(Sets.<State<Integer>>the(State.class), okay.rows.std.Clock.class, Ids.class));
+    State.Final<Integer, String> end = run(numbered(okay.rows.std.Clock.at(() -> 7L, place(State.run(0, place(
+        app.of(counted())))))));
+    assertEquals(new State.Final<>(1, "C-1:0@7"), end);
+  }
+
+  @Test
+  void aStateForEachPathOfALibraryChoice() {
+    var app = row(of(Sets.<State<Integer>>the(State.class), Choose.class));
+    List<State.Final<Integer, String>> all = run(Choose.all(place(State.run(0, place(app.of(chosen()))))));
+    assertEquals(List.of(new State.Final<>(1, "a0"), new State.Final<>(1, "b0")), all);
+  }
+
+  static <R extends Choose & State<Integer>> Comp<String, R> chosen() {
+    return perform(new Choose.Among<>(List.of("a", "b"))).flatMap(x ->
+        perform(new State.Get<Integer>()).flatMap(n -> perform(new State.Put<>(n + 1)).map(put -> x + n)));
+  }
+
+  /** a handler written for rows of places, of an effect declared for sets */
+  static <A, R> Comp<A, R> clockOfPlaces(long at, Comp<A, ? super okay.effect.Eff<Clock, R>> c) {
+    return Effects.answering(op -> switch (op) { case Clock.Now n -> n.answer(at); }, c);
+  }
+
+  @Test
+  void aHandlerWrittenForPlaces() {
+    var app = row(of(Store.class, Ids.class, Clock.class));
+    assertEquals("Q-1@3 true [a-2, b-3]", run(clockOfPlaces(3, place(numbered(stored(app.of(quote("Ann"))))))));
   }
 }

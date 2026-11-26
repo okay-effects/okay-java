@@ -99,6 +99,12 @@ public final class Rows {
       return new Nodes.Handle<>(Nodes.plain(c), Machine.SAME, new Marker(keep, 1));
     }
 
+    /** {@code c}, the operations of the class {@code effect} it asks by their class landing here ({@link Landing});
+     * {@code never}: operations that do not, whatever their class */
+    public Comp<?, ?> land(Comp<?, ?> c, Class<?> effect, Class<?> never) {
+      return new Nodes.Handle<>(Nodes.plain(c), Machine.SAME, new Landing(new Key(effect, never)));
+    }
+
     /** {@code body}, and the finalizer made by {@code fin} when it is left: {@link Comp#ensuring}'s guard */
     public Comp<?, ?> ensuring(Comp<?, ?> body, Supplier<? extends Comp<?, ?>> fin) {
       Function<Object, Comp<?, ?>> ret = a -> fin.get().then(Comp.pure(a));
@@ -365,6 +371,14 @@ public final class Rows {
   /** {@code up} ({@code keep} 0) or {@code under} ({@code keep} 1): an operation passing it with {@code keep} or more
    * places to skip skips {@code by} more */
   record Marker(int keep, int by) {}
+
+  /** how many places an operation asked BY ITS EFFECT'S CLASS skips: every one — it is for no place, and the handlers
+   * of places on its way let it pass ({@code okay.rows.Sets}) */
+  public static final int FAR = 1 << 20;
+
+  /** where the operations of one effect, asked by its class, LAND: from here they go to the nearest place, as an
+   * operation of a row of places does — for a handler of that kind around a program of a row that is a set */
+  record Landing(Key key) {}
 
   /** where a handler was while its rest is unwound: gone, an operation of its own ending the finalizer that asks
    * (GONE); its effect kept in the row, its own going to the next place (KEPT); nothing, an
@@ -654,6 +668,9 @@ public final class Rows {
             if (p.spec.inPlace || p.spec.asksEarly()) return p;
             return p.spec.once() ? ONCE : p.spec.eager() ? EAGER : ELSEWHERE;
           }
+        } else if (f instanceof Landing l) {
+          crossed = true;
+          if (skip >= FAR / 2 && l.key.has(op)) skip = 0;
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {
@@ -720,6 +737,10 @@ public final class Rows {
           return m.capture(s.prompt(), (Function<Kont, Comp<?, ?>>) k ->
               p.spec.on(op, new Rest(k, saved, false), left), m.k);
         }
+      } else if (f instanceof Landing l) {
+        // a set is asked one by one from here: each of its operations lands, or goes on, by its own class
+        if (many != null) return one(many.ops, 0, null, from);
+        if (skip >= FAR / 2 && l.key.has(op)) skip = 0;
       } else if (f instanceof Marker mk) {
         if (skip >= mk.keep) skip += mk.by;
       } else if (f instanceof Gone g) {

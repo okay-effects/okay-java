@@ -83,14 +83,23 @@ public final class Together<E, R> {
   /** the answers, while a function of the block reads them: of the path that goes on */
   private Object[] answers;
 
-  Together() {}
+  /** how its operations are asked: of the first place of its row (0), or by their class ({@code Rows.FAR}) */
+  private final int skip;
+
+  Together() {
+    this(0);
+  }
+
+  Together(int skip) {
+    this.skip = skip;
+  }
 
   // -- questions
 
   /** an operation of the block's first effect, asked: its answer's name. The same as
    * {@code t.ask(Effects.perform(op))}; an operation of another effect is refused by the compiler */
   public <T> Var<T> perform(Op<? super E, T, ?> op) {
-    return member(Member.asked(DOOR.ask(op, 0)));
+    return member(Member.asked(DOOR.ask(op, skip)));
   }
 
   /** a question of the block: any computation of its row; its answer's name */

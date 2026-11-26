@@ -37,7 +37,7 @@ public final class Sets {
 
   /** the operation {@code op}, in a row that has its effect */
   public static <T, F, R extends F> Comp<T, R> perform(Op<F, T, ?> op) {
-    return new Comp<>(DOOR.ask(op, 0));
+    return new Comp<>(DOOR.ask(op, okay.core.Rows.FAR));
   }
 
   /** a value, in any row */
@@ -51,7 +51,7 @@ public final class Sets {
    * the row has; every question whose answers are known is asked before the next */
   public static <A, R> Comp<A, R> together(Function<? super Together<R, R>, ? extends Comp<A, R>> block) {
     return new Comp<>(okay.core.Comp.delay(() -> {
-      Together<R, R> t = new Together<>();
+      Together<R, R> t = new Together<>(okay.core.Rows.FAR);
       return Handlers.trusted(t.program(block.apply(t)));
     }));
   }
@@ -267,6 +267,25 @@ public final class Sets {
     return new Comp<>(DOOR.handle(new Handlers.Stateful<F, S, A, B, R>(clause, null, ret, key(effect)), s0, p.eff));
   }
 
+  // ---- a handler of a row of PLACES around a program of a set: the library's, or one written before
+
+  /** the first effect of the list, as the first PLACE of a row of places: for a handler of {@link Effects}' kind —
+   * {@code State.run(0, place(app.of(p)))}, {@code Clock.at(time, place(..))}, {@code Choose.all(place(..))}, a
+   * handler written for rows of places. The operations of that effect, asked by their class inside, go from here
+   * to the nearest place, which is that handler's; the rest of the list stays as it is */
+  @SafeVarargs
+  @SuppressWarnings("varargs") // the array is read for its class only
+  public static <F, A, R> Comp<A, okay.effect.Eff<F, R>> place(Comp<A, ? super And<F, R>> p, F... effect) {
+    return new Comp<>(DOOR.land(p.eff, key(effect), okay.effect.Sensitive.Op.class));
+  }
+
+  /** an effect with type arguments, named for a list: {@code of(Sets.<State<Integer>>the(State.class), ..)} — a
+   * class says nothing of them */
+  @SuppressWarnings("unchecked")
+  public static <F> Class<F> the(Class<? super F> effect) {
+    return (Class<F>) effect;
+  }
+
   // ---- inside a clause: an effect of the list that stays, asked through the continuation, which knows that list
   // (one overload for each place it may have there; `place` is not given: it only tells the overloads apart)
 
@@ -317,7 +336,7 @@ public final class Sets {
   }
 
   private static <T, R> Comp<T, R> asked(Object op) {
-    return new Comp<>(DOOR.ask(op, 0));
+    return new Comp<>(DOOR.ask(op, okay.core.Rows.FAR));
   }
 
   /** a program with nothing left to ask, run: once, at the entry point */
