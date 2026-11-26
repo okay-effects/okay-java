@@ -210,6 +210,36 @@ public final class Rows {
     }
   }
 
+  /** AN EFFECT'S CLASS AS A HANDLER'S KEY ({@code okay.rows.Sets}): whether an operation is of the effect. An
+   * operation on its way out asks every handler it passes, so the answer is remembered for the classes last seen —
+   * the one that is, the two that are not. Written without a lock: the fields only repeat what the class test says */
+  static final class Key {
+    private final Class<?> effect;
+    /** operations never taken by the class, whatever their effect: the sensitive ones, which go to their audit */
+    private final Class<?> never;
+    private Class<?> is;
+    private Class<?> not;
+    private Class<?> notEither;
+
+    Key(Class<?> effect, Class<?> never) {
+      this.effect = effect;
+      this.never = never;
+    }
+
+    boolean has(Object op) {
+      Class<?> c = op.getClass();
+      if (c == is) return true;
+      if (c == not || c == notEither) return false;
+      boolean has = effect.isInstance(op) && !never.isInstance(op);
+      if (has) is = c;
+      else {
+        notEither = not;
+        not = c;
+      }
+      return has;
+    }
+  }
+
   /**
    * A HANDLER, as the machine sees it: of a place in the row ({@code row}), or an interceptor (not a place: it takes
    * the operations it {@code accepts}); general, or in place ({@code inPlace}: its operations answered at once from
@@ -222,7 +252,19 @@ public final class Rows {
     protected Spec(boolean row, boolean inPlace) {
       this.row = row;
       this.inPlace = inPlace;
+      this.key = null;
     }
+
+    /** a handler found by the class of its operations ({@code key}), wherever they go: no place of a row. With no
+     * key, of a place. {@code never}: operations it does not take, whatever their class */
+    protected Spec(Class<?> key, Class<?> never, boolean inPlace) {
+      this.row = key == null;
+      this.inPlace = inPlace;
+      this.key = key == null ? null : new Key(key, never);
+    }
+
+    /** its key, or {@code null}: then {@link #accepts} says */
+    final Key key;
 
     /** an interceptor's question: is the operation its own */
     protected boolean accepts(Object op) {
@@ -606,7 +648,7 @@ public final class Rows {
         Object f = s.prompt().frame;
         if (f instanceof Place p) {
           if (!p.spec.row) crossed = true;
-          boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
+          boolean found = p.spec.row ? skip == 0 : p.spec.key != null ? p.spec.key.has(op) : p.spec.accepts(op);
           if (p.spec.row && !found) skip--;
           if (found) {
             if (p.spec.inPlace || p.spec.asksEarly()) return p;
@@ -652,7 +694,7 @@ public final class Rows {
       Object f = s.prompt().frame;
       if (f instanceof Place p) {
         if (many != null && !p.spec.row) return one(many.ops, 0, null, from);
-        boolean found = p.spec.row ? skip == 0 : p.spec.accepts(op);
+        boolean found = p.spec.row ? skip == 0 : p.spec.key != null ? p.spec.key.has(op) : p.spec.accepts(op);
         if (p.spec.row && !found) skip--;
         if (found) {
           if (many != null && !p.spec.takesMany()) return one(many.ops, 0, null, from);

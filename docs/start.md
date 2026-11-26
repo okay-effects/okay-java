@@ -507,8 +507,8 @@ What to know:
 - The two kinds of row are different types: `Effects`' handlers take no program of a set, and `Sets`' none of
   places. A set of operations asked at once is asked one by one; the library's effects (`okay.rows.std`) and
   plain Java (`okay.resumable`) are of rows of places only, for now.
-- Measured roughly (one run, a million questions under four handlers, ns a question): `answering` 25, a clause
-  with `k` 19, a state 29 — against 12 to 23 for rows of places, where the nearest route is kept.
+- Measured roughly (two runs, a million questions under four handlers, ns a question): `answering` 16, a clause
+  with `k` 19, a state 24 — the same programs on rows of places: 14, 16, 21.
 
 ## 9. The other forms
 
