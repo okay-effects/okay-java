@@ -378,4 +378,30 @@ class SetsTest {
         () -> new Careless<>().run(stamp("B")));
     assertEquals(true, e.getMessage().contains("Mail"));
   }
+
+  // ---- a set asked from a chain, and a handler that cannot know its effect
+
+  @Test
+  void aSetOfOperationsFromAChain() {
+    db.put("a", "A");
+    List<Integer> queries = new ArrayList<>();
+    var app = row(of(Store.class));
+    Comp<List<Optional<String>>, Eff<Store, okay.effect.Pure>> both =
+        app.of(performAll(List.of(new Store.Get("a"), new Store.Get("b"))));
+    assertEquals(List.of(Optional.of("A"), Optional.empty()), run(storedInSets(queries, both)));
+    assertEquals(List.of(2), queries);
+  }
+
+  /** generic in its effect: where it is made javac knows no class for F, so it answers by its place only */
+  static <F, A, R> Comp<A, R> silent(Comp<A, ? super Eff<F, R>> c) {
+    return handle((F op, K<A, R> k) -> k.unwind().map(left -> null), c);
+  }
+
+  @Test
+  void aHandlerGenericInItsEffectDoesNotAnswerAProgramOfASet() {
+    var app = row(of(Clock.class));
+    NoHandler e = org.junit.jupiter.api.Assertions.assertThrows(NoHandler.class,
+        () -> run(SetsTest.<Clock, Long, okay.effect.Pure>silent(app.of(perform(new Clock.Now())))));
+    assertEquals(true, e.getMessage().contains("asked by its effect's class"), e.getMessage());
+  }
 }

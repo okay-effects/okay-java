@@ -428,7 +428,7 @@ round saves a query: one call to a database is a million of these.
 - A handler knows the class of its effect from where it is made — `answering(.., c)` in a method whose parameter
   says `Eff<Prices, R>`, `handle(State.class, ..)`. Write a handler where its effect is a named type: in a helper
   generic in the effect (`<F> .. Eff<F, R>`) it learns none, and an operation finds no handler when it is asked.
-- `of` and `row` exist for one to eight effects.
+- `of` and `row` exist for one to twelve effects.
 - An effect is declared with no supertype of its own that names it, each record saying
   `Operation<Answer, Effect>`. Java refuses a type that inherits one generic interface with two different
   arguments, so effects that each extended a generic `Operation<.., Self>` could never bound the same row.

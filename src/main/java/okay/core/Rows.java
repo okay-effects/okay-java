@@ -706,7 +706,10 @@ public final class Rows {
         s = w.next();
       }
       if (s == null)
-        return Kernel.unwind(m, new IllegalStateException("an operation with no handler in force: " + op));
+        return Kernel.unwind(m, new IllegalStateException("an operation with no handler in force: " + op
+            + (from < FAR / 2 ? "" : " — asked by its effect's class (okay.rows.Sets): no handler of that effect is "
+                + "around it, or the one that is does not know its effect's class: it was made where the effect is "
+                + "a type variable (write a handler where its effect is a named type)")));
       Object f = s.prompt().frame;
       if (f instanceof Place p) {
         if (many != null && !p.spec.row) return one(many.ops, 0, null, from);

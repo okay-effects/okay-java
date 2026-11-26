@@ -46,6 +46,12 @@ public final class Sets {
     return new Comp<>(DOOR.ask(op, okay.core.Rows.FAR));
   }
 
+  /** operations of ONE effect asked at once, as a set: their answers in their order. A handler with a clause for
+   * sets is given them whole; any other is asked them one by one */
+  public static <T, F, R extends F> Comp<List<T>, R> performAll(List<? extends Op<F, T, ?>> ops) {
+    return new Comp<>(DOOR.askAll(ops.toArray(), okay.core.Rows.FAR));
+  }
+
   /** a value, in any row */
   public static <A, R> Comp<A, R> pure(A a) {
     return Effects.pure(a);
@@ -73,6 +79,10 @@ public final class Sets {
   public static final class Of6<L> extends Named { Of6(Class<?>... effects) { super(effects); } }
   public static final class Of7<L> extends Named { Of7(Class<?>... effects) { super(effects); } }
   public static final class Of8<L> extends Named { Of8(Class<?>... effects) { super(effects); } }
+  public static final class Of9<L> extends Named { Of9(Class<?>... effects) { super(effects); } }
+  public static final class Of10<L> extends Named { Of10(Class<?>... effects) { super(effects); } }
+  public static final class Of11<L> extends Named { Of11(Class<?>... effects) { super(effects); } }
+  public static final class Of12<L> extends Named { Of12(Class<?>... effects) { super(effects); } }
 
   // the effects of a list, by their classes: its tail T is what `row` or `Keep.row` says
   public static <A, T> Of1<Eff<A, T>> of(Class<A> a) {
@@ -103,6 +113,26 @@ public final class Sets {
   public static <A, B, C, D, E, G, H, I, T> Of8<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I,
       T>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h, Class<I> i) {
     return new Of8<>(a, b, c, d, e, g, h, i);
+  }
+  public static <A, B, C, D, E, G, H, I, J, T> Of9<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I, Eff<J,
+      T>>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h, Class<I> i,
+          Class<J> j) {
+    return new Of9<>(a, b, c, d, e, g, h, i, j);
+  }
+  public static <A, B, C, D, E, G, H, I, J, M, T> Of10<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I, Eff<J,
+      Eff<M, T>>>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g, Class<H> h,
+          Class<I> i, Class<J> j, Class<M> m) {
+    return new Of10<>(a, b, c, d, e, g, h, i, j, m);
+  }
+  public static <A, B, C, D, E, G, H, I, J, M, N, T> Of11<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I,
+      Eff<J, Eff<M, Eff<N, T>>>>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e, Class<G> g,
+          Class<H> h, Class<I> i, Class<J> j, Class<M> m, Class<N> n) {
+    return new Of11<>(a, b, c, d, e, g, h, i, j, m, n);
+  }
+  public static <A, B, C, D, E, G, H, I, J, M, N, O, T> Of12<Eff<A, Eff<B, Eff<C, Eff<D, Eff<E, Eff<G, Eff<H, Eff<I,
+      Eff<J, Eff<M, Eff<N, Eff<O, T>>>>>>>>>>>>> of(Class<A> a, Class<B> b, Class<C> c, Class<D> d, Class<E> e,
+          Class<G> g, Class<H> h, Class<I> i, Class<J> j, Class<M> m, Class<N> n, Class<O> o) {
+    return new Of12<>(a, b, c, d, e, g, h, i, j, m, n, o);
   }
 
   /** an effect with type arguments, named for a list: {@code of(Sets.<State<Integer>>the(State.class), ..)} — a
@@ -165,6 +195,32 @@ public final class Sets {
       Of8<L> effects) {
     return new Row<>();
   }
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>>>>> Row<V, L> row(
+      Of9<L> effects) {
+    return new Row<>();
+  }
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>>>>>> Row<V, L> row(
+      Of10<L> effects) {
+    return new Row<>();
+  }
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+              Pure>>>>>>>>>>>> Row<V, L> row(
+      Of11<L> effects) {
+    return new Row<>();
+  }
+  public static <V, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+      ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+          ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+              ? extends Eff<? super V, Pure>>>>>>>>>>>>> Row<V, L> row(
+      Of12<L> effects) {
+    return new Row<>();
+  }
 
   /** inside a program of the row {@code K}: handlers put around a part of it, {@code K} left outside them —
    * {@code attempt(Sets.<R>keep().row(of(Abort.class)).of(part))} */
@@ -212,6 +268,32 @@ public final class Sets {
         ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
             ? extends Eff<? super V, K>>>>>>>>> Row<V, L> row(
         Of8<L> effects) {
+      return new Row<>();
+    }
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, K>>>>>>>>>> Row<V, L> row(
+        Of9<L> effects) {
+      return new Row<>();
+    }
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, K>>>>>>>>>>> Row<V, L> row(
+        Of10<L> effects) {
+      return new Row<>();
+    }
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+                K>>>>>>>>>>>> Row<V, L> row(
+        Of11<L> effects) {
+      return new Row<>();
+    }
+    public <V extends K, L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+                ? extends Eff<? super V, K>>>>>>>>>>>>> Row<V, L> row(
+        Of12<L> effects) {
       return new Row<>();
     }
   }
@@ -307,6 +389,35 @@ public final class Sets {
       check(effects);
       return new Row<>();
     }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, Pure>>>>>>>>>> Row<V, L> row(
+        Of9<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>>>>>> Row<V, L> row(
+        Of10<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, Pure>>>>>>>>>>>> Row<V, L> row(
+        Of11<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
+    public <L extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+        ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+            ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V, ? extends Eff<? super V,
+                Pure>>>>>>>>>>>>> Row<V, L> row(
+        Of12<L> effects) {
+      check(effects);
+      return new Row<>();
+    }
   }
 
   // ---- inside a clause: an effect of the list that stays, asked through the continuation, which knows that list
@@ -320,6 +431,10 @@ public final class Sets {
   public interface P5 {}
   public interface P6 {}
   public interface P7 {}
+  public interface P8 {}
+  public interface P9 {}
+  public interface P10 {}
+  public interface P11 {}
 
   public static <T, F, R extends Eff<F, ?>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P0... place) {
@@ -355,6 +470,28 @@ public final class Sets {
   public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
       ? extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>>>>>>> Comp<T, R> ask(
       K<?, R> k, Op<F, T, ?> op, P7... place) {
+    return asked(op);
+  }
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>>>>>>>> Comp<T, R> ask(
+      K<?, R> k, Op<F, T, ?> op, P8... place) {
+    return asked(op);
+  }
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<F, ?>>>>>>>>>>> Comp<T, R> ask(
+      K<?, R> k, Op<F, T, ?> op, P9... place) {
+    return asked(op);
+  }
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<F,
+          ?>>>>>>>>>>>> Comp<T, R> ask(
+      K<?, R> k, Op<F, T, ?> op, P10... place) {
+    return asked(op);
+  }
+  public static <T, F, R extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+      ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?, ? extends Eff<?,
+          ? extends Eff<F, ?>>>>>>>>>>>>> Comp<T, R> ask(
+      K<?, R> k, Op<F, T, ?> op, P11... place) {
     return asked(op);
   }
 
