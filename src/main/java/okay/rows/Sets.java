@@ -45,6 +45,17 @@ public final class Sets {
     return Effects.pure(a);
   }
 
+  /** A BLOCK ({@link Together}) of a row that is a set: questions, each answer a name — {@code together(t -> {
+   * Var<String> ref = t.perform(new Ids.Ref("B")); Var<Long> now = t.perform(new Clock.Now());
+   * return t.yield(ref.with(now, (r, n) -> r + "@" + n)); })}. {@code t.perform} takes an operation of any effect
+   * the row has; every question whose answers are known is asked before the next */
+  public static <A, R> Comp<A, R> together(Function<? super Together<R, R>, ? extends Comp<A, R>> block) {
+    return new Comp<>(okay.core.Comp.delay(() -> {
+      Together<R, R> t = new Together<>();
+      return Handlers.trusted(t.program(block.apply(t)));
+    }));
+  }
+
   // ---- the row as a list, for the handlers
 
   /** a list of effects: {@code F}, then {@code R} */

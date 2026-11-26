@@ -432,6 +432,19 @@ static <R extends Clock & Mail & Store & Ids> Comp<String, R> reserve(String who
 `R extends F`. There is no `up`, no `fit` and no name for the row; a class can name it once for its methods:
 `final class Booking<R extends Store & Mail & Ids & Clock> { Comp<String, R> told(..) {..} }`.
 
+A block is `Sets.together`, with the words of section 2; `t.perform` takes an operation of any effect the row has:
+
+```java
+static <R extends Ids & Clock & Store> Comp<String, R> quote(String who) {
+  return together(t -> {
+    Var<String> ref = t.perform(new Ids.Ref("Q"));
+    Var<Long> now = t.perform(new Clock.Now());
+    Var<Boolean> kept = ref.then(r -> t.perform(new Store.Put(r, who)));
+    return t.yield(ref.with(now, (r, n) -> r + "@" + n), kept, (s, k) -> s + " " + k);
+  });
+}
+```
+
 The effect is declared differently from section 1, and has to be. Java refuses a type that inherits one generic
 interface with two different arguments, so two effects that each extend `Operation<T, Self>` can never bound the
 same row. Here the interface has no supertype, and each record says `Operation<Answer, Effect>`.
@@ -492,7 +505,7 @@ What to know:
   program of the list, and that type can be written.
 - `of` and `row` exist for one to eight effects.
 - The two kinds of row are different types: `Effects`' handlers take no program of a set, and `Sets`' none of
-  places. Blocks (`together`), sets of operations asked at once, the library's effects (`okay.rows.std`) and
+  places. A set of operations asked at once is asked one by one; the library's effects (`okay.rows.std`) and
   plain Java (`okay.resumable`) are of rows of places only, for now.
 - Measured roughly (one run, a million questions under four handlers, ns a question): `answering` 25, a clause
   with `k` 19, a state 29 — against 12 to 23 for rows of places, where the nearest route is kept.

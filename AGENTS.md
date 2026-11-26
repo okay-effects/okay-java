@@ -123,7 +123,7 @@ as above, of a row that is a list — `static <A, R> Comp<A, R> identified(Comp<
 `Sets.answering` / `Sets.handle` — and the set is written as a list once, where they are put:
 `var app = row(of(Store.class, Ids.class)); run(identified(stored(app.of(program))))`; inside a program,
 `Sets.<R>keep().row(of(Abort.class)).of(part)`. An operation finds its handler by its effect's class (the nearest
-answers). Not there yet for sets: blocks, sets of operations, `okay.rows.std`, plain Java. `BookingSets` in the
+answers). Blocks are `Sets.together`. Not there yet for sets: `okay.rows.std`, plain Java. `BookingSets` in the
 tests is a real flow of seven effects written so.
 
 ### The other forms

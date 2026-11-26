@@ -41,7 +41,7 @@ import okay.effect.Op;
  * in the same rounds, so the same handler answers them at once, however deep the lists are nested; {@code when}
  * asks the questions of one branch or the other, chosen by an answer.
  */
-public final class Together<E, R extends Eff<E, ?>> {
+public final class Together<E, R> {
   /** a function of three */
   @FunctionalInterface
   public interface F3<A, B, C, T> {
@@ -89,7 +89,7 @@ public final class Together<E, R extends Eff<E, ?>> {
 
   /** an operation of the block's first effect, asked: its answer's name. The same as
    * {@code t.ask(Effects.perform(op))}; an operation of another effect is refused by the compiler */
-  public <T, O extends Op<E, T, ? super O>> Var<T> perform(O op) {
+  public <T> Var<T> perform(Op<? super E, T, ?> op) {
     return member(Member.asked(DOOR.ask(op, 0)));
   }
 

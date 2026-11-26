@@ -219,4 +219,23 @@ class SetsTest {
   static <R extends Clock> Comp<Long, R> ticks(int n, long sum) {
     return n == 0 ? pure(sum) : perform(new Clock.Now()).flatMap(t -> ticks(n - 1, sum + t));
   }
+
+  // ---- a block: questions, each answer a name; the row a set
+
+  static <R extends Ids & Clock & Store> Comp<String, R> quote(String who) {
+    return together(t -> {
+      Var<String> ref = t.perform(new Ids.Ref("Q"));
+      Var<Long> now = t.perform(new Clock.Now());
+      Var<Boolean> kept = ref.then(r -> t.perform(new Store.Put(r, who)));
+      Var<List<String>> more = t.gather(g -> { for (String p : List.of("a", "b")) g.perform(new Ids.Ref(p)); });
+      return t.yield(ref.with(now, (r, n) -> r + "@" + n), kept, more, (s, k, m) -> s + " " + k + " " + m);
+    });
+  }
+
+  @Test
+  void aBlockOfARowThatIsASet() {
+    var app = row(of(Store.class, Ids.class, Clock.class));
+    assertEquals("Q-1@8 true [a-2, b-3]", run(clocked(8, numbered(stored(app.of(quote("Ann")))))));
+    assertEquals(Map.of("Q-1", "Ann"), db);
+  }
 }

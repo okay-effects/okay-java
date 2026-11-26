@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import okay.effect.Operation;
 import okay.rows.Comp;
+import okay.rows.Var;
 import okay.rows.booking.Booking.*;
 
 /**
@@ -68,16 +69,22 @@ final class BookingSets {
 
   static <R extends Ids & Store> Comp<Or<Booked>, R> reserve(
       Conf c, Plan p, long at, String name, String contact, long now) {
-    return perform(new Ids.Ref(c.refPrefix() + "B")).flatMap(ref ->
-        perform(new Ids.Secret()).flatMap(key ->
-            perform(new Store.Book(new Booked(ref, key, p.offer().key(), at, name, contact, now, p.address(),
-                p.price()), now))));
+    return together(t -> {
+      Var<String> ref = t.perform(new Ids.Ref(c.refPrefix() + "B"));
+      Var<String> key = t.perform(new Ids.Secret());
+      Var<Or<Booked>> made = ref.with(key, (r, k) -> new Booked(r, k, p.offer().key(), at, name, contact, now,
+          p.address(), p.price())).then(b -> t.perform(new Store.Book(b, now)));
+      return t.yield(made);
+    });
   }
 
   static <R extends Mail & Notify> Comp<Void, R> told(Conf c, Booked b) {
-    return perform(new Mail.ToClient(b.contact(), "booked " + b.ref())).flatMap(sent ->
-        perform(new Mail.ToOwner("booked " + b.ref() + " by " + b.name())).flatMap(told ->
-            perform(new Notify.Tell("booked " + b.ref()))));
+    return together(t -> {
+      t.perform(new Mail.ToClient(b.contact(), "booked " + b.ref()));
+      t.perform(new Mail.ToOwner("booked " + b.ref() + " by " + b.name()));
+      t.perform(new Notify.Tell("booked " + b.ref()));
+      return t.done();
+    });
   }
 
   // ---- the flow itself

@@ -20,7 +20,7 @@ import okay.effect.Op;
  * As questions of the block they are asked in its rounds, with the others: operations of one handler at once, as
  * a set. {@code Effects.gather(g -> ..)} is the block that is nothing but one such loop: the list is its value.
  */
-public final class Gather<X, E, R extends Eff<E, ?>> {
+public final class Gather<X, E, R> {
   private final Together<E, R> block;
   final ArrayList<Var<X>> asked = new ArrayList<>();
 
@@ -30,7 +30,7 @@ public final class Gather<X, E, R extends Eff<E, ?>> {
 
   /** an operation of the block's first effect, asked; an operation of another effect or answered by another type
    * is refused by the compiler */
-  public <O extends Op<E, X, ? super O>> Var<X> perform(O op) {
+  public Var<X> perform(Op<? super E, X, ?> op) {
     Var<X> v = block.perform(op);
     asked.add(v);
     return v;
