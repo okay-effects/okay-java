@@ -404,4 +404,43 @@ class SetsTest {
         () -> run(SetsTest.<Clock, Long, okay.effect.Pure>silent(app.of(perform(new Clock.Now())))));
     assertEquals(true, e.getMessage().contains("asked by its effect's class"), e.getMessage());
   }
+
+  // ---- a handler that leaves, and a finalizer of the rest that asks its effect
+
+  sealed interface Say {
+    record Line(String text) implements Say, Operation<Void, Say> {}
+    record Stop() implements Say, Operation<Void, Say> {}
+  }
+
+  static <R extends Say> Comp<String, R> speaking() {
+    Comp<String, R> body = perform(new Say.Stop()).map(never -> "said all");
+    return body.ensuring(() -> perform(new Say.Line("bye")));
+  }
+
+  /** leaves the rest at Stop: the rest's finalizers run, and what they ask of this handler ends where it was */
+  static <R> Comp<String, R> heard(String who, List<String> seen, Comp<String, ? super Eff<Say, R>> c) {
+    return handle((op, k) -> switch (op) {
+      case Say.Line l -> { seen.add(who + " heard " + l.text()); yield k.resume(l, null); }
+      case Say.Stop s -> k.unwind().map(left -> who + " stopped");
+    }, c);
+  }
+
+  @Test
+  void aFinalizersOperationOfTheHandlerThatLeftEndsWhereItWas() {
+    List<String> seen = new ArrayList<>();
+    assertEquals("h stopped", run(heard("h", seen, row(of(Say.class)).of(speaking()))));
+    assertEquals(List.of(), seen);
+  }
+
+  /** two handlers of the effect: the inner one leaves, and the outer is not asked what was the inner's */
+  static <R extends Say> Comp<String, R> inner(List<String> seen) {
+    return heard("inner", seen, Sets.<R>keep().row(of(Say.class)).of(speaking()));
+  }
+
+  @Test
+  void anOuterHandlerOfTheEffectIsNotAskedForTheOneThatLeft() {
+    List<String> seen = new ArrayList<>();
+    assertEquals("inner stopped", run(heard("outer", seen, row(of(Say.class)).of(inner(seen)))));
+    assertEquals(List.of(), seen);
+  }
 }

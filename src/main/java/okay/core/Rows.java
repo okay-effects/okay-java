@@ -130,7 +130,9 @@ public final class Rows {
       Frames onFrames = new Frames.Then(on, Frames.END);
       Seg[] crossed = first(k.ms(), k.n());
       // its delimiters again, each with nothing outside it but the unwinding's going on, and its handler gone
-      Prompt<?, ?, ?> at = mode == STAYS ? k.up().prompt() : new Prompt<>(new Gone(mode, u));
+      // the class of the handler that leaves, for the operations asked by class: its own end where it was
+      Key left = k.up() != null && k.up().prompt().frame instanceof Place p ? p.spec.key : null;
+      Prompt<?, ?, ?> at = mode == STAYS ? k.up().prompt() : new Prompt<>(new Gone(mode, u, left));
       Meta levels = new Seg(at, on, null, Frames.END, Machine.TOP);
       for (int i = crossed.length - 1; i >= 0; i--)
         levels = new Seg(crossed[i].prompt(), crossed[i].ret(), null, onFrames, levels);
@@ -383,7 +385,15 @@ public final class Rows {
   /** where a handler was while its rest is unwound: gone, an operation of its own ending the finalizer that asks
    * (GONE); its effect kept in the row, its own going to the next place (KEPT); nothing, an
    * interceptor or the root (NONE) */
-  record Gone(int mode, Unwinding u) {}
+  record Gone(int mode, Unwinding u, Key key) {
+    /** whether {@code op}, asked {@code skip} places out, was for the handler that left: the nearest place, or —
+     * asked by class — of its effect. Counts the place passed otherwise */
+    boolean ends(Object op, int skip) {
+      if (skip < FAR / 2) return skip == 0;
+      if (key == null) return false;
+      return op instanceof Many many ? key.count(many.ops) > 0 : key.has(op);
+    }
+  }
 
   /** what stands where a handler was while its rest is unwound: see {@link Gone} */
   public static final int GONE = 0;
@@ -673,7 +683,10 @@ public final class Rows {
         } else if (f instanceof Marker mk) {
           if (skip >= mk.keep) skip += mk.by;
         } else if (f instanceof Gone g) {
-          if (g.mode == GONE && --skip < 0) return ELSEWHERE;
+          if (g.mode == GONE) {
+            if (g.ends(op, skip)) return ELSEWHERE;
+            if (skip < FAR / 2) skip--;
+          }
           if (g.mode == KEPT && skip >= 1) skip--;
         } else if (f instanceof Root) return ELSEWHERE;
       }
@@ -753,10 +766,11 @@ public final class Rows {
       } else if (f instanceof Marker mk) {
         if (skip >= mk.keep) skip += mk.by;
       } else if (f instanceof Gone g) {
-        if (g.mode == GONE && --skip < 0) {
+        if (g.mode == GONE && g.ends(op, skip)) {
           // its handler has left: the finalizer that asks ends here, and the unwinding goes on
           return Kernel.unwind(m, g.u);
         }
+        if (g.mode == GONE && skip < FAR / 2) skip--;
         if (g.mode == KEPT && skip >= 1) skip--;
       } else if (f instanceof Root r) {
         if (many != null) return one(many.ops, 0, null, from);

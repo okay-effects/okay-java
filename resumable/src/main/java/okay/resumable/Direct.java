@@ -106,9 +106,12 @@ public final class Direct {
     return Driver.program(Driver.BY_CLASS, () -> body.run(d), true);
   }
 
+  /** a body of a set. It declares no exception: an effect written as a class (a {@code Suspend}, its name in a
+   * {@code throws}) is of a row of places, and javac refuses a method of one called here; a checked exception of
+   * the body's own is the body's to catch, or an effect ({@code Throws}) */
   @FunctionalInterface
   public interface Asking<A, R> {
-    A run(Asks<R> d) throws Exception;
+    A run(Asks<R> d);
   }
 
   /** what a body of a set asks with: valid in its body, while it runs. A method the body calls takes it as a

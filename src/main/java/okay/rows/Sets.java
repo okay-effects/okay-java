@@ -57,15 +57,59 @@ public final class Sets {
     return Effects.pure(a);
   }
 
-  /** A BLOCK ({@link Together}) of a row that is a set: questions, each answer a name — {@code together(t -> {
+  /** A BLOCK of a row that is a set: questions, each answer a name — {@code together(t -> {
    * Var<String> ref = t.perform(new Ids.Ref("B")); Var<Long> now = t.perform(new Clock.Now());
    * return t.yield(ref.with(now, (r, n) -> r + "@" + n)); })}. {@code t.perform} takes an operation of any effect
    * the row has; every question whose answers are known is asked before the next */
-  public static <A, R> Comp<A, R> together(Function<? super Together<R, R>, ? extends Comp<A, R>> block) {
+  public static <A, R> Comp<A, R> together(Function<? super Together<R>, ? extends Comp<A, R>> block) {
     return new Comp<>(okay.core.Comp.delay(() -> {
-      Together<R, R> t = new Together<>(okay.core.Rows.FAR);
+      Together<R> t = new Together<>();
       return Handlers.trusted(t.program(block.apply(t)));
     }));
+  }
+
+  /** what {@link #together} gives its function: a {@link Block} whose operations are asked by their class */
+  public static final class Together<R> extends Block<R> {
+    Together() {
+      super(okay.core.Rows.FAR);
+    }
+
+    /** an operation of an effect the row has, asked: its answer's name */
+    public <T> Var<T> perform(Op<? super R, T, ?> op) {
+      return asked(op);
+    }
+
+    /** A PLAIN LOOP OF QUESTIONS, all answered by one type; their answers, in their order, under one name —
+     * {@code t.gather(g -> { for (String item : cart) g.perform(new Price(item)); })} */
+    public <T> Var<List<T>> gather(Consumer<? super Gather<T, R>> loop) {
+      Gather<T, R> g = new Gather<>(this);
+      loop.accept(g);
+      return list(g.asked);
+    }
+  }
+
+  /** the loop of {@link Together#gather} and of {@link #gather} */
+  public static final class Gather<X, R> {
+    private final Block<R> block;
+    final java.util.ArrayList<Var<X>> asked = new java.util.ArrayList<>();
+
+    Gather(Block<R> block) {
+      this.block = block;
+    }
+
+    /** an operation of an effect the row has, asked */
+    public Var<X> perform(Op<? super R, X, ?> op) {
+      Var<X> v = block.asked(op);
+      asked.add(v);
+      return v;
+    }
+
+    /** any computation of the row, asked */
+    public Var<X> ask(Comp<X, ? super R> question) {
+      Var<X> v = block.ask(question);
+      asked.add(v);
+      return v;
+    }
   }
 
   // ---- the set as a list, for the handlers
@@ -580,7 +624,7 @@ public final class Sets {
 
   /** A BLOCK THAT IS ONE PLAIN LOOP of a row that is a set: the list of its answers —
    * {@code gather(g -> { for (String item : cart) g.perform(new Prices.Price(item)); })} */
-  public static <X, R> Comp<List<X>, R> gather(Consumer<? super Gather<X, R, R>> loop) {
+  public static <X, R> Comp<List<X>, R> gather(Consumer<? super Gather<X, R>> loop) {
     return Sets.<List<X>, R>together(t -> t.yield(t.<X>gather(loop), answers -> answers));
   }
 

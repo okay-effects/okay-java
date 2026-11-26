@@ -17,10 +17,10 @@ import java.util.function.Function;
  * on, or in a question asked later ({@code t.ask(() -> ..)}, {@code then}, {@code yield}); anywhere else — before it
  * was answered, or from a function made there and run after — it is refused: take the value into a local there. */
 public final class Var<T> {
-  final Together<?, ?> block;
+  final Block<?> block;
   final int index;
 
-  Var(Together<?, ?> block, int index) {
+  Var(Block<?> block, int index) {
     this.block = block;
     this.index = index;
   }

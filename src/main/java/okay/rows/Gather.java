@@ -21,17 +21,17 @@ import okay.effect.Op;
  * a set. {@code Effects.gather(g -> ..)} is the block that is nothing but one such loop: the list is its value.
  */
 public final class Gather<X, E, R> {
-  private final Together<E, R> block;
+  private final Block<R> block;
   final ArrayList<Var<X>> asked = new ArrayList<>();
 
-  Gather(Together<E, R> block) {
+  Gather(Block<R> block) {
     this.block = block;
   }
 
   /** an operation of the block's first effect, asked; an operation of another effect or answered by another type
    * is refused by the compiler */
-  public Var<X> perform(Op<? super E, X, ?> op) {
-    Var<X> v = block.perform(op);
+  public <O extends Op<E, X, ? super O>> Var<X> perform(O op) {
+    Var<X> v = block.asked(op);
     asked.add(v);
     return v;
   }
