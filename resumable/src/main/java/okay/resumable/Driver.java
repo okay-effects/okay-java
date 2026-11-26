@@ -160,10 +160,20 @@ final class Driver {
 
   @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
   static <A, R> Comp<A, R> program(Class<?>[] row, Run body, Object origin) {
-    Prog p = new Prog(row);
     // a body the plugin did not transform: none of its frames can be saved, so it waits on a stack of its own —
     // the JVM's continuation where it is opened, else a virtual thread
-    boolean plain = !transformed(origin);
+    return program(row, body, !transformed(origin));
+  }
+
+  /** the row of a body whose effects are a SET ({@code Direct.body}): its operations are asked by their class,
+   * of no place */
+  static final Class<?>[] BY_CLASS = new Class<?>[0];
+
+  /** the same; {@code plain}: the body waits on a stack of its own whatever its class — none of its frames is
+   * saved */
+  @SuppressWarnings("unchecked") // the row is types only: the program was built for the row the caller named
+  static <A, R> Comp<A, R> program(Class<?>[] row, Run body, boolean plain) {
+    Prog p = new Prog(row);
     if (!Loom.AVAILABLE) {
       if (plain) return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> step(p, new ThreadRun(p, body, RUN), h));
       return (Comp<A, R>) (Comp<?, ?>) Here.here(h -> start(p, body, h, RUN));
@@ -530,6 +540,7 @@ final class Driver {
 
   @SuppressWarnings({"unchecked", "rawtypes"}) // the operation is of the row's effect at `place`: rows are types only
   private static Comp<Object, Object> ask(Object op, int place) {
+    if (place >= okay.core.Rows.FAR / 2) return okay.rows.Sets.perform((Op) op);
     Comp c = op instanceof Sensitive.Op s ? Audit.perform(s) : Effects.perform((Op) op);
     for (int i = 0; i < place; i++) c = Effects.up(c);
     return c;
@@ -564,6 +575,7 @@ final class Driver {
   };
 
   static int place(Class<?>[] row, Object op) {
+    if (row == BY_CLASS) return okay.core.Rows.FAR;
     Class<?> effect = EFFECT.get(op.getClass());
     for (int i = 0; i < row.length; i++) if (row[i] == effect) return i;
     throw new IllegalStateException("okay.resumable: " + op + " is of " + effect.getName()

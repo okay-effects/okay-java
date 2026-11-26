@@ -92,6 +92,46 @@ public final class Direct {
     return Loom.AVAILABLE ? "the JVM's continuations" : "saved frames: " + Loom.WHY_NOT;
   }
 
+  // ---- a body of a row that is a SET (okay.rows.Sets): its effects in its type, no class for an effect
+
+  /** A BODY IN PLAIN JAVA WHOSE ROW IS A SET: {@code static <R extends Ids & Clock> Comp<String, R> stamp() {
+   * return Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); long now = d.perform(new Clock.Now());
+   * return ref + "@" + now; }); }} — answers in locals, {@code for} and {@code if} as they are. {@code d} asks the
+   * operations of the effects the row has, and javac refuses any other; nothing is declared for an effect, and no
+   * {@code throws} names it. It runs with the plugin or without, the same way: an operation its handler answers in
+   * place is answered on the body's own stack; where a handler takes the rest, the body waits on a stack of its
+   * own and goes on ONCE — a handler that resumes that rest twice is refused when it does */
+  public static <A, R> Comp<A, R> body(Asking<A, R> body) {
+    Asks<R> d = new Asks<>();
+    return Driver.program(Driver.BY_CLASS, () -> body.run(d), true);
+  }
+
+  @FunctionalInterface
+  public interface Asking<A, R> {
+    A run(Asks<R> d) throws Exception;
+  }
+
+  /** what a body of a set asks with: valid in its body, while it runs. A method the body calls takes it as a
+   * parameter: {@code static <R extends Ids> String fresh(Asks<R> d) { return d.perform(new Ids.Ref("B")); }} */
+  public static final class Asks<R> {
+    Asks() {}
+
+    /** the operation asked, its answer returned: its effect must be one the row has */
+    @SuppressWarnings("unchecked") // the answer of the operation, of the type the operation names
+    public <T> T perform(Op<? super R, T, ?> op) {
+      Object answer = Driver.perform(op);
+      if (answer instanceof Capture) throw new IllegalStateException("okay.resumable: " + op + " was asked through "
+          + "a Direct.body's `d` where its body does not run — after it ended, on another thread, or kept in a "
+          + "field: `d` is valid in its own body only, while it runs");
+      return (T) answer;
+    }
+
+    /** a program of the row — a chain, a block — run as a part of the body, its value returned */
+    public <A> A embed(Comp<A, ? super R> sub) {
+      return Driver.embed(Driver.BY_CLASS, sub);
+    }
+  }
+
   @FunctionalInterface
   public interface Body1<A, E1 extends Exception> {
     A run() throws E1;

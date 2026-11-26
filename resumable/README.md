@@ -227,6 +227,40 @@ without the plugin and 11.4 with it; by a clause that only resumes 17.1 and 15.4
 rest at every operation, without the plugin: about 480 on the JVM's continuation, 1400 to 2000 on a virtual thread
 (a turn of two threads, looked for before it is parked for; 8000 when it parked at once).
 
+## A body of a row that is a set
+
+With `okay.rows.Sets` (docs/start.md, section 8) a program's row is a type bounded by its effects, and plain Java
+needs nothing declared for an effect — no class for it, no `throws`:
+
+```java
+sealed interface Ids { record Ref(String prefix) implements Ids, Operation<String, Ids> {} }
+sealed interface Clock { record Now() implements Clock, Operation<Long, Clock> {} }
+
+static <R extends Ids & Clock> Comp<String, R> stamp(String prefix) {
+  return Direct.body(d -> {
+    String ref = d.perform(new Ids.Ref(prefix));
+    long now = d.perform(new Clock.Now());
+    return ref + "@" + now;
+  });
+}
+
+var two = row(of(Ids.class, Clock.class));
+String s = run(clocked(7, identified(two.of(stamp("B")))));
+```
+
+`d` asks the operations of the effects the row has; javac refuses any other. A method the body calls takes it as a
+parameter — `static <R extends Mail> int tellAll(Asks<R> d, List<String> people)`, with its `for` and its `if` —
+and `d.embed(p)` runs a program of the row (a chain, a block, another body) as a part of the body. The handlers are
+`okay.rows`' own, the library's `State.run` among them.
+
+Such a body runs the same with the plugin and without, as a body in "Without the plugin" does: an operation its
+handler answers in place is answered on the body's own stack; where a handler takes the rest, the body waits on a
+stack of its own and goes on once; left (`k.unwind()`), its `finally` blocks run; a handler that resumes its rest
+twice is refused when it does. `d` is valid in its own body, while it runs.
+
+Measured roughly (one run, a million questions in a `for`, no flags, ns a question): 6 under a handler that only
+answers, 12 under a clause that only resumes.
+
 ## The boundary
 
 `Direct.row(E1.class, ..).of(body)` names the row once, in the order of its handlers, and gives a

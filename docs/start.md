@@ -518,7 +518,10 @@ What to know:
   program of the list, and that type can be written.
 - `of` and `row` exist for one to eight effects.
 - A block of a set asks the operations of ONE effect in a round as one set — a handler with a clause for sets
-  (section 3) answers them in one query. Plain Java (`okay.resumable`) is of rows of places only, for now.
+  (section 3) answers them in one query.
+- Plain Java of a row that is a set is `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })` of
+  `okay.resumable`: nothing declared for an effect, no `throws`; with the plugin or without (resumable/README.md,
+  "A body of a row that is a set").
 - Measured roughly (two runs, a million questions under four handlers, ns a question, a set against places):
   `answering` 16 and 15, a clause with `k` 16 and 18, a state 20 and 22.
 

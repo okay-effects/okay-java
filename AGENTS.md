@@ -125,7 +125,9 @@ R>> c)`, `State.run`, `Clock.at`, any written before — and the set is written 
 `Sets.<R>keep().row(of(Abort.class)).of(part)`. Such an operation goes to no place: the nearest handler whose
 effect it is of answers, and a handler knows its effect's class from where it is made (not where the effect is a
 type variable there). Blocks are `Sets.together`; `import static okay.rows.Sets.*` has `answering`, `handle`, `run`
-and `pure` too. Not there yet for sets: plain Java. `BookingSets` in the tests is a real flow of seven effects.
+and `pure` too. Plain Java of such a row: `Direct.body(d -> { String ref = d.perform(new Ids.Ref("B")); .. })`
+(okay-java-resumable; nothing declared for an effect, no `throws`, with the plugin or without; the rest once).
+`BookingSets` in the tests is a real flow of seven effects.
 
 ### The other forms
 
