@@ -114,6 +114,18 @@ clock — are best ONE place of the row: `sealed interface Shop<T> extends Opera
 with no `up` and sub-programs used as they are; the handler one `switch` over the family, each part answered by its
 own function (docs/start.md; `Booking` and `BookingOne` in the tests are a real flow written both ways).
 
+**Many effects, no places: rows as sets** (`okay.rows.Sets`, docs/start.md section 8). A program's row is a type
+bounded by its effects, in any order — `static <R extends Ids & Clock> Comp<String, R> stamp()` — asked by
+`Sets.perform(op)`; a program of fewer effects is used in one of more as it is, with no `up`, no `fit` and no name
+for the row. The effect is declared with no type argument, each operation naming its answer and its effect:
+`sealed interface Ids { record Ref(String p) implements Ids, Operation<String, Ids> {} }`. Handlers are functions
+as above, of a row that is a list — `static <A, R> Comp<A, R> identified(Comp<A, ? super And<Ids, R>> c)`, with
+`Sets.answering` / `Sets.handle` — and the set is written as a list once, where they are put:
+`var app = row(of(Store.class, Ids.class)); run(identified(stored(app.of(program))))`; inside a program,
+`Sets.<R>keep().row(of(Abort.class)).of(part)`. An operation finds its handler by its effect's class (the nearest
+answers). Not there yet for sets: blocks, sets of operations, `okay.rows.std`, plain Java. `BookingSets` in the
+tests is a real flow of seven effects written so.
+
 ### The other forms
 
 Needed for a reason each; all work together with the above.

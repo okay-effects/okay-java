@@ -402,7 +402,102 @@ the same questions as a chain and as a block, two runs:
 A small block pays for being a block; a large one costs about one and a half times a chain. It pays back where a
 round saves a query: one call to a database is a million of these.
 
-## 8. The other forms
+## 8. Rows as sets
+
+Everything above gives each effect a place in the row. `okay.rows.Sets` is the same model with no places: a
+program's row is a type bounded by the effects it asks, in any order. `SetsTest` compiles and runs the examples of
+this section; `BookingSets` in the tests is a real flow of seven effects written so.
+
+```java
+import static okay.rows.Sets.*;
+import okay.rows.Sets.And;
+
+// an effect: each operation names its answer and its effect
+sealed interface Ids { record Ref(String prefix) implements Ids, Operation<String, Ids> {} }
+sealed interface Clock { record Now() implements Clock, Operation<Long, Clock> {} }
+
+// a program: its row is the set of what it asks
+static <R extends Ids & Clock> Comp<String, R> stamp(String prefix) {
+  return perform(new Ids.Ref(prefix)).flatMap(ref -> perform(new Clock.Now()).map(now -> ref + "@" + now));
+}
+
+// a program of more effects uses it as it is
+static <R extends Clock & Mail & Store & Ids> Comp<String, R> reserve(String who) {
+  return stamp("B").flatMap(ref ->
+      perform(new Store.Put(ref, who)).flatMap(ok -> perform(new Mail.Send(who)).map(sent -> ref)));
+}
+```
+
+`perform` is `<T, F, R extends F> Comp<T, R> perform(Op<F, T, ?> op)`: that the row has the effect is the one bound
+`R extends F`. There is no `up`, no `fit` and no name for the row; a class can name it once for its methods:
+`final class Booking<R extends Store & Mail & Ids & Clock> { Comp<String, R> told(..) {..} }`.
+
+The effect is declared differently from section 1, and has to be. Java refuses a type that inherits one generic
+interface with two different arguments, so two effects that each extend `Operation<T, Self>` can never bound the
+same row. Here the interface has no supertype, and each record says `Operation<Answer, Effect>`.
+
+A handler is a function over a program, given the continuation, as in section 3 — of a row that is a LIST,
+`And<F, R>`: "this effect, and the rest" can be said of a list only.
+
+```java
+static <A, R> Comp<A, R> identified(Comp<A, ? super And<Ids, R>> c) {
+  return answering(op -> switch (op) { case Ids.Ref r -> r.answer(r.prefix() + "-1"); }, c);
+}
+<A, R> Comp<A, R> stored(Comp<A, ? super And<Store, R>> c) {
+  return handle((op, k) -> switch (op) {
+    case Store.Put p -> { db.put(p.key(), p.value()); yield k.resume(p, true); }
+    case Store.Get g -> k.resume(g, Optional.ofNullable(db.get(g.key())));
+  }, c);
+}
+static <A, R> Comp<A, R> numbered(Comp<A, ? super And<Ids, R>> c) {                 // a state
+  return handle(1, (n, op, k) -> switch (op) { case Ids.Ref r -> k.resume(r, r.prefix() + "-" + n, n + 1); }, c);
+}
+static <A, R> Comp<Optional<A>, R> attempt(Comp<A, ? super And<Abort, R>> c) {       // another value; the rest left
+  return handle(a -> pure(Optional.of(a)), (op, k) -> pure(Optional.empty()), c);
+}
+```
+
+Where the handlers are put, the set is written as a list, once:
+
+```java
+var app = row(of(Store.class, Mail.class, Ids.class, Clock.class));
+String ref = run(clocked(42, identified(mailed(stored(app.of(reserve("Ann")))))));
+```
+
+`app.of(p)` takes a program that asks nothing but the effects named, and gives it as a program of their list, in
+the order of the handlers. Inside a program, a handler around a part of it leaves the rest in the program's own row:
+
+```java
+static <R extends Ids & Clock> Comp<Optional<String>, R> careful(boolean fail) {
+  return attempt(Sets.<R>keep().row(of(Abort.class)).of(orFail(fail)));
+}
+```
+
+A clause that asks another effect asks it through its continuation, which knows the list that stays:
+`ask(k, new Clock.Now()).flatMap(now -> .. k.resume(s, null))`, in a handler whose type says that list has it —
+`<A, R> Comp<A, And<Clock, R>> audited(Comp<A, ? super And<Mail, And<Clock, R>>> c)`.
+
+What javac refuses, each a program in `src/test/negative/rows`: an operation of an effect the row is not bounded
+by; a program that asks more than the list names; a handler missing at `run`; handlers out of the list's order; a
+handler given a program whose set was not written as a list; a handler inside a program that leaves an effect the
+row has not; `ask(k, ..)` of an effect the list that stays may not have.
+
+What to know:
+
+- An operation finds its handler by the CLASS of its effect: the nearest handler of that effect answers. Two
+  handlers of one effect are two scopes, not two places; an effect with type arguments of its own is one effect
+  whatever they are.
+- The value `row(..)` gives has a type that cannot be written — an intersection javac inferred — so it lives in a
+  `var` or in the expression, not in a field. The handlers' nest can be a function of its own: its parameter is a
+  program of the list, and that type can be written.
+- `of` and `row` exist for one to eight effects.
+- The two kinds of row are different types: `Effects`' handlers take no program of a set, and `Sets`' none of
+  places. Blocks (`together`), sets of operations asked at once, the library's effects (`okay.rows.std`) and
+  plain Java (`okay.resumable`) are of rows of places only, for now.
+- Measured roughly (one run, a million questions under four handlers, ns a question): `answering` 25, a clause
+  with `k` 19, a state 29 — against 12 to 23 for rows of places, where the nearest route is kept.
+
+## 9. The other forms
 
 The page above is the whole of what most code needs. The rest is there for a reason each:
 
