@@ -245,7 +245,8 @@ val testNoFlags by tasks.registering(Test::class) {
     testClassesDirs = files(resumableTestClasses)
     classpath = files(resumableTestClasses) +
         (sourceSets.test.get().runtimeClasspath - sourceSets.test.get().output.classesDirs)
-    filter { includeTestsMatching("okay.resumable.NoPluginTest"); includeTestsMatching("okay.resumable.SetBodyTest") }
+    filter { includeTestsMatching("okay.resumable.NoPluginTest"); includeTestsMatching("okay.resumable.SetBodyTest")
+        includeTestsMatching("okay.resumable.BookingBodyTest") }
     jvmArgs("-Xss512k")
     systemProperty("okay.resumable.expect", "threads")
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
