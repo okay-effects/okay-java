@@ -425,6 +425,12 @@ round saves a query: one call to a database is a million of these.
 
 - An operation goes to no place: on its way out, the nearest handler whose effect it is of answers. Two handlers
   of one effect are two scopes; an effect with type arguments is one effect whatever they are.
+- So a handler put around a program GIVEN to a function — one generic in its row, `<A, R> Comp<A, R> at(long time,
+  Comp<A, R> part)` with a clock of its own inside — is that program's nearest too, and answers its operations of
+  that effect, though the type says they pass. With an effect with type arguments of other arguments (a
+  `State<String>` inside, a `State<Integer>` given) that is a `ClassCastException`. A function that needs an
+  effect of its own inside a program it is given declares one for itself, or uses a row of places for it
+  ([places.md](places.md)), where the two are two places.
 - A handler knows the class of its effect from where it is made — `answering(.., c)` in a method whose parameter
   says `Eff<Prices, R>`, `handle(State.class, ..)`. Write a handler where its effect is a named type: in a helper
   generic in the effect (`<F> .. Eff<F, R>`) it learns none, and an operation finds no handler when it is asked.

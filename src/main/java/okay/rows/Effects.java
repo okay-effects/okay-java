@@ -222,9 +222,10 @@ public final class Effects {
   }
 
   /** the operations of {@code F}, the first effect of the program's row, answered by {@code h}: all those the row
-   * sends here, and no other. {@code F} leaves the row: {@code R} is what is under it. An operation finds this
-   * handler by its place in the row; {@code effect}, the class of the operations of {@code F}, only names the
-   * effect: the machine does not test it, for the types say every operation that comes here is an {@code F}. */
+   * sends here, and no other. {@code F} leaves the row: {@code R} is what is under it. An operation asked by place
+   * finds this handler by its place in the row, and the machine does not test its class: the types say it is an
+   * {@code F}. One asked by its class ({@link Sets#perform}) finds the nearest handler whose {@code effect} it is
+   * an instance of — so {@code effect} is the class of the operations of {@code F}, and no wider one. */
   public static <F, A, B, R> Comp<B, R> handle(
       Class<? super F> effect, Handler<F, A, B, R> h, Comp<A, ? super Eff<F, R>> p) {
     return new Comp<>(DOOR.handle(new Handlers.General<>(effect, h, true), null, p.eff));

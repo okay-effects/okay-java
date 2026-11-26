@@ -360,7 +360,8 @@ public final class Sets {
    * parameter, and {@code SHOP.run(program)} is refused by javac for a program that asks more. javac also refuses a
    * list that names an effect the parameter is not bounded by. That the parameter is bounded by no effect the
    * list has NOT — one without a handler — javac cannot see: {@code row} checks it when it is called, by the
-   * bounds of {@code named}'s first type parameter, and refuses there */
+   * bounds of {@code named}'s first type parameter, and refuses there. {@code named} must be the class whose
+   * parameter {@code V} is: nothing ties the two, and another class's bounds would be checked in its place */
   public static <V> Exactly<V> exactly(Class<?> named) {
     return new Exactly<>(named);
   }
@@ -375,15 +376,25 @@ public final class Sets {
     private void check(Named listed) {
       if (named.getTypeParameters().length == 0) throw new IllegalArgumentException("okay.rows.Sets: "
           + named.getName() + " has no type parameter to name a set");
-      for (java.lang.reflect.Type bound : named.getTypeParameters()[0].getBounds()) {
-        Class<?> effect = bound instanceof java.lang.reflect.ParameterizedType p ? (Class<?>) p.getRawType()
-            : bound instanceof Class<?> c ? c : null;
-        if (effect == null || effect == Object.class) continue;
+      java.util.ArrayList<Class<?>> bounds = new java.util.ArrayList<>();
+      bounds(named.getTypeParameters()[0], bounds, 0);
+      for (Class<?> effect : bounds) {
         boolean has = false;
         for (Class<?> c : listed.effects) has |= c == effect;
         if (!has) throw new IllegalStateException("okay.rows.Sets: " + named.getName() + " is bounded by "
             + effect.getName() + ", which the list of its handlers does not name: a program could ask it, and "
             + "nothing would answer");
+      }
+    }
+
+    /** the classes a type is bounded by: its own, or — a type variable — those of its bounds */
+    private static void bounds(java.lang.reflect.Type t, java.util.List<Class<?>> into, int depth) {
+      if (t instanceof Class<?> c) {
+        if (c != Object.class) into.add(c);
+      } else if (t instanceof java.lang.reflect.ParameterizedType p) {
+        into.add((Class<?>) p.getRawType());
+      } else if (t instanceof java.lang.reflect.TypeVariable<?> v && depth < 16) {
+        for (java.lang.reflect.Type b : v.getBounds()) bounds(b, into, depth + 1);
       }
     }
 

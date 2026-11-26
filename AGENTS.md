@@ -253,6 +253,10 @@ body waits on a virtual thread of its own and goes on once. The plugin adds a re
   answers by its place only, and an operation asked by `Sets.perform` passes it — "an operation with no handler in
   force" when it is asked. With a bound (`<F extends Shop>`) the class learnt is the bound's, and the handler takes
   every operation of the bound asked so.
+- Rows as sets have no places: a handler put around a program GIVEN to a function generic in its row is that
+  program's nearest too and answers its operations of that effect; with a generic effect of other type arguments
+  (`State<String>` inside, `State<Integer>` given) that is a `ClassCastException`. Give such a function an effect
+  of its own, or a row of places for it.
 - `intercept(Class, ..)` only for an effect without type arguments; intercept `State<S>`-like ones at their place,
   `handle(.., under(p))`.
 - In an interceptor go on with `k.after(op, c)`, not `c.flatMap(x -> k.resume(op, x))`: the latter leaves the rest

@@ -243,9 +243,16 @@ final class Driver {
   @SuppressWarnings("unchecked") // the value is the sub-program's A, as the caller's embed says
   static <T> T embed(Class<?>[] row, Comp<?, ?> sub) {
     Ctx c = CTX.get();
-    if (c == null) throw new IllegalStateException("okay.resumable: Direct.row(..).embed was called where no program "
+    String word = row == BY_CLASS ? "a Direct.body's d.embed" : "Direct.row(..).embed";
+    if (c == null) throw new IllegalStateException("okay.resumable: " + word + " was called where no program "
         + "runs: it runs a sub-program as a part of the program that calls it — call it from a program's body or a "
         + "direct-style clause; a program by itself is run by Effects.run");
+    // a body of a set and a row of places do not meet here: the one asks by class, the other by place
+    if ((row == BY_CLASS) != (c.prog().row == BY_CLASS)) throw new IllegalStateException("okay.resumable: "
+        + (row == BY_CLASS ? "d.embed of a Direct.body was called by a program of a row of places"
+            : "Direct.row(" + names(row) + ").embed was called inside a Direct.body, whose row is a set")
+        + ": a body of a set embeds programs of its set with its own d.embed(..), a program of a row of places "
+        + "with Direct.row(..).embed(..)");
     Comp<Object, Object> part = fitted(row, c.prog().row, (Comp<Object, Object>) sub);
     BodyRun r = c.loom();
     if (r != null && r.plain && r.current()) {
@@ -540,7 +547,7 @@ final class Driver {
 
   @SuppressWarnings({"unchecked", "rawtypes"}) // the operation is of the row's effect at `place`: rows are types only
   private static Comp<Object, Object> ask(Object op, int place) {
-    if (place >= okay.core.Rows.FAR / 2) return okay.rows.Sets.perform((Op) op);
+    if (place >= okay.core.Rows.FAR / 2 && !(op instanceof Sensitive.Op)) return okay.rows.Sets.perform((Op) op);
     Comp c = op instanceof Sensitive.Op s ? Audit.perform(s) : Effects.perform((Op) op);
     for (int i = 0; i < place; i++) c = Effects.up(c);
     return c;

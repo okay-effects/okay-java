@@ -443,4 +443,23 @@ class SetsTest {
     assertEquals("inner stopped", run(heard("outer", seen, row(of(Say.class)).of(inner(seen)))));
     assertEquals(List.of(), seen);
   }
+
+  // ---- no places: a handler around a program GIVEN to a function answers that program's operations too
+
+  /** a function generic in the row, with a clock of its own inside: the part's Now is answered by it as well */
+  static <A, R> Comp<A, R> at(long time, Comp<A, R> part) {
+    return clocked(time, Sets.<R>keep().row(of(Clock.class)).of(part));
+  }
+
+  @Test
+  void aHandlerAroundAGivenProgramIsThatProgramsNearest() {
+    var whole = row(of(Clock.class));
+    Comp<Long, Eff<Clock, okay.effect.Pure>> p = whole.of(SetsTest.<Clock>given());
+    assertEquals(2L, run(clocked(100, p)));
+  }
+
+  static <R extends Clock> Comp<Long, R> given() {
+    return SetsTest.<Long, R>at(1, perform(new Clock.Now()))
+        .flatMap(a -> at(1, perform(new Clock.Now())).map(b -> a + b));
+  }
 }
