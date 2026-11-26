@@ -43,11 +43,11 @@
         {
           "name": "okay-java-0.1.0.jar",
           "url": "okay-java-0.1.0.jar",
-          "size": 260634,
-          "sha512": "b8d6819c701998be5b7ca25a869bc102daf29304da2a6800c982fac1f517153e0546d78275fb29f4ec18b7285bede726ddda01bf141be2bd342f723e3e739569",
-          "sha256": "c8d44ed1077f146f808330ee5624aceedd1b6f30451e6efe4c1e772a11af693b",
-          "sha1": "f71e7378e88f4d245527135e2ba1e975e2cddf0c",
-          "md5": "cccf839b544cf62b58b4b227751cd9fb"
+          "size": 333167,
+          "sha512": "0e085aa86589a23c27b53fcd0ece2dc28764c6250913dfa92aabe2f8028ac3a55a480efea8606b901c12eefe1af801be5952d19faf29252201f65ac8c83939b1",
+          "sha256": "136b740b3816cd7595da6b0b7b1a9015b55d076aaaa37d72d77ad3a477c96263",
+          "sha1": "732af984e111fbc7f705e64a84ca71cdee0e7ccf",
+          "md5": "4e36e5800ea809fa0d84fd35ba53a00f"
         }
       ]
     },
@@ -80,11 +80,11 @@
         {
           "name": "okay-java-0.1.0.jar",
           "url": "okay-java-0.1.0.jar",
-          "size": 260634,
-          "sha512": "b8d6819c701998be5b7ca25a869bc102daf29304da2a6800c982fac1f517153e0546d78275fb29f4ec18b7285bede726ddda01bf141be2bd342f723e3e739569",
-          "sha256": "c8d44ed1077f146f808330ee5624aceedd1b6f30451e6efe4c1e772a11af693b",
-          "sha1": "f71e7378e88f4d245527135e2ba1e975e2cddf0c",
-          "md5": "cccf839b544cf62b58b4b227751cd9fb"
+          "size": 333167,
+          "sha512": "0e085aa86589a23c27b53fcd0ece2dc28764c6250913dfa92aabe2f8028ac3a55a480efea8606b901c12eefe1af801be5952d19faf29252201f65ac8c83939b1",
+          "sha256": "136b740b3816cd7595da6b0b7b1a9015b55d076aaaa37d72d77ad3a477c96263",
+          "sha1": "732af984e111fbc7f705e64a84ca71cdee0e7ccf",
+          "md5": "4e36e5800ea809fa0d84fd35ba53a00f"
         }
       ]
     },
@@ -100,11 +100,11 @@
         {
           "name": "okay-java-0.1.0-sources.jar",
           "url": "okay-java-0.1.0-sources.jar",
-          "size": 70542,
-          "sha512": "c9c6daa9a03ba1c09c564152c88747739c4d190ff4775312575cea16f1c1d56dd8ff1a3f8a412b3b96977b4dd38dd929486ebebf301e281925ec1cb868bf9af6",
-          "sha256": "8814e7cb664c8879d660bbc5290fe43ba2a526477103cce2e3371e0c074a8bf1",
-          "sha1": "a77cdc3c9a4642b070f2428eb7b2bb7ef2b41aa2",
-          "md5": "1e0ea0ba1cf5d8db3f3b2227722958d3"
+          "size": 100630,
+          "sha512": "22ac7d87ea04f7f0be85e9d5c857b0685f1a0707b25a4061bb23baa0140ff7f1e9e3ad1821d6b1723bf53da70d8f03aabaf6c291f37f6be14abd9fe59dcfda30",
+          "sha256": "b6518349b5fcea4c634a5e8d6ad205bdd74a9317e6866c10ff58cf83198cee91",
+          "sha1": "150fa615827acbb1161661393eeae9a1d4cac8b1",
+          "md5": "c6153a02a5c4a08633071c5c8c29f111"
         }
       ]
     },
@@ -120,11 +120,11 @@
         {
           "name": "okay-java-0.1.0-javadoc.jar",
           "url": "okay-java-0.1.0-javadoc.jar",
-          "size": 4523970,
-          "sha512": "4a9079b7d4dda541cabad61af626af85955f40a90d546630a8358ba32133c0eb28db6aabc70bec4df8b6999f917449a8f4656e306cc8790eee052fbe8d0b2dc6",
-          "sha256": "ac750ac61086ac627aa366fff892bd9dd8886a407e17cc9a533ee0b315439236",
-          "sha1": "f1d4d6def3b936dfb3d6c7b129a545ebfc58cdc3",
-          "md5": "9cc8fd9eb203fa2b6e1e091be53ea0d0"
+          "size": 4668402,
+          "sha512": "67edc7be7db009abe1a34f58d4427b9c4a3c978c065e861d640279c11e0432e55485d1b456a3d7d95eec4c2ae4b8f0f7797e651ffbce437c731288d9600763d6",
+          "sha256": "25e30d9bd0a50976880a9c791a5ce032d6383000f320d2b1f9610bf2659c049a",
+          "sha1": "f30119300dcffbb2b947fab5f2467425b0de6e3d",
+          "md5": "01771c0044e480439fea606d24b0af57"
         }
       ]
     }
